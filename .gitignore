@@ -1,0 +1,8 @@
+roster.json
+runtime/
+node_modules/
+*.sqlite*
+.DS_Store
+tmp/
+test-results/
+*.log

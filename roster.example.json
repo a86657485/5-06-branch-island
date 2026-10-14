@@ -1,0 +1,8 @@
+{
+  "classes": [
+    { "id": "501", "students": [{ "id": "demo-501-01", "name": "示例同学甲" }, { "id": "demo-501-02", "name": "示例同学乙" }] },
+    { "id": "502", "students": [{ "id": "demo-502-01", "name": "示例同学丙" }] },
+    { "id": "503", "students": [{ "id": "demo-503-01", "name": "示例同学丁" }] },
+    { "id": "504", "students": [{ "id": "demo-504-01", "name": "示例同学戊" }] }
+  ]
+}

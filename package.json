@@ -1,0 +1,12 @@
+{
+  "name": "branch-island-5-06",
+  "version": "1.0.0",
+  "private": true,
+  "description": "五年级第6课判断选择用分支：分支冒险岛课堂应用",
+  "engines": { "node": ">=22.13.0" },
+  "scripts": {
+    "start": "node server.cjs",
+    "test": "node --test tests/*.test.cjs tests/*.test.mjs"
+  },
+  "license": "UNLICENSED"
+}
