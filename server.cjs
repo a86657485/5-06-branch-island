@@ -6,12 +6,13 @@ const crypto = require('node:crypto');
 const { isIP } = require('node:net');
 const { DatabaseSync } = require('node:sqlite');
 const rules = require('./public/rules.js');
-const { questions } = require('./quiz.cjs');
+const adventure = require('./public/adventure-rules.js');
+const { questions, version:quizVersion } = require('./quiz.cjs');
 const BASE = __dirname;
 const CLASSES = ['501', '502', '503', '504'];
 const ROUND = 1;
 const APP_ID = 'branch-island-5-06';
-function fail(status, message) { throw Object.assign(new Error(message), { status }); }
+function fail(status, message, code) { throw Object.assign(new Error(message), { status, code }); }
 function checkedRule(action) { try { return action(); } catch (error) { fail(400,error.message); } }
 function isPrivateAddress(address) {
   if (!address) return false;
@@ -108,13 +109,22 @@ function createService(options = {}) {
       if (['prediction','reason'].some(field => field in payload && typeof payload[field] !== 'string')) fail(400, '草稿预测与理由请使用页面中的文字选择');
       if ('input' in payload) {
         if (!payload.input || typeof payload.input !== 'object' || Array.isArray(payload.input)) fail(400, '草稿输入格式不正确，请重新设置实验输入');
-        const fields = id === 'cross' ? ['facility'] : id === 'minimum' ? ['a','b'] : ['height'];
+        const fields = id === 'cross' ? ['facility'] : id === 'minimum' ? ['a','b'] : payload.config?.model === 'ventilation' ? ['temperature'] : ['height'];
         if (fields.some(field => field in payload.input && (id === 'cross' ? typeof payload.input[field] !== 'boolean' : !Number.isFinite(payload.input[field])))) fail(400, '草稿输入请使用页面中的数字或现场情况选择');
       }
+      if ('scene' in payload) payload.scene = checkedRule(() => adventure.validateSceneDraft(payload.scene));
       if (id === 'quiz') {
         if (!Array.isArray(payload.answers) || payload.answers.length !== 20 || payload.answers.some(answer => answer !== null && (!Number.isInteger(answer) || answer < 0 || answer > 3)) || !Number.isInteger(payload.index) || payload.index < 0 || payload.index > 19) fail(400, '考核草稿格式不正确');
       } else if ('config' in payload) checkedRule(() => rules.normalizeConfig(id,payload.config,true));
       if (editedAt >= (meta.draftTimes[id] ?? -1)) {
+        if (id !== 'quiz' && payload.scene?.version === 1) {
+          meta.sceneVersions ||= {};
+          if (meta.sceneVersions[id] !== 1) {
+            state.levels[id].evidenceStart = state.runs[id].length;
+            state.levels[id].valid = false;
+            meta.sceneVersions[id] = 1;
+          }
+        }
         state.drafts[id] = payload;
         meta.draftTimes[id] = editedAt;
         if (id !== 'quiz' && payload.config) useConfig(record,id,payload.config,true);
@@ -123,12 +133,14 @@ function createService(options = {}) {
     } else if (body.type === 'run') {
       const config = checkedRule(() => rules.normalizeConfig(id,payload.config));
       const evaluated = checkedRule(() => rules.evaluate(id,config,payload.input));
+      const scene = 'sceneEvidence' in payload ? checkedRule(() => adventure.validateEvidence(id,payload.sceneEvidence,payload.input,evaluated)) : null;
+      if (scene && 'prediction' in payload && payload.prediction !== scene.prediction) fail(400, '场景预测与当前预测不一致，请重新确认');
       // 实验始终累计；过时补传不替换当前草稿中的方案。
       if (!state.drafts[id]?.config || draftConfigKey(id,state.drafts[id].config) === rules.configKey(id,config)) useConfig(record,id,config);
-      state.runs[id].push({ config, input: payload.input, ...evaluated, at: now() });
+      state.runs[id].push({ config, input: payload.input, ...evaluated, ...(scene ? { scene } : {}), at: now() });
       result = evaluated;
     } else if (body.type === 'prediction') {
-      const choices = id === 'cross' ? ['bridge','crossing'] : id === 'minimum' ? ['a','b'] : ['5','10'];
+      const choices = id === 'cross' ? ['bridge','crossing'] : id === 'minimum' ? ['a','b'] : payload.config?.model === 'ventilation' ? ['on','off'] : ['5','10'];
       if (!choices.includes(payload.value)) fail(400, '请选择本次输出预测');
       const config = checkedRule(() => rules.normalizeConfig(id,payload.config));
       checkedRule(() => rules.evaluate(id,config,payload.input));
@@ -150,12 +162,13 @@ function createService(options = {}) {
         }
       }
     } else {
+      if ('quizVersion' in payload && payload.quizVersion !== quizVersion) fail(409, '检测题库版本已更新，旧作答已保留，请重新打开检测后再提交', 'QUIZ_VERSION_MISMATCH');
       if (!Array.isArray(payload.answers) || payload.answers.length !== 20 || payload.answers.some(answer => !Number.isInteger(answer) || answer < 0 || answer > 3)) fail(400, '20题全部作答后才能提交');
       const details = questions.map((question,index) => ({ id: question.id, answer: payload.answers[index], correctAnswer: question.answer, correct: payload.answers[index] === question.answer, explanation: question.explanation }));
       const score = details.filter(detail => detail.correct).length;
-      const attempt = { id: body.eventId, score, total: 20, at: now(), details };
+      const attempt = { id: body.eventId, quizVersion, score, total: 20, at: now(), details };
       state.attempts.push(attempt);
-      state.drafts.quiz = { answers: Array(20).fill(null), index: 0 };
+      state.drafts.quiz = { answers: Array(20).fill(null), index: 0, quizVersion };
       meta.draftTimes.quiz = Math.max(meta.draftTimes.quiz || 0, Number.isFinite(body.editedAt) ? body.editedAt : Date.now());
       result = { score, total: 20, details };
     }
@@ -177,11 +190,11 @@ function createService(options = {}) {
     const examined = students.filter(student => student.state.attempts.length);
     const mean = select => examined.length ? Math.round(examined.reduce((sum,student) => sum + select(student.state.attempts).score,0) / examined.length * 10) / 10 : null;
     const misconceptions = questions.map(question => {
-      const records = examined.map(student => student.state.attempts[0].details.find(detail => detail.id === question.id)).filter(Boolean);
+      const records = examined.map(student => student.state.attempts.find(attempt => attempt.quizVersion === quizVersion)?.details.find(detail => detail.id === question.id)).filter(Boolean);
       return { id: question.id, prompt: question.prompt, incorrect: records.filter(detail => !detail.correct).length, total: records.length };
     }).filter(item => item.incorrect).sort((a,b) => b.incorrect-a.incorrect).slice(0,5);
     const summary = { total: students.length, entered, notEntered: students.length-entered, completed: students.filter(student => rules.levels.every(level => student.state.levels[level.id].completed)).length, points: students.reduce((sum,student) => sum+student.state.points,0), quizFirstAverage: mean(attempts => attempts[0]), quizLatestAverage: mean(attempts => attempts.at(-1)), quizAttempts: students.reduce((sum,student) => sum+student.state.attempts.length,0), levels: Object.fromEntries(rules.levels.map(level => [level.id,{ completed: students.filter(student => student.state.levels[level.id].completed).length, valid: students.filter(student => student.state.levels[level.id].valid).length }])), misconceptions };
-    return { round: ROUND, updatedAt: now(), classes: classes(), students, summary };
+    return { round: ROUND, quizVersion, updatedAt: now(), classes: classes(), students, summary };
   }
   const mime = { '.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.mjs':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2','.mp3':'audio/mpeg','.wav':'audio/wav' };
   function json(res,status,data) { res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data)); }
@@ -200,7 +213,7 @@ function createService(options = {}) {
       if (req.method === 'POST') checkOrigin(req);
       if (req.method === 'GET' && route === '/api/config') return json(res,200,{appId:APP_ID,round:ROUND,levels:rules.levels});
       if (req.method === 'GET' && route === '/api/roster') return json(res,200,{classes:classes()});
-      if (req.method === 'GET' && route === '/api/quiz') return json(res,200,{questions:questions.map(({answer,explanation,...question})=>question)});
+      if (req.method === 'GET' && route === '/api/quiz') return json(res,200,{quizVersion,questions:questions.map(({answer,explanation,...question})=>question)});
       if (req.method === 'GET' && route === '/api/state') {
         const student=studentById(url.searchParams.get('studentId'));if(!student) fail(404,'学生身份不存在');
         return json(res,200,{student,round:ROUND,state:recordFor(student.id).state});
@@ -229,10 +242,10 @@ function createService(options = {}) {
       if (!name || name.split('/').some(part=>part.startsWith('.') || !part) || !mime[path.extname(name)]) fail(404,'文件不存在');
       const publicDir=path.join(BASE,'public');const file=path.join(publicDir,name);
       if (!fs.existsSync(file) || !fs.statSync(file).isFile() || !fs.realpathSync(file).startsWith(fs.realpathSync(publicDir)+path.sep)) fail(404,'文件不存在');
-      res.writeHead(200,{'Content-Type':mime[path.extname(name)],'Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"});
+      res.writeHead(200,{'Content-Type':mime[path.extname(name)],'Cache-Control':name.startsWith('assets/')?'public, max-age=86400':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"});
       if (req.method==='HEAD') return res.end();
       fs.createReadStream(file).pipe(res);
-    } catch(error) { if (!res.headersSent) json(res,error.status || (error instanceof URIError ? 400 : 500),{error:error.status || error instanceof URIError ? error.message : '课堂服务暂时无法处理请求，请重试'});if(!error.status && !(error instanceof URIError)) console.error(error); }
+    } catch(error) { if (!res.headersSent) json(res,error.status || (error instanceof URIError ? 400 : 500),{error:error.status || error instanceof URIError ? error.message : '课堂服务暂时无法处理请求，请重试',...(error.code?{code:error.code}:{})});if(!error.status && !(error instanceof URIError)) console.error(error); }
   });
   return { server, close: () => new Promise((resolve,reject) => { server.close(error => { try {db.close();} catch(closeError) {error ||= closeError;} if(error) reject(error);else resolve(); });server.closeIdleConnections(); }) };
 }

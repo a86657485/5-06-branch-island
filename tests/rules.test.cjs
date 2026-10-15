@@ -68,3 +68,30 @@ test('方案修改后只接受本次修改之后的实验，维修诊断仍可�
   repaired.push(...[119,120,121].map(height=>run('repair',repair,{height})));
   assert.equal(rules().validateComplete('repair',repair,repaired,'swap',4).passed,true);
 });
+const ventilation={model:'ventilation',operator:'>=',yes:'on',no:'off'};
+const ventilationReverse={model:'ventilation',operator:'<',yes:'off',no:'on'};
+const ventilationBroken={model:'ventilation',operator:'>=',yes:'off',no:'on'};
+test('温室试运行模型在30度边界启动风机，两种判断方向等价',()=>{
+  for(const config of [ventilation,ventilationReverse])for(const temperature of [29,30,31]){
+    const result=rules().evaluate('sale',config,{temperature});
+    assert.equal(result.correct,true);assert.equal(result.output,temperature>=30?'on':'off');assert.match(result.trace.join(' '),/温度|风机/);
+  }
+  assert.deepEqual(rules().normalizeConfig('sale',ventilation),ventilation);
+  assert.notEqual(rules().configKey('sale',ventilation),rules().configKey('sale',sale));
+  assert.throws(()=>rules().evaluate('sale',ventilation,{height:120}),/温度/);
+  assert.throws(()=>rules().normalizeConfig('sale',{...ventilation,yes:'5'}),/分支/);
+});
+test('温室模型单独要求29、30、31测试，旧门票实验不能计入当前方案',()=>{
+  const all=[29,30,31].map(temperature=>run('sale',ventilation,{temperature}));
+  assert.equal(rules().validateComplete('sale',ventilation,all,'boundary').passed,true);
+  assert.equal(rules().validateComplete('sale',ventilation,all.slice(0,2),'boundary').passed,false);
+  assert.equal(rules().validateComplete('sale',ventilation,[...all.slice(0,2),run('sale',sale,{height:121})],'boundary').passed,false);
+  assert.equal(rules().validateComplete('sale',ventilation,all,'boundary',3).passed,false);
+});
+test('温室维修先观察30度错误关机，修订后才复验；旧门票诊断不能充数',()=>{
+  const all=[29,30,31].map(temperature=>run('repair',ventilation,{temperature}));
+  assert.equal(rules().validateComplete('repair',ventilation,[run('repair',broken,{height:120}),...all],'swap').passed,false);
+  const diagnosed=run('repair',ventilationBroken,{temperature:30});assert.equal(diagnosed.correct,false);
+  assert.equal(rules().validateComplete('repair',ventilation,[...all,diagnosed],'swap').passed,false);
+  assert.equal(rules().validateComplete('repair',ventilation,[diagnosed,...all],'swap').passed,true);
+});

@@ -1,0 +1,59 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import rules from '../public/rules.js';
+
+function appHarness() {
+ const nodes = new Map();
+ const node = key => { if (!nodes.has(key)) nodes.set(key, { innerHTML:'', textContent:'', hidden:false, classList:{add(){},remove(){}}, addEventListener(){}, showModal(){},close(){} }); return nodes.get(key); };
+ const storage = new Map(), scenes = [], events = [];
+ const context = vm.createContext({ window:{BranchRules:rules,addEventListener(){}}, location:{search:''},document:{querySelector:node,querySelectorAll:()=>[]},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},URLSearchParams,AbortSignal,Date,JSON,crypto:{randomUUID:()=>`event-${events.length}`},setInterval(){},console,
+  SyncQueue:class {constructor(){this.events=[];}pending(){return 0;}add(e){events.push(e);}async flush(){}},reconcileState:(_local,remote)=>remote,
+  createParkScene:host=>{ const scene={host,destroy(){host.onChange({scene:{version:1,x:20,y:30}});},refresh(){}};scenes.push(scene);return scene; }
+ });
+ let source = fs.readFileSync(new URL('../public/app.mjs',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace(/boot\(\)\.catch[\s\S]*$/,'');
+ source += `\nglobalThis.testApp={renderTask,destroyScene,draft,quizDraft,setState(s){state=s;user={id:'student-a',classId:'501',name:'同学甲'};},setCurrent(id){current=id;},getState(){return state;},setQuizVersion(v){quizVersion=v;},setUser(u){user=u;}};`;
+ vm.runInContext(source,context);
+ return {app:context.testApp,scenes,events,storage};
+}
+const state = () => ({drafts:{},levels:{},runs:{},predictions:{},attempts:[],points:0});
+
+test('场景读取温度模型，实验保存现场证据且不重建场景',()=>{
+ const h=appHarness();h.app.setState(state());h.app.renderTask(0);
+ const host=h.scenes[0].host;
+ assert.equal(host.getDraft().config.model,'ventilation');
+ host.onChange({config:{model:'ventilation',operator:'>=',yes:'on',no:'off'}});
+ const result=host.onExperiment({input:{temperature:30},prediction:'on',sceneEvidence:{version:1,station:'sale',actorId:'sensor30',actions:['measure','predict','ticket','gate'],destination:'on',prediction:'on'}});
+ assert.equal(result.correct,true);assert.equal(h.scenes.length,1);
+ assert.equal(h.app.getState().runs.sale[0].scene.actorId,'sensor30');
+ assert.deepEqual(h.events.filter(e=>e.type==='run')[0].payload.input,{temperature:30});
+});
+
+test('离开场景仍按捕获的关卡保存，身高旧稿迁移保留历史积分',()=>{
+ const h=appHarness(),s=state();s.drafts.sale={config:{operator:'<',yes:'5',no:'10'},input:{height:120},reason:'boundary'};s.runs.sale=[{input:{height:120}}];s.levels.sale={completed:true,valid:true,points:25};s.points=25;
+ h.app.setState(s);h.app.renderTask(0);assert.equal(h.app.getState().runs.sale.length,1);assert.equal(h.app.getState().points,25);assert.equal(h.app.getState().levels.sale.valid,false);assert.equal(h.app.getState().levels.sale.evidenceStart,1);
+ h.app.setCurrent('repair');h.app.destroyScene();
+ assert.equal(h.app.getState().drafts.sale.scene.x,20);assert.equal(h.app.getState().drafts.repair,undefined);
+ assert.equal(h.events.at(-1).levelId,'sale');
+});
+
+test('旧检测未交稿独立归档，不套用新版题库答案索引',()=>{
+ const h=appHarness(),s=state();s.drafts.quiz={answers:[0,...Array(19).fill(null)],index:1};h.app.setState(s);h.app.setQuizVersion('park-v2');
+ const next=h.app.quizDraft();assert.equal(next.quizVersion,'park-v2');assert.equal(next.answers.every(a=>a===null),true);
+ const archive=[...h.storage.entries()].find(([key])=>key.startsWith('branch-island-quiz-archive:'));
+ assert.equal(JSON.parse(archive[1]).draft.answers[0],0);
+});
+
+test('旧路口与配电成绩保留，进入现场后只采用新一轮核验证据',()=>{
+ for(const [idx,id,config,input] of [[2,'cross',{yes:'bridge',no:'crossing'},{facility:true}],[3,'minimum',{operator:'<',yes:'a',no:'b'},{a:3,b:8}]]){
+  const h=appHarness(),s=state();s.drafts[id]={config,input};s.runs[id]=[{input}];s.levels[id]={completed:true,valid:true,points:25};s.points=25;
+  h.app.setState(s);h.app.setCurrent(id);h.app.renderTask(idx);
+  assert.equal(h.app.getState().levels[id].valid,false);assert.equal(h.app.getState().levels[id].evidenceStart,1);assert.equal(h.app.getState().points,25);
+ }
+});
+
+test('温度模型遗留游客场景重置，避免角色与温度输入不符',()=>{
+ const h=appHarness(),s=state();s.drafts.sale={config:{model:'ventilation',operator:'>=',yes:'on',no:'off'},input:{temperature:30},scene:{version:1,actorId:'visitor120'}};s.runs.sale=[{}];s.levels.sale={completed:true,valid:true};
+ h.app.setState(s);h.app.renderTask(0);assert.equal(h.scenes[0].host.getDraft().scene,undefined);assert.equal(s.levels.sale.valid,false);assert.equal(s.levels.sale.evidenceStart,1);
+});

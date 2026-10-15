@@ -53,7 +53,7 @@ test('旧草稿不覆盖新方案，修改使当前验证失效但保留已获�
 });
 test('20题考核提交前不泄漏答案、先完成四关、保留首答最近和历史',async t=>{
   const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
-  const q=await c.api('/api/quiz');assert.equal(q.questions.length,20);assert.equal('answer' in q.questions[0],false);assert.equal('explanation' in q.questions[0],false);
+  const q=await c.api('/api/quiz');assert.equal(q.questions.length,20);assert.equal(q.quizVersion,'2026-10-14-park-v2');assert.equal('answer' in q.questions[0],false);assert.equal('explanation' in q.questions[0],false);
   assert.equal((await c.event('quiz',null,{answers:Array(20).fill(0)})).status,409);
   await c.complete('sale',sale,[119,120,121].map(height=>({height})),'boundary');
   await c.event('run','repair',{config:broken,input:{height:120}});
@@ -67,10 +67,12 @@ test('20题考核提交前不泄漏答案、先完成四关、保留首答最近
   await c.event('draft','quiz',{answers:Array(20).fill(null),index:0},{editedAt:200});
   await c.restart();const unfinished=await c.api('/api/state?studentId=s1');
   assert.equal(unfinished.state.drafts.quiz.answers[0],2);assert.equal(unfinished.state.drafts.quiz.index,1);
+  const outdated=await c.event('quiz',null,{answers:Array(20).fill(0),quizVersion:'outdated'});assert.equal(outdated.status,409);assert.match(outdated.error,/版本/);
+  const kept=await c.api('/api/state?studentId=s1');assert.equal(kept.state.attempts.length,0);assert.equal(kept.state.drafts.quiz.answers[0],2);
   const first=await c.event('quiz',null,{answers:Array(20).fill(0)},{eventId:'exam-one'});
-  assert.equal(first.result.details.length,20);assert.equal(first.state.attempts.length,1);assert.equal(first.state.points,100);
+  assert.equal(first.result.details.length,20);assert.equal(first.state.attempts.length,1);assert.equal(first.state.attempts[0].quizVersion,'2026-10-14-park-v2');assert.equal(first.state.points,100);
   const retry=await c.event('quiz',null,{answers:Array(20).fill(0)},{eventId:'exam-one'});assert.equal(retry.state.attempts.length,1);
-  const second=await c.event('quiz',null,{answers:Array(20).fill(1)});assert.equal(second.state.attempts.length,2);
+  const second=await c.event('quiz',null,{answers:Array(20).fill(1),quizVersion:q.quizVersion});assert.equal(second.state.attempts.length,2);
   await c.restart();const restored=await c.api('/api/state?studentId=s1');assert.equal(restored.state.attempts[0].id,'exam-one');assert.equal(restored.state.attempts.length,2);
 });
 test('名单登录稳定隔离同名，手动姓名加入所选班级，大屏统计含未进入者',async t=>{
@@ -170,4 +172,69 @@ test('仅运行时改变方案也须重验，改变后的首次实验应计入�
   const partial=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(partial.result.passed,false);
   await c.event('run','sale',{config:sale,input:{height:120}});await c.event('run','sale',{config:sale,input:{height:121}});
   const final=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(final.result.passed,true);assert.equal(final.state.points,25);
+});
+test('场景摘要随实验去重、重启恢复，旧运行仍可使用既有通关证据',async t=>{
+  const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
+  const sceneEvidence={version:1,station:'sale',actorId:'visitor120',actions:['measure','predict','ticket','gate'],destination:'10',prediction:'5'};
+  const payload={config:sale,input:{height:120},prediction:'5',sceneEvidence};
+  const first=await c.event('run','sale',payload,{eventId:'scene-offline-retry'});assert.equal(first.status,200);assert.deepEqual(first.state.runs.sale[0].scene,sceneEvidence);
+  const again=await c.event('run','sale',payload,{eventId:'scene-offline-retry'});assert.equal(again.state.runs.sale.length,1);
+  await c.restart();const restored=await c.api('/api/state?studentId=s1');assert.deepEqual(restored.state.runs.sale[0].scene,sceneEvidence);
+  await c.event('run','sale',{config:sale,input:{height:119}});await c.event('run','sale',{config:sale,input:{height:121}});
+  const completed=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(completed.result.passed,true);assert.equal(completed.state.points,25);assert.equal('scene' in completed.state.runs.sale[1],false);
+  const wrongScene={...sceneEvidence,station:'repair',actions:['inspect','predict','ticket','gate'],destination:'5',prediction:'10'};
+  const wrong=await c.event('run','repair',{config:broken,input:{height:120},prediction:'10',sceneEvidence:wrongScene});assert.equal(wrong.status,200);assert.equal(wrong.result.correct,false);assert.deepEqual(wrong.state.runs.repair[0].scene,wrongScene);
+  const teacher=await c.api('/api/teacher?classId=501');assert.deepEqual(teacher.students.find(s=>s.id==='s1').state.runs.repair[0].scene,wrongScene);
+});
+test('场景角色、步骤、输出或预测摘要与运行不符时拒绝且不写记录',async t=>{
+  const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
+  const base={version:1,station:'sale',actorId:'visitor120',actions:['measure','predict','ticket','gate'],destination:'10',prediction:'5'};
+  for(const change of [{actorId:'visitor119'},{destination:'5'},{prediction:'yes'},{actions:['measure','predict']},{station:'cross'},{version:0}]) {
+    const result=await c.event('run','sale',{config:sale,input:{height:120},sceneEvidence:{...base,...change}});assert.equal(result.status,400);assert.match(result.error,/场景|角色|输出|步骤|预测/);
+  }
+  const mismatch=await c.event('run','sale',{config:sale,input:{height:120},prediction:'10',sceneEvidence:base});assert.equal(mismatch.status,400);
+  const restored=await c.api('/api/state?studentId=s1');assert.equal(restored.state.runs.sale.length,0);
+});
+test('场景草稿拒绝非法坐标与过长摘要，清理缓存后随原草稿保存',async t=>{
+  const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
+  const scene={version:1,x:200,y:300,facing:'right',actorId:'visitor120',phase:'measure',measured:true,actions:['measure'],visited:['guide'],lastFeedback:'现在去预测票价。'};
+  const saved=await c.event('draft','sale',{config:sale,scene:{...scene,unknown:'不保存'}});assert.equal(saved.status,200);assert.deepEqual(saved.state.drafts.sale.scene,scene);
+  for(const change of [{x:null},{x:-1},{x:1201},{y:801},{actions:Array(9).fill('measure')},{lastFeedback:'x'.repeat(501)}]) {
+    const result=await c.event('draft','sale',{config:sale,scene:{...scene,...change}});assert.equal(result.status,400);assert.match(result.error,/场景|坐标|摘要/);
+  }
+  await c.restart();const restored=await c.api('/api/state?studentId=s1');assert.deepEqual(restored.state.drafts.sale.scene,scene);
+});
+test('温室新模型保存场景并隔离旧任务证据，维修错误可保留',async t=>{
+  const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
+  const config={model:'ventilation',operator:'>=',yes:'on',no:'off'};
+  const sceneEvidence={version:1,station:'sale',actorId:'sensor30',actions:['measure','predict','ticket','gate'],destination:'on',prediction:'off'};
+  const predicted=await c.event('prediction','sale',{value:'off',config,input:{temperature:30}});assert.equal(predicted.status,200);
+  const scene={version:1,x:250,y:300,facing:'left',actorId:'sensor30',phase:'measure',measured:true,actions:['measure'],visited:[],temperatureCase:30};
+  assert.equal((await c.event('draft','sale',{config,input:{temperature:30},scene})).status,200);
+  const bad=await c.event('draft','sale',{config,input:{temperature:'30'},scene});assert.equal(bad.status,400);
+  const result=await c.event('run','sale',{config,input:{temperature:30},prediction:'off',sceneEvidence});assert.equal(result.status,200);assert.deepEqual(result.state.runs.sale[0].scene,sceneEvidence);
+  await c.event('run','sale',{config,input:{temperature:29}});await c.event('run','sale',{config,input:{temperature:31}});
+  const done=await c.event('complete','sale',{config,reason:'boundary'});assert.equal(done.result.passed,true);
+  const brokenConfig={...config,yes:'off',no:'on'},brokenScene={...sceneEvidence,station:'repair',actions:['inspect','predict','ticket','gate'],destination:'off',prediction:'on'};
+  const brokenResult=await c.event('run','repair',{config:brokenConfig,input:{temperature:30},prediction:'on',sceneEvidence:brokenScene});assert.equal(brokenResult.status,200);assert.equal(brokenResult.result.correct,false);
+  const repaired=await c.complete('repair',config,[29,30,31].map(temperature=>({temperature})),'swap');assert.equal(repaired.result.passed,true);
+  await c.restart();const restored=await c.api('/api/state?studentId=s1');assert.equal(restored.state.points,50);assert.deepEqual(restored.state.drafts.sale.scene,scene);
+});
+
+test('旧四关首次进入场景需重验，移动保存与服务重启不重置新证据起点',async t=>{
+ const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
+ await c.complete('sale',sale,[119,120,121].map(height=>({height})),'boundary');
+ await c.event('run','repair',{config:broken,input:{height:120}});
+ await c.complete('repair',repair,[119,120,121].map(height=>({height})),'swap');
+ await c.complete('cross',cross,[{facility:true},{facility:false}],'one');
+ await c.complete('minimum',minimum,[{a:1,b:9},{a:8,b:2}],'compare');
+ const scene={version:1,x:200,y:300,facing:'up',phase:'assigned',measured:false,actions:[],visited:[]};
+ for(const [id,config,input,actorId,reason]of [['cross',cross,{facility:true},'cross-open','one'],['minimum',minimum,{a:3,b:8},'pair-a','compare']]){
+  const migrated=await c.event('draft',id,{config,input,scene:{...scene,actorId}});
+  assert.equal(migrated.status,200);assert.equal(migrated.state.points,100);assert.equal(migrated.state.levels[id].completed,true);assert.equal(migrated.state.levels[id].valid,false);assert.equal(migrated.state.levels[id].evidenceStart,2);
+  const premature=await c.event('complete',id,{config,reason});assert.equal(premature.result.passed,false);
+  await c.event('run',id,{config,input});
+  const moved=await c.event('draft',id,{config,input,scene:{...scene,actorId,x:400}});assert.equal(moved.state.levels[id].evidenceStart,2);
+  await c.restart();const restored=await c.event('draft',id,{config,input,scene:{...scene,actorId,x:500}});assert.equal(restored.state.levels[id].evidenceStart,2);assert.equal(restored.state.runs[id].length,3);
+ }
 });

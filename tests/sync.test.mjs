@@ -47,3 +47,24 @@ test('服务拒绝的证据保留，刷新后仍可查，不静默删除', async
   assert.match(queue.error, /本轮/);
   assert.equal(new SyncQueue(storage, async () => ({})).pending('one'), 1);
 });
+
+test('已失效的旧卷完整归档后解除阻塞，后续学习事件仍可同步', async () => {
+  const values = new Map();
+  const storage = { getItem:k=>values.get(k)||null, setItem:(k,v)=>values.set(k,v) };
+  const sent=[];const archived=[];
+  const old={studentId:'one',round:1,eventId:'old',type:'quiz',payload:{quizVersion:'old',answers:[0,1]}};
+  const queue=new SyncQueue(storage,async e=>{if(e.type==='quiz')throw Object.assign(new Error('版本失效'),{code:'QUIZ_VERSION_MISMATCH'});sent.push(e.eventId);return{};},()=>{},e=>archived.push(e.eventId));
+  queue.add(old);queue.add({studentId:'one',round:1,eventId:'new',type:'draft',payload:{}});
+  await queue.flush();
+  assert.equal(queue.pending(),0);assert.deepEqual(sent,['new']);assert.deepEqual(archived,['old']);
+  const restored=new SyncQueue(storage,async()=>({}));
+  assert.deepEqual(restored.archived()[0].event,old);
+  assert.equal(restored.archived()[0].reason,'版本失效');
+});
+
+test('普通409冲突继续保留，不能被当作旧题库错误归档', async () => {
+  const values=new Map();const storage={getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)};
+  const queue=new SyncQueue(storage,async()=>{throw Object.assign(new Error('轮次不一致'),{status:409});});
+  queue.add({studentId:'one',round:1,eventId:'keep',type:'quiz',payload:{}});
+  await queue.flush();assert.equal(queue.pending(),1);assert.deepEqual(queue.archived(),[]);
+});

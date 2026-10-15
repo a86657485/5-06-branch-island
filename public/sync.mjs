@@ -3,10 +3,12 @@ export function reconcileState(local, remote, preserveDrafts = true) {
 }
 
 export class SyncQueue {
-  constructor(storage, send, onResult = () => {}) {
+  constructor(storage, send, onResult = () => {}, onArchived = () => {}) {
     this.storage = storage;
     this.send = send;
     this.onResult = onResult;
+    this.onArchived = onArchived;
+    this.archiveKey = 'branch-island-archived-events-v1';
     this.key = 'branch-island-pending-v1';
     this.events = JSON.parse(storage.getItem(this.key) || '[]');
     this.error = '';
@@ -20,6 +22,7 @@ export class SyncQueue {
     }
   }
   pending(id) { return this.events.filter(e => !id || e.studentId === id).length; }
+  archived(id) { return JSON.parse(this.storage.getItem(this.archiveKey) || '[]').filter(item => !id || item.event.studentId === id); }
   flush() {
     if (this.running) return this.running;
     this.running = this.drain().finally(() => { this.running = null; });
@@ -37,6 +40,15 @@ export class SyncQueue {
         this.save();
         this.onResult(event, result);
       } catch (error) {
+        if (event.type === 'quiz' && error.code === 'QUIZ_VERSION_MISMATCH') {
+          const archive = JSON.parse(this.storage.getItem(this.archiveKey) || '[]');
+          archive.push({ event, reason: error.message, archivedAt: new Date().toISOString() });
+          this.storage.setItem(this.archiveKey, JSON.stringify(archive));
+          this.events = this.events.filter(e => e !== event);
+          this.save();
+          this.onArchived(event, error);
+          continue;
+        }
         this.error = error.message;
         blocked.add(key);
       }
