@@ -11,6 +11,8 @@ function appHarness(rpg = false) {
  const storage = new Map(), scenes = [], events = [];
  const context = vm.createContext({ window:{BranchRules:rules,AdventureRules:adventure,addEventListener(){}}, location:{search:rpg?'':'?engine=legacy'},document:{querySelector:node,querySelectorAll:()=>[]},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},URLSearchParams,AbortSignal,Date,JSON,crypto:{randomUUID:()=>`event-${events.length}`},setInterval(){},setTimeout(){},console,
   SyncQueue:class {constructor(){this.events=[];}pending(){return 0;}add(e){events.push(e);}async flush(){}},reconcileState:(_local,remote)=>remote,
+  createIdleTimer:()=>({configure(){},setPaused(){},tick(){},reset(){},strength(){return 0}}),
+  currentFocus:()=>({id:'guide',step:'1',hint:'先听现场负责人说任务。',strong:'走到发光的圆圈上按 E。',thinking:false,goto:true,gotoReason:'',pause:false,kind:'map',target:{stationId:'sale',mapId:'greenhouse',x:1,y:1}}),
   createParkScene:host=>{ const scene={host,destroy(){host.onChange({scene:{version:1,x:20,y:30}});},refresh(){}};scenes.push(scene);return scene; },
   createRpgScene:host=>{const scene={engine:'rpgjs',host,destroy(){},refresh(){},navigate(id){this.host=host.forLevel(id);}};scenes.push(scene);return scene;}
  });
@@ -47,17 +49,17 @@ test('旧检测未交稿独立归档，不套用新版题库答案索引',()=>{
  assert.equal(JSON.parse(archive[1]).draft.answers[0],0);
 });
 
-test('旧路口与配电成绩保留，进入现场后只采用新一轮核验证据',()=>{
+test('旧路口与配电成绩保留，再次进入现场不取消已验证',()=>{
  for(const [idx,id,config,input] of [[2,'cross',{yes:'bridge',no:'crossing'},{facility:true}],[3,'minimum',{operator:'<',yes:'a',no:'b'},{a:3,b:8}]]){
-  const h=appHarness(),s=state();s.drafts[id]={config,input};s.runs[id]=[{input}];s.levels[id]={completed:true,valid:true,points:25};s.points=25;
+  const h=appHarness(),s=state();s.drafts[id]={config,input};s.runs[id]=[{input}];s.levels[id]={completed:true,valid:true,points:25,evidenceStart:0};s.points=25;
   h.app.setState(s);h.app.setCurrent(id);h.app.renderTask(idx);
-  assert.equal(h.app.getState().levels[id].valid,false);assert.equal(h.app.getState().levels[id].evidenceStart,1);assert.equal(h.app.getState().points,25);
+  assert.equal(h.app.getState().levels[id].valid,true);assert.equal(h.app.getState().levels[id].evidenceStart,0);assert.equal(h.app.getState().points,25);
  }
 });
 
 test('温度模型遗留游客场景重置，避免角色与温度输入不符',()=>{
- const h=appHarness(),s=state();s.drafts.sale={config:{model:'ventilation',operator:'>=',yes:'on',no:'off'},input:{temperature:30},scene:{version:1,actorId:'visitor120'}};s.runs.sale=[{}];s.levels.sale={completed:true,valid:true};
- h.app.setState(s);h.app.renderTask(0);assert.equal(h.scenes[0].host.getDraft().scene,undefined);assert.equal(s.levels.sale.valid,false);assert.equal(s.levels.sale.evidenceStart,1);
+ const h=appHarness(),s=state();s.drafts.sale={config:{model:'ventilation',operator:'>=',yes:'on',no:'off'},input:{temperature:30},scene:{version:1,actorId:'visitor120'}};s.runs.sale=[{}];s.levels.sale={completed:true,valid:true,evidenceStart:0};
+ h.app.setState(s);h.app.renderTask(0);assert.equal(h.scenes[0].host.getDraft().scene,undefined);assert.equal(s.levels.sale.valid,true);assert.equal(s.levels.sale.evidenceStart,0);
 });
 
 test('RPGJS 在选择时保存首预测，核验不重复记预测，验收后同实例进入下一地图',()=>{

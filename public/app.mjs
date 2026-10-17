@@ -1,7 +1,19 @@
 import { SyncQueue, reconcileState } from './sync.mjs';
 import { createParkScene } from './scene.mjs';
 import { createRpgScene } from './rpg-scene.mjs';
+import { createIdleTimer } from './idle-timer.mjs';
+import { currentFocus } from './focus.mjs';
 const R = window.BranchRules;
+let quizStrength = 0;
+let gateInfoSent = false;
+const quizIdle = createIdleTimer({
+  onStrength(detail) {
+    quizStrength = detail.strength;
+    if (!demo && user) send('nav_help', 'quiz', { trigger: 'idle', strength: detail.strength, idleMs: detail.idleMs, step: detail.stepKey, focusId: detail.stepKey, levelId: 'quiz' });
+    if (current === 'quiz') renderQuiz();
+  }
+});
+setInterval(() => { if (current === 'quiz') quizIdle.tick(); }, 1000);
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clone = v => JSON.parse(JSON.stringify(v));
@@ -68,7 +80,7 @@ function prepareSceneDraft(id){
  const d=draft(id),oldModel=['sale','repair'].includes(id)&&d.config?.model!=='ventilation';
  if(oldModel){localStorage.setItem(`branch-island-task-archive:${user.id}:${round}:${id}:${Date.now()}`,JSON.stringify(d));state.drafts[id]=clone(defaults[id]);}
  if(['sale','repair'].includes(id)&&draft(id).scene?.version===1&&!Number.isFinite(draft(id).scene.temperatureCase)){delete draft(id).scene;}
- if(oldModel||draft(id).scene?.version!==1){state.levels[id]||={completed:false,points:0};state.levels[id].evidenceStart=(state.runs[id]||[]).length;state.levels[id].valid=false;}
+ if(oldModel){state.levels[id]||={completed:false,points:0};state.levels[id].evidenceStart=(state.runs[id]||[]).length;state.levels[id].valid=false;}
  return draft(id);
 }
 function setNotice(text){notice=text;const target=$('#notice')||$('#scene-toast');if(target){target.textContent=text;target.hidden=!text;}}
@@ -82,14 +94,14 @@ function flow(){
 function login(){
  const cls=roster.classes.find(c=>c.id===loginClass) || roster.classes[0];loginClass=cls.id;
  const names=cls.students.filter(s=>s.name.includes(loginSearch));
- $('#app').innerHTML=`<main class="landing"><section class="welcome"><p class="eyebrow">五年级 · 身边的算法 · 第6课</p><h1>分支<span>冒险岛</span></h1><p class="welcome-copy">走进智慧园区，亲自调试设备。<br>让判断有依据，让每条指令执行正确。</p><div class="landing-world" aria-hidden="true"><div class="landing-role">智慧园区设备调试员</div></div><p class="landing-note">读取传感器 · 修复设备 · 核验通行 · 节能配电</p></section><section class="login-card"><p class="eyebrow">调试员报到</p><h2>选择你的身份</h2><p class="muted">进度会自动保存，下次可以接着探索。</p><label>班级<select id="class-select">${roster.classes.map(c=>option(c.id,`${c.id}班`,loginClass)).join('')}</select></label><label>搜索姓名<input id="name-search" value="${esc(loginSearch)}" placeholder="输入姓名中的字" autocomplete="off"></label><label>名单姓名<select id="student-select">${option('','请选择自己的姓名',selectedStudent)}${names.map(s=>option(s.id,s.name,selectedStudent)).join('')}</select></label><details><summary>名单中没有我</summary><label>补充姓名<input id="manual-name" maxlength="30" value="${esc(manual)}" placeholder="输入姓名，归入当前班级"></label></details><div class="identity-confirm">请确认：<strong id="chosen-identity">${esc(loginClass)}班 · ${esc(manual || cls.students.find(s=>s.id===selectedStudent)?.name || '尚未选择姓名')}</strong></div><button id="login" class="primary wide">确认身份，进入园区 →</button><p id="login-error" class="error" role="alert"></p><p class="small muted">请用自己的姓名进入。课堂选名用于记录学习进度。</p></section></main>`;
+ $('#app').innerHTML=`<main class="landing"><section class="welcome"><p class="eyebrow">五年级 · 身边的算法 · 第6课</p><h1>分支<span>冒险岛</span></h1><p class="welcome-copy">走进智慧园区，亲自调试设备。<br>让判断有依据，让每条指令执行正确。</p><div class="landing-world" aria-hidden="true"><div class="landing-role">智慧园区设备调试员</div></div><p class="landing-note">读取传感器 · 修复设备 · 核验通行 · 节能配电</p></section><section class="login-card"><p class="eyebrow">调试员报到</p><h2>选择你的身份</h2><p class="muted">本课次的进度会保存。老师开始新课次后，要从头做。</p><label>班级<select id="class-select">${roster.classes.map(c=>option(c.id,`${c.id}班`,loginClass)).join('')}</select></label><label>搜索姓名<input id="name-search" value="${esc(loginSearch)}" placeholder="输入姓名中的字" autocomplete="off"></label><label>名单姓名<select id="student-select">${option('','请选择自己的姓名',selectedStudent)}${names.map(s=>option(s.id,s.name,selectedStudent)).join('')}</select></label><details><summary>名单中没有我</summary><label>补充姓名<input id="manual-name" maxlength="30" value="${esc(manual)}" placeholder="输入姓名，归入当前班级"></label></details><div class="identity-confirm">请确认：<strong id="chosen-identity">${esc(loginClass)}班 · ${esc(manual || cls.students.find(s=>s.id===selectedStudent)?.name || '尚未选择姓名')}</strong></div><button id="login" class="primary wide">确认身份，进入园区 →</button><p id="login-error" class="error" role="alert"></p><p class="small muted">请用自己的姓名进入。课堂选名用于记录学习进度。</p></section></main>`;
  $('#class-select').onchange=e=>{loginClass=e.target.value;selectedStudent='';manual='';login();};
  $('#name-search').oninput=e=>{loginSearch=e.target.value;const sel=$('#student-select');sel.innerHTML=option('','请选择自己的姓名','')+cls.students.filter(s=>s.name.includes(loginSearch)).map(s=>option(s.id,s.name,selectedStudent)).join('');};
  $('#student-select').onchange=e=>{selectedStudent=e.target.value;manual='';$('#manual-name').value='';$('#chosen-identity').textContent=`${loginClass}班 · ${cls.students.find(s=>s.id===selectedStudent)?.name || '尚未选择姓名'}`;};
  $('#manual-name').oninput=e=>{manual=e.target.value;selectedStudent='';$('#student-select').value='';$('#chosen-identity').textContent=`${loginClass}班 · ${manual || '尚未填写姓名'}`;};
  $('#login').onclick=async()=>{try{if(!selectedStudent&&!manual.trim())throw new Error('先选择自己的姓名，或在“名单中没有我”填写。');const data=await api('/api/login',{classId:loginClass,...(manual.trim()?{name:manual.trim()}:{studentId:selectedStudent})});attach(data);}catch(e){$('#login-error').textContent=e.message;}};
 }
-function attach(data){destroyScene();user=data.student;round=data.round;state=data.state;const local=JSON.parse(localStorage.getItem(cacheKey())||'null');if(queue.pending(user.id)&&local)state=local.state;current=local?.current || ids.find(id=>!state.levels[id]?.completed) || 'quiz';if(!demo)localStorage.setItem('branch-island-identity',JSON.stringify({user,round}));saveLocal();render();queue.flush().then(updateHeader);}
+function attach(data){destroyScene();user=data.student;if(data.round!==round)queue.retire(user.id,data.round);round=data.round;state=data.state;const local=JSON.parse(localStorage.getItem(cacheKey())||'null');const pendingThisRound=queue.events.some(event=>event.studentId===user.id&&event.round===round);if(pendingThisRound&&local)state=local.state;current=pendingThisRound&&local?.current?local.current:(ids.find(id=>!state.levels[id]?.completed)||'quiz');if(!demo)localStorage.setItem('branch-island-identity',JSON.stringify({user,round}));saveLocal();render();queue.flush().then(updateHeader);}
 function render(){
  destroyScene();
  if(!user)return login();
@@ -184,8 +196,11 @@ async function renderQuiz(){
  if(!gateOpen){
   const required=(R.levels||[]).filter(level=>level.required!==false);
   const missing=required.filter(level=>!state.levels[level.id]?.valid);
-  $('#workbench').innerHTML=`<h1>考核还没开放</h1><p>温室、返修和路口三站都当前通过后，考核会自动打开。选做的储能柜不参与。</p><ul>${missing.map(level=>`<li>${esc(level.title)}</li>`).join('')}</ul>${missing.map(level=>`<button class="primary" data-back="${level.id}">回到${esc(level.title)}</button>`).join(' ')}`;
+  const closedFocus=currentFocus({levelId:'quiz',exam:{open:false,missing:missing.map(level=>({id:level.id,title:level.title}))}});
+  $('#workbench').innerHTML=`<p id="quiz-focus-hint" class="focus-hint" role="status">${esc(closedFocus.hint)}</p><h1>考核还没开放</h1><p>温室、返修和路口三站都当前通过后，考核会自动打开。选做的储能柜不参与。</p><ul id="exam-missing">${missing.map(level=>`<li>${esc(level.title)}</li>`).join('')}</ul>${missing.map((level,index)=>`<button class="primary${index===0?' focus-target':''}" data-back="${level.id}" ${index===0?'data-focus="exam-missing"':''}>回到${esc(level.title)}</button>`).join(' ')}`;
   document.querySelectorAll('[data-back]').forEach(button=>button.onclick=()=>goToTask(button.dataset.back));
+  if(!gateInfoSent){gateInfoSent=true;send('nav_help','quiz',{trigger:'gate_info',strength:0,idleMs:0,step:closedFocus.step,focusId:closedFocus.id,levelId:'quiz'});}
+  quizIdle.configure({key:`quiz:${closedFocus.id}`,thinking:false});
   return;
  }
  if(!questions.length){try{const data=await api('/api/quiz'+(demo?'':'?studentId='+encodeURIComponent(user.id)));questions=data.questions||[];quizVersion=data.quizVersion||quizVersion;if(demo&&!questions.length&&answerKey.length){questions=answerKey.map(question=>{const interaction=question.interaction?{...question.interaction}:undefined;if(interaction)delete interaction.note;return {id:question.id,goal:question.goal,prompt:question.prompt,options:question.options,tier:question.tier,type:question.type,interaction};});}state.quizOpenedAt=data.examGate?.openedAt||state.quizOpenedAt;if(data.challengeUnlocked||(demo&&questions.some(question=>question.tier==='challenge'))){state.quiz||={};state.quiz.challenge||={};state.quiz.challenge.unlockedAt||='open';}localStorage.setItem('branch-island-questions',JSON.stringify({quizVersion,questions,reward:!!data.rewardUnlocked}));}catch(e){const cached=JSON.parse(localStorage.getItem('branch-island-questions')||'null');questions=cached?.quizVersion&&Array.isArray(cached.questions)?cached.questions:[];quizVersion=cached?.quizVersion||'';if(!questions.length){$('#workbench').innerHTML=`<h1>独立检测</h1><p class="notice">${esc(e.message)}。请恢复连接后再次进入，学习记录已保留。</p>`;return;}}}
@@ -198,7 +213,12 @@ async function renderQuiz(){
  const pending=!demo&&queue.events.some(event=>event.studentId===user.id&&event.round===round&&event.type==='quiz');
  const latest=state.quiz?.base?.latest||state.attempts.at(-1);
  const review=quizReview&&latest?`<section class="records"><h2>最近一次：${latest.score}/${latest.total}</h2>${(latest.details||[]).filter(detail=>detail.status==='incorrect'||detail.correct===false).map(detail=>`<article class="wrong-question"><b>${esc(detail.id)}</b><p>${esc(detail.explanation||'')}</p><p>${esc(detail.review||'')}</p></article>`).join('')||'<p>这次没有要回看的错题。</p>'}</section>`:'';
- mountQuiz($('#workbench'),{questions,tier,draft,pending,notice,review,challengeUnlocked:!!state.quiz?.challenge?.unlockedAt,rewardUnlocked:reward,onSave:saveQuiz,onRender:renderQuiz,onTier(next){draft.tier=next;draft.index=0;saveQuiz();renderQuiz();},onNotice:setNotice,onSubmit(submitTier,answers){if(demo){notice='演示模式的作答只留在这台设备上。';quizReview=true;saveLocal();renderQuiz();return;}send('quiz','quiz',{tier:submitTier,answers,quizVersion:draft.quizVersion});setNotice('检测正在提交；连接未完成时会保留，恢复后自动提交。');renderQuiz();}});
+  const list=questions.filter(question=>question.tier===tier);
+  const allFilled=list.length>0&&list.every(question=>question.type==='single_choice'?Number.isInteger(draft.answers?.[question.id]):!!draft.confirmed?.[question.id]);
+  const focus=currentFocus({levelId:'quiz',exam:{open:true,tier,allFilled,baseSubmitted:!!state.quiz?.base?.first,challengeSubmitted:!!state.quiz?.challenge?.first,challengeUnlocked:!!state.quiz?.challenge?.unlockedAt,showResult:quizReview}});
+  quizIdle.configure({key:`quiz:${tier}:${focus.id}:${draft.index}`,thinking:focus.thinking});
+  mountQuiz($('#workbench'),{questions,tier,draft,pending,notice,review,focus,focusStrength:quizStrength,challengeUnlocked:!!state.quiz?.challenge?.unlockedAt,rewardUnlocked:reward,onSave:saveQuiz,onRender:renderQuiz,onTier(next){quizIdle.reset();quizStrength=0;draft.tier=next;draft.index=0;saveQuiz();renderQuiz();},onNotice:setNotice,onSubmit(submitTier,answers){if(demo){notice='演示模式的作答只留在这台设备上。';quizReview=true;saveLocal();renderQuiz();return;}send('quiz','quiz',{tier:submitTier,answers,quizVersion:draft.quizVersion});setNotice('检测正在提交；连接未完成时会保留，恢复后自动提交。');renderQuiz();}});
+  $('#workbench').onpointerdown=()=>{quizIdle.reset();if(!quizStrength)return;quizStrength=0;document.querySelectorAll('#workbench .focus-target').forEach(node=>{node.dataset.strength='0';node.classList.remove('tap-hand');});};
 }
 async function boot(){
  try{const config=await api('/api/config');round=config.round;roster=await api('/api/roster');localStorage.setItem('branch-island-roster',JSON.stringify(roster));}catch(e){roster=JSON.parse(localStorage.getItem('branch-island-roster')||'null');if(!roster){$('#app').innerHTML=`<main class="loading"><h1>课堂连接还没有准备好</h1><p>${esc(e.message)}</p><a href="/">重新连接</a></main>`;return;}}

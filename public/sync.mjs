@@ -22,6 +22,15 @@ export class SyncQueue {
     }
   }
   pending(id) { return this.events.filter(e => !id || e.studentId === id).length; }
+  retire(studentId, round) {
+    const stale = this.events.filter(event => event.studentId === studentId && event.round !== round);
+    if (!stale.length) return;
+    const archive = JSON.parse(this.storage.getItem(this.archiveKey) || '[]');
+    for (const event of stale) archive.push({ event, reason: '上一课次的记录只保留，不带入新课次', archivedAt: new Date().toISOString() });
+    this.storage.setItem(this.archiveKey, JSON.stringify(archive));
+    this.events = this.events.filter(event => !(event.studentId === studentId && event.round !== round));
+    this.save();
+  }
   archived(id) { return JSON.parse(this.storage.getItem(this.archiveKey) || '[]').filter(item => !id || item.event.studentId === id); }
   flush() {
     if (this.running) return this.running;

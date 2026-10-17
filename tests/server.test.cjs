@@ -270,12 +270,44 @@ test('旧四关首次进入场景需重验，移动保存与服务重启不重�
  await c.complete('cross',cross,[{facility:true},{facility:false}],'one');
  await c.complete('minimum',minimum,[{a:1,b:9},{a:8,b:2}],'compare');
  const scene={version:1,x:200,y:300,facing:'up',phase:'assigned',measured:false,actions:[],visited:[]};
- for(const [id,config,input,actorId,reason]of [['cross',cross,{facility:true},'cross-open','one'],['minimum',minimum,{a:3,b:8},'pair-a','compare']]){
-  const migrated=await c.event('draft',id,{config,input,scene:{...scene,actorId}});
-  assert.equal(migrated.status,200);assert.equal(migrated.state.points,100);assert.equal(migrated.state.levels[id].completed,true);assert.equal(migrated.state.levels[id].valid,false);assert.equal(migrated.state.levels[id].evidenceStart,2);
-  const premature=await c.event('complete',id,{config,reason});assert.equal(premature.result.passed,false);
-  await c.event('run',id,{config,input});
-  const moved=await c.event('draft',id,{config,input,scene:{...scene,actorId,x:400}});assert.equal(moved.state.levels[id].evidenceStart,2);
-  await c.restart();const restored=await c.event('draft',id,{config,input,scene:{...scene,actorId,x:500}});assert.equal(restored.state.levels[id].evidenceStart,2);assert.equal(restored.state.runs[id].length,3);
+ for(const [id,config,input,actorId]of [['cross',cross,{facility:true},'cross-open'],['minimum',minimum,{a:3,b:8},'pair-a']]){
+  const visited=await c.event('draft',id,{config,input,scene:{...scene,actorId}});
+  assert.equal(visited.status,200);assert.equal(visited.state.points,100);assert.equal(visited.state.levels[id].completed,true);assert.equal(visited.state.levels[id].valid,true);assert.equal(visited.state.levels[id].evidenceStart,0);
+  const moved=await c.event('draft',id,{config,input,scene:{...scene,actorId,x:400}});assert.equal(moved.state.levels[id].valid,true);assert.equal(moved.state.levels[id].evidenceStart,0);
+  await c.restart();const restored=await c.event('draft',id,{config,input,scene:{...scene,actorId,x:500}});assert.equal(restored.state.levels[id].valid,true);assert.equal(restored.state.runs[id].length,2);
  }
+ const changed=await c.event('draft','cross',{config:{yes:'crossing',no:'bridge'},scene});
+ assert.equal(changed.state.levels.cross.valid,false);assert.equal(changed.state.points,100);
+ const saleVisit=await c.event('draft','sale',{config:sale,scene});
+ assert.equal(saleVisit.state.levels.sale.valid,false);
+});
+
+test('基础层达标分只看第一次提交，重做记入历史但不加分',async t=>{
+ const quiz=require('../quiz.cjs');
+ const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
+ const ventilation={model:'ventilation',operator:'>=',yes:'on',no:'off'};
+ await c.complete('sale',ventilation,[29,30,31].map(temperature=>({temperature})),'boundary');
+ await c.event('run','repair',{config:{...ventilation,yes:'off',no:'on'},input:{temperature:30}});
+ await c.complete('repair',ventilation,[29,30,31].map(temperature=>({temperature})),'swap');
+ await c.complete('cross',cross,[{facility:true},{facility:false}],'one');
+ const wrong={};
+ for(const question of quiz.byTier('base')) wrong[question.id]=structuredClone(question.answer);
+ for(const id of ['q35','q4','q19','q7']){const question=quiz.questions.find(item=>item.id===id);wrong[id]=(question.answer+1)%question.options.length;}
+ const first=await c.event('quiz','quiz',{tier:'base',answers:wrong,quizVersion:quiz.version});
+ assert.equal(first.result.score,7);assert.equal(first.result.passed,false);assert.equal(first.state.points,75);assert.equal(first.state.awards['quiz-base'],undefined);
+ const perfect={};for(const question of quiz.byTier('base')) perfect[question.id]=structuredClone(question.answer);
+ const retake=await c.event('quiz','quiz',{tier:'base',answers:perfect,quizVersion:quiz.version});
+ assert.equal(retake.result.score,11);assert.equal(retake.state.quiz.base.passed,false);assert.equal(retake.state.quiz.base.firstScore,7);assert.equal(retake.state.quiz.base.latest.score,11);assert.equal(retake.state.quiz.base.attempts.length,2);assert.equal(retake.state.points,75);assert.equal(retake.state.awards['quiz-base'],undefined);
+});
+
+test('换课次后重新登录不带上节进度，上节记录留在教师历史',async t=>{
+ const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
+ await c.complete('sale',sale,[119,120,121].map(height=>({height})),'boundary');
+ const started=await c.api('/api/teacher/lesson-session',{classId:'501'});
+ assert.equal(started.round,2);
+ const again=await c.api('/api/login',{classId:'501',studentId:'s1'});
+ assert.equal(again.round,2);assert.equal(again.state.points,0);assert.equal(again.state.levels.sale.completed,false);assert.equal(again.state.quiz.base.first,null);
+ assert.equal((await c.event('draft','sale',{config:sale},{round:1})).status,409);
+ const board=await c.api('/api/teacher?classId=501');
+ assert.equal(board.lessonRound,2);assert.equal(board.summary.points,0);assert.equal(board.priorSessions.length,1);assert.equal(board.priorSessions[0].students.find(student=>student.id==='s1').points,25);
 });

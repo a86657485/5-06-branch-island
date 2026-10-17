@@ -7,6 +7,7 @@ import startServer from "./server";
 import configClient from "./config/config.client";
 import { dispose, getContext, ready, request, subscribeContext } from './classroom-bridge';
 import { createIdleTimer } from '../../public/idle-timer.mjs';
+import { currentFocus } from '../../public/focus.mjs';
 
 let engine: RpgClientEngine | undefined;
 let heldDirection: Direction | undefined;
@@ -35,6 +36,7 @@ function moveWhileHeld() {
   if (!heldDirection || !canControl()) { stopMovement(); return; }
   // This is RPGJS's movement channel: its physics, collisions and events run normally.
   void engine!.processInput({ input: heldDirection });
+  if (Date.now() - lastMoveReset > 400) { noteActivity(); lastMoveReset = Date.now(); }
   movementFrame = requestAnimationFrame(moveWhileHeld);
 }
 
@@ -54,6 +56,7 @@ for (const button of controls?.querySelectorAll<HTMLButtonElement>('[data-direct
     button.setPointerCapture(event.pointerId);
     button.setAttribute('aria-pressed', 'true');
     heldDirection = button.dataset.direction as Direction;
+    noteActivity();
     moveWhileHeld();
   });
   button.addEventListener('pointerup', stopMovement);
@@ -76,6 +79,7 @@ for (const button of controls?.querySelectorAll<HTMLButtonElement>('[data-direct
 document.getElementById('engine-action')?.addEventListener('click', () => {
   if (!canControl()) return;
   stopMovement();
+  noteActivity();
   const direction = engine!.getCurrentPlayer()?.direction?.();
   engine!.processAction('action', { direction });
 });
@@ -93,19 +97,111 @@ for (const method of ['help', 'flow'] as const) {
   });
 }
 
+const taskHint = document.getElementById('engine-task-hint');
+const focusMarker = document.getElementById('focus-marker');
+const focusLabel = document.getElementById('focus-label');
+const focusArrow = focusMarker?.querySelector('.focus-arrow');
+let focusStrength = 0;
+let shownFocusKey = '';
+let lastMoveReset = 0;
 const idle = createIdleTimer({
   onStrength(detail) {
     const context = getContext();
-    void request('navHelp', { levelId: context?.levelId, mapId: context?.draft?.rpg?.mapId || '', step: detail.stepKey, focusId: detail.stepKey, trigger: 'idle', strength: detail.strength, idleMs: detail.idleMs }).catch(() => undefined);
+    const focus = lessonFocus(context);
+    focusStrength = detail.strength;
+    paintFocus(focus);
+    void request('navHelp', { levelId: context?.levelId, mapId: focus.target.mapId || context?.draft?.rpg?.mapId || '', step: focus.step, focusId: focus.id, trigger: 'idle', strength: detail.strength, idleMs: detail.idleMs }).catch(() => undefined);
   }
 });
-function syncIdle(paused = dialogOpen || auxiliaryBusy || document.hidden) {
-  const context = getContext();
-  const scene = context?.draft?.scene;
-  idle.configure({ key: scene ? `${context?.levelId}:${scene.phase || 'start'}` : '', thinking: false });
-  idle.setPaused(paused);
+function lessonFocus(context = getContext()) {
+  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level });
+}
+function noteActivity() {
+  idle.reset();
+  focusStrength = 0;
+}
+let viewportCache: any;
+function findViewport(node: any): any {
+  if (!node) return undefined;
+  if (typeof node.toGlobal === 'function' && typeof node.toWorld === 'function') return node;
+  for (const child of node.children ?? []) {
+    const found = findViewport(child);
+    if (found) return found;
+  }
+  return undefined;
+}
+function mapViewport() {
+  if (viewportCache && viewportCache.destroyed !== true && viewportCache.parent) return viewportCache;
+  viewportCache = findViewport((engine as any)?.canvasApp?.stage);
+  return viewportCache;
+}
+function projectTarget(target: { x?: number, y?: number, mapId?: string }) {
+  const canvas = document.querySelector('#rpg canvas') as HTMLCanvasElement | null;
+  const x = Number(target?.x);
+  const y = Number(target?.y);
+  if (!canvas || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const rect = canvas.getBoundingClientRect();
+  const viewport = mapViewport();
+  let sx = rect.left + rect.width / 2;
+  let sy = rect.top + rect.height / 2;
+  if (viewport) {
+    const global = viewport.toGlobal({ x, y });
+    if (Number.isFinite(global?.x) && Number.isFinite(global?.y)) {
+      sx = rect.left + Number(global.x);
+      sy = rect.top + Number(global.y);
+    }
+  }
+  const margin = 48;
+  const minX = rect.left + margin;
+  const maxX = rect.right - margin;
+  const minY = rect.top + margin;
+  const maxY = rect.bottom - margin;
+  const offscreen = sx < minX || sx > maxX || sy < minY || sy > maxY;
+  const arrow = Math.abs(sx - (minX + maxX) / 2) > Math.abs(sy - (minY + maxY) / 2)
+    ? (sx > (minX + maxX) / 2 ? '→' : '←')
+    : (sy > (minY + maxY) / 2 ? '↓' : '↑');
+  return {
+    x: Math.min(maxX, Math.max(minX, sx)),
+    y: Math.min(maxY, Math.max(minY, sy)),
+    offscreen,
+    arrow: offscreen ? arrow : '↓'
+  };
+}
+function paintFocus(focus = lessonFocus()) {
+  const key = `${focus.target?.mapId || ''}:${focus.id}:${focus.step}`;
+  if (key !== shownFocusKey) { shownFocusKey = key; focusStrength = 0; }
+  if (taskHint) {
+    taskHint.textContent = focusStrength ? focus.strong : focus.hint;
+    taskHint.hidden = false;
+    taskHint.dataset.strength = String(focusStrength);
+    taskHint.classList.toggle('focus-target', true);
+    taskHint.classList.toggle('tap-hand', focusStrength >= 2 && focus.goto);
+  }
+  if (focusMarker && focusLabel) {
+    const point = projectTarget(focus.target || {});
+    focusMarker.hidden = !point;
+    focusMarker.dataset.strength = String(focusStrength);
+    focusMarker.classList.toggle('edge', !!point?.offscreen);
+    focusMarker.classList.toggle('tap-hand', focusStrength >= 2 && focus.kind === 'map' && !point?.offscreen);
+    if (point) {
+      focusMarker.style.left = `${point.x}px`;
+      focusMarker.style.top = `${point.y}px`;
+      if (focusArrow) focusArrow.textContent = point.arrow;
+    }
+    focusLabel.textContent = point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '';
+  }
   const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
-  if (goto) goto.disabled = !!(context?.levelId === 'cross' && scene?.actions?.includes('route'));
+  if (goto) {
+    goto.disabled = !focus.goto;
+    goto.title = focus.goto ? '前往下一目标' : (focus.gotoReason || '这段要你亲自走过去');
+    goto.classList.toggle('focus-target', focusStrength >= 2 && focus.goto);
+  }
+}
+function syncIdle(paused = dialogOpen || auxiliaryBusy || document.hidden) {
+  const focus = lessonFocus();
+  idle.configure({ key: focus.target.mapId ? `${focus.target.mapId}:${focus.id}:${focus.step}` : '', thinking: focus.thinking });
+  idle.setPaused(paused || focus.pause);
+  paintFocus(focus);
 }
 window.addEventListener('lesson-dialog-state', event => {
   dialogOpen = !!(event as CustomEvent<{ open: boolean }>).detail.open;
@@ -114,12 +210,24 @@ window.addEventListener('lesson-dialog-state', event => {
   syncIdle();
 });
 window.addEventListener('lesson-map-changed', () => { stopMovement(); syncIdle(true); window.setTimeout(() => syncIdle(), 800); });
-window.setInterval(() => idle.tick(), 1000);
+function focusFrame() {
+  idle.tick();
+  paintFocus();
+  requestAnimationFrame(focusFrame);
+}
+requestAnimationFrame(focusFrame);
 document.getElementById('engine-goto')?.addEventListener('click', () => {
   const context = getContext();
-  if (!canControl() || (context?.levelId === 'cross' && context.draft.scene?.actions?.includes('route'))) return;
-  idle.reset();
-  void request('navHelp', { levelId: context?.levelId, step: context?.draft?.scene?.phase || '', trigger: 'goto', strength: 0, idleMs: 0 }).catch(() => undefined);
+  const focus = lessonFocus(context);
+  if (!canControl() || !focus.goto) return;
+  noteActivity();
+  window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { ...focus.target, goto: true } }));
+  void request('navHelp', { levelId: context?.levelId, mapId: focus.target.mapId || '', step: focus.step, focusId: focus.id, trigger: 'goto', strength: 0, idleMs: 0 }).catch(() => undefined);
+});
+document.getElementById('engine-help')?.addEventListener('click', () => {
+  const focus = lessonFocus();
+  noteActivity();
+  void request('navHelp', { levelId: getContext()?.levelId, mapId: focus.target.mapId || '', step: focus.step, focusId: focus.id, trigger: 'button', strength: 0, idleMs: 0 }).catch(() => undefined);
 });
 window.addEventListener('lesson-bridge-error', event => showStatus((event as CustomEvent<string>).detail));
 window.addEventListener('blur', stopMovement);
@@ -141,15 +249,4 @@ start().catch(error => {
 
 window.addEventListener('pagehide', () => { stopMovement(); dispose(); }, { once: true });
 
-const taskHint=document.getElementById('engine-task-hint');
-subscribeContext(context=>{
- if(!taskHint)return;
- const s=context.draft.scene,id=context.levelId;
- if(!s){taskHint.hidden=true;return;}
- const guide=id==='sale'?'温室管理员':id==='repair'?'维修工程师':id==='cross'?'巡检员':'能源工程师';
- let text=s.phase==='start'?`先走近${guide}，按 E 或“交互”领取委托。`:id==='cross'?'走近设施观察点，读取这一处路口的情况。':id==='minimum'?'分别走近 A、B 两块电池，读取这组电量。':'走近温度探头，采集一个试验温度。';
- if(s.measured)text='走近控制台，设置条件和两个分支，先预测再执行。';
- if(s.ticket)text=id==='cross'?(s.actions.includes('route')?'已走过选中路线，去东岸通行核验台比较结果。':'沿程序选中的路线实际通行；走斑马线前须等绿灯。'):id==='minimum'?(s.actions.includes('route')?'已接入选中支路，走近充电核验台比较结果。':'亲自走到程序选中的电池支路接入。'):'本次程序已执行，走近现场核验仪比较结果。';
- if(context.level?.valid)text=`本项委托已验收。找${guide}领取下一站任务。`;
- taskHint.textContent=text;taskHint.hidden=false;syncIdle();
-});
+subscribeContext(()=>{ focusStrength = 0; syncIdle(); });

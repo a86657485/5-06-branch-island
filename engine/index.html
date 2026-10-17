@@ -32,6 +32,15 @@
       #engine-action small { display: block; font-size: 10px; margin-top: 4px; font-weight: 500; }
       .engine-pad-caption { position: absolute; bottom: 0; left: 175px; color: white; text-shadow: 0 1px 3px #0e302d; font-size: 11px; white-space: nowrap; }
       #engine-task-hint { position:absolute;left:14px;top:10px;max-width:min(580px,calc(100% - 215px));padding:10px 14px;margin:0;border:2px solid #93ad7e;border-radius:12px;background:#fffaf0ef;color:#1b4434;z-index:80;font-size:16px;line-height:1.5;pointer-events:none;}
+      #focus-marker { position:absolute; left:0; top:0; z-index:80; display:flex; flex-direction:column; align-items:center; gap:0; pointer-events:none; color:#173b31; font-weight:800; transform:translate(-50%, -108%); }
+      #focus-marker .focus-ring { width:54px; height:22px; border:5px solid #e39b00; border-radius:50%; background:#ffcf5a66; box-shadow:0 0 0 6px #147d78aa; animation:focus-pulse 1.1s ease-in-out infinite; }
+      #focus-marker .focus-arrow { font-size:34px; line-height:1; color:#e39b00; filter:drop-shadow(0 2px 0 #173b31); animation:focus-bounce 1s ease-in-out infinite; }
+      #focus-marker.edge { transform:translate(-50%, -50%); }
+      #focus-marker.edge .focus-ring { display:none; }
+      #focus-marker.edge .focus-arrow { font-size:42px; }
+      #engine-task-hint[data-strength="1"], #engine-task-hint[data-strength="2"], #engine-goto.focus-target { outline:4px solid #ffcf5a; animation:focus-pulse 1s ease-in-out infinite; }
+      @keyframes focus-pulse { 50% { outline-color:#147d78; border-color:#fff; } }
+      @keyframes focus-bounce { 50% { transform:translateY(-6px); } }
       @media(max-width:600px){#engine-task-hint{max-width:calc(100% - 20px);top:62px;left:10px;font-size:14px;padding:7px 10px;}}
       #engine-status { position: absolute; inset: 22% 8% auto; padding: 22px; background: #fff9e9; color: #19392d; border: 3px solid #d6bd79; box-shadow: 0 15px 45px #092b2a66; border-radius: 18px; text-align: center; z-index: 1200; }
       #engine-status p { margin: 0 0 15px; line-height: 1.7; }
@@ -42,6 +51,7 @@
   <body>
     <div id="rpg"><div id="vue-gui-overlay"></div></div>
     <p id="engine-task-hint" role="status" hidden></p>
+    <div id="focus-marker" hidden><span class="focus-ring" aria-hidden="true"></span><span class="focus-arrow" aria-hidden="true">↓</span><span id="focus-label">下一目标</span></div>
     <div id="engine-controls" aria-label="园区操作" hidden>
       <nav class="engine-tools" aria-label="探究帮助">
         <button id="engine-flow" type="button">查看流程</button>

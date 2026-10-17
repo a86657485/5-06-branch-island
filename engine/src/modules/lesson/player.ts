@@ -10,6 +10,23 @@ const mapFor=mapForContext;
 type Runtime={map:string,lastSave:number,active:RpgPlayer,unsub?:()=>void,changing:boolean,checkpointTimer?:ReturnType<typeof setTimeout>,enter:(c:any)=>Promise<void>};
 // RPGJS rehydrates a new player object on room transfers; the stable id survives.
 const sessions=new Map<string,Runtime>();
+if (typeof window !== 'undefined') window.addEventListener('lesson-goto', event => {
+ const detail = (event as CustomEvent<{ goto?: boolean, x?: number, y?: number, mapId?: string, place?: string }>).detail || {};
+ const x = detail.x;
+ const y = detail.y;
+ if (!detail.goto || typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) return;
+ const runtime = [...sessions.values()].find(item => item.map === detail.mapId) || [...sessions.values()][0];
+ const player = runtime?.active;
+ if (!player || !runtime || runtime.changing || runtime.map !== detail.mapId) return;
+ const dx = x - player.x();
+ const dy = y - player.y();
+ const dist = Math.hypot(dx, dy) || 1;
+ const nx = Math.round(x - dx / dist * 32);
+ const ny = Math.round(y - dy / dist * 32);
+ const direction = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? Direction.Right : Direction.Left) : (dy > 0 ? Direction.Down : Direction.Up);
+ player.setVariable('focusTarget', detail.place || '');
+ void player.changeMap(runtime.map, { x: nx, y: ny }).then(() => player.changeDirection(direction)).catch(error => console.warn('前往下一目标未完成', error));
+});
 async function saveCheckpoint(runtime:Runtime,player:RpgPlayer){
  if(runtime.map!==mapFor(ctx())||player.getCurrentMap()?.id!==runtime.map)return;
  const dir=player.direction(),direction=dir===Direction.Up?'up':dir===Direction.Left?'left':dir===Direction.Right?'right':'down';

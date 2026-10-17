@@ -54,7 +54,8 @@ function createService(options = {}) {
     CREATE TABLE IF NOT EXISTS states(studentId TEXT NOT NULL, round INTEGER NOT NULL, json TEXT NOT NULL, meta TEXT NOT NULL, lastSync TEXT NOT NULL, PRIMARY KEY(studentId,round));
     CREATE TABLE IF NOT EXISTS events(studentId TEXT NOT NULL, round INTEGER NOT NULL, eventId TEXT NOT NULL, result TEXT NOT NULL, PRIMARY KEY(studentId,round,eventId));
     CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, studentId TEXT NOT NULL, created TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS class_flags(classId TEXT PRIMARY KEY, examClosedAt TEXT);`);
+    CREATE TABLE IF NOT EXISTS class_flags(classId TEXT PRIMARY KEY, examClosedAt TEXT);
+    CREATE TABLE IF NOT EXISTS lesson_sessions(classId TEXT PRIMARY KEY, round INTEGER NOT NULL, startedAt TEXT NOT NULL);`);
   const rosterIds = new Set();
   const insertStudent = db.prepare('INSERT INTO students VALUES(?,?,?,0) ON CONFLICT(id) DO UPDATE SET classId=excluded.classId,name=excluded.name,manual=0');
   for (const student of roster) {
@@ -66,6 +67,8 @@ function createService(options = {}) {
   const now = () => new Date().toISOString();
   const requiredLevels = () => rules.levels.filter(level => level.required !== false);
   function classClosedAt(classId) { return db.prepare('SELECT examClosedAt FROM class_flags WHERE classId=?').get(classId)?.examClosedAt || null; }
+  function currentRound(classId) { return db.prepare('SELECT round FROM lesson_sessions WHERE classId=?').get(classId)?.round || 1; }
+  function roundOf(student) { return student ? currentRound(student.classId) : 1; }
   function missingStations(state) { return requiredLevels().filter(level => !state.levels[level.id]?.valid).map(level => level.id); }
   function issueSession(studentId) {
     const token = crypto.randomBytes(24).toString('hex');
@@ -152,11 +155,10 @@ function createService(options = {}) {
         bucket.firstScore = graded.score;
         bucket.passed = meets;
         state.quiz.challenge.unlockedAt = at;
-      }
-      if (meets && !state.awards['quiz-base']) {
-        const label = bucket.attempts.length === 1 ? '达标' : '重考达标';
-        state.awards['quiz-base'] = { points: quizApi.basePoints(), label, at };
-        state.points += quizApi.basePoints();
+        if (meets && !state.awards['quiz-base']) {
+          state.awards['quiz-base'] = { points: quizApi.basePoints(), label: '达标', at };
+          state.points += quizApi.basePoints();
+        }
       }
       state.drafts.quiz = { tier: 'challenge', answers: {}, index: 0, quizVersion };
       return { score: graded.score, total: graded.total, passed: bucket.passed, rewardUnlocked: quizApi.rewardUnlocked(bucket.firstScore), challengeUnlocked: true, details };
@@ -187,14 +189,17 @@ function createService(options = {}) {
   }
   function studentById(id) { return db.prepare('SELECT id,classId,name FROM students WHERE id=?').get(String(id || '')); }
   function recordFor(id) {
-    const row = db.prepare('SELECT * FROM states WHERE studentId=? AND round=?').get(id, ROUND);
+    const round = roundOf(studentById(id));
+    const row = db.prepare('SELECT * FROM states WHERE studentId=? AND round=?').get(id, round);
     const record = row ? { state: JSON.parse(row.json), meta: JSON.parse(row.meta), lastSync: row.lastSync, entered: true } : { state: initialState(), meta: { draftTimes: {}, currentConfigs: {}, validatedConfigs: {} }, lastSync: null, entered: false };
     ensureState(record.state);
+    record.round = round;
     return record;
   }
   function save(id, record) {
     record.lastSync = now();
-    db.prepare('INSERT INTO states VALUES(?,?,?,?,?) ON CONFLICT(studentId,round) DO UPDATE SET json=excluded.json,meta=excluded.meta,lastSync=excluded.lastSync').run(id, ROUND, JSON.stringify(record.state), JSON.stringify(record.meta), record.lastSync);
+    const round = record.round || roundOf(studentById(id));
+    db.prepare('INSERT INTO states VALUES(?,?,?,?,?) ON CONFLICT(studentId,round) DO UPDATE SET json=excluded.json,meta=excluded.meta,lastSync=excluded.lastSync').run(id, round, JSON.stringify(record.state), JSON.stringify(record.meta), record.lastSync);
   }
   function allStudents() { return db.prepare('SELECT id,classId,name,manual FROM students ORDER BY classId,rowid').all().filter(student => rosterIds.has(student.id) || student.manual); }
   function classes() { return CLASSES.map(id => ({ id, students: allStudents().filter(student => student.classId === id).map(({id,name}) => ({id,name})) })); }
@@ -228,11 +233,12 @@ function createService(options = {}) {
   function handleEvent(body) {
     const student = studentById(body.studentId);
     if (!student) fail(400, '请先选择班级与姓名');
-    if (body.round !== ROUND) fail(409, '记录属于其他轮次，请刷新课堂');
+    const round = roundOf(student);
+    if (body.round !== round) fail(409, '记录属于其他课次，请刷新课堂');
     if (typeof body.eventId !== 'string' || !body.eventId || body.eventId.length > 120) fail(400, '记录标识不完整');
     if (!['draft','run','prediction','complete','quiz','nav_help'].includes(body.type)) fail(400, '记录类型不正确');
     if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) fail(400, '记录内容不正确');
-    const previous = db.prepare('SELECT result FROM events WHERE studentId=? AND round=? AND eventId=?').get(student.id,ROUND,body.eventId);
+    const previous = db.prepare('SELECT result FROM events WHERE studentId=? AND round=? AND eventId=?').get(student.id,round,body.eventId);
     if (previous) { const kept = recordFor(student.id); return envelope(student.id, kept, JSON.parse(previous.result)); }
     const record = recordFor(student.id);
     const { state, meta } = record;
@@ -273,10 +279,13 @@ function createService(options = {}) {
       if (editedAt >= (meta.draftTimes[id] ?? -1)) {
         if (id !== 'quiz' && payload.scene?.version === 1) {
           meta.sceneVersions ||= {};
-          if (meta.sceneVersions[id] !== 1) {
-            state.levels[id].evidenceStart = state.runs[id].length;
+          const firstScene = meta.sceneVersions[id] !== 1;
+          meta.sceneVersions[id] = 1;
+          const runs = state.runs[id] || [];
+          const legacyHeight = ['sale', 'repair'].includes(id) && runs.some(run => run.input && Object.hasOwn(run.input, 'height')) && !runs.some(run => run.config?.model === 'ventilation');
+          if (firstScene && legacyHeight) {
+            state.levels[id].evidenceStart = runs.length;
             state.levels[id].valid = false;
-            meta.sceneVersions[id] = 1;
           }
         }
         state.drafts[id] = payload;
@@ -323,7 +332,7 @@ function createService(options = {}) {
     db.exec('BEGIN IMMEDIATE');
     try {
       save(student.id,record);
-      db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(student.id,ROUND,body.eventId,JSON.stringify(result));
+      db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(student.id,round,body.eventId,JSON.stringify(result));
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
     return envelope(student.id, record, result);
@@ -336,13 +345,43 @@ function createService(options = {}) {
     });
     const entered = students.filter(student => student.entered).length;
     const examined = students.filter(student => student.state.attempts.length);
-    const mean = select => examined.length ? Math.round(examined.reduce((sum,student) => sum + select(student.state.attempts).score,0) / examined.length * 10) / 10 : null;
+    const mean = select => {
+      const values = examined.map(student => {
+        const attempt = select(student.state.attempts);
+        return attempt?.total ? attempt.score / attempt.total * 100 : null;
+      }).filter(value => value != null);
+      return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 10) / 10 : null;
+    };
     const misconceptions = questions.map(question => {
       const records = examined.map(student => student.state.attempts.find(attempt => attempt.quizVersion === quizVersion)?.details.find(detail => detail.id === question.id)).filter(Boolean);
       return { id: question.id, prompt: question.prompt, incorrect: records.filter(detail => !detail.correct).length, total: records.length };
     }).filter(item => item.incorrect).sort((a,b) => b.incorrect-a.incorrect).slice(0,5);
     const summary = { total: students.length, entered, notEntered: students.length-entered, completed: students.filter(student => rules.levels.every(level => student.state.levels[level.id].completed)).length, points: students.reduce((sum,student) => sum+student.state.points,0), quizFirstAverage: mean(attempts => attempts[0]), quizLatestAverage: mean(attempts => attempts.at(-1)), quizAttempts: students.reduce((sum,student) => sum+student.state.attempts.length,0), levels: Object.fromEntries(rules.levels.map(level => [level.id,{ completed: students.filter(student => student.state.levels[level.id].completed).length, valid: students.filter(student => student.state.levels[level.id].valid).length }])), misconceptions };
-    return { round: ROUND, quizVersion, updatedAt: now(), classes: classes(), students, summary, examClosedAt: classId ? classClosedAt(classId) : null };
+    return { round: classId ? currentRound(classId) : ROUND, lessonRound: classId ? currentRound(classId) : ROUND, priorSessions: classId ? priorSessions(classId) : [], quizVersion, updatedAt: now(), classes: classes(), students, summary, examClosedAt: classId ? classClosedAt(classId) : null };
+  }
+  function priorSessions(classId) {
+    const current = currentRound(classId);
+    if (current <= 1) return [];
+    const rosterStudents = allStudents().filter(student => student.classId === classId);
+    const sessions = [];
+    for (let round = 1; round < current; round += 1) {
+      const rows = rosterStudents.map(student => {
+        const row = db.prepare('SELECT json FROM states WHERE studentId=? AND round=?').get(student.id, round);
+        if (!row) return null;
+        const state = JSON.parse(row.json);
+        return { id: student.id, name: student.name, points: state.points || 0, passed: !!state.quiz?.base?.passed, firstScore: state.quiz?.base?.firstScore ?? null };
+      }).filter(Boolean);
+      sessions.push({ round, students: rows });
+    }
+    return sessions;
+  }
+  function startLesson(classId) {
+    if (!CLASSES.includes(classId)) fail(400, '请选择五年级班级');
+    const next = currentRound(classId) + 1;
+    const at = now();
+    db.prepare('INSERT INTO lesson_sessions(classId, round, startedAt) VALUES(?,?,?) ON CONFLICT(classId) DO UPDATE SET round=excluded.round, startedAt=excluded.startedAt').run(classId, next, at);
+    db.prepare('DELETE FROM class_flags WHERE classId=?').run(classId);
+    return { classId, round: next, startedAt: at };
   }
   function closeExam(classId) {
     if (!CLASSES.includes(classId)) fail(400, '请选择五年级班级');
@@ -387,10 +426,11 @@ function createService(options = {}) {
       if (req.method === 'GET' && route === '/api/state') {
         const student=studentById(url.searchParams.get('studentId'));if(!student) fail(404,'学生身份不存在');
         const record=recordFor(student.id); syncExam(student.id, record);
-        return json(res,200,{student,round:ROUND,...envelope(student.id, record, null)});
+        return json(res,200,{student,round:record.round,...envelope(student.id, record, null)});
       }
       if (req.method === 'GET' && route === '/api/teacher') return json(res,200,teacherData(url.searchParams.get('classId')));
       if (req.method === 'POST' && route === '/api/teacher/exam-close') { const body=await readBody(req); return json(res,200,closeExam(String(body.classId||''))); }
+      if (req.method === 'POST' && route === '/api/teacher/lesson-session') { const body=await readBody(req); return json(res,200,startLesson(String(body.classId||''))); }
       if (req.method === 'GET' && route === '/api/teacher/solutions') return json(res,200,{levels:rules.solutions,questions,quizVersion,tiers:quizApi.bank.tiers});
       if (req.method === 'POST' && route === '/api/login') {
         const body=await readBody(req);const classId=String(body.classId || '');if(!CLASSES.includes(classId)) fail(400,'请选择五年级班级');
@@ -405,7 +445,7 @@ function createService(options = {}) {
           if(!student) { const id=`manual-${crypto.createHash('sha256').update(`${classId}\0${name}`).digest('hex').slice(0,24)}`;db.prepare('INSERT OR IGNORE INTO students VALUES(?,?,?,1)').run(id,classId,name);student=studentById(id); }
           else student={id:student.id,classId:student.classId,name:student.name};
         }
-        const record=recordFor(student.id);save(student.id,record);return json(res,200,{student,round:ROUND,state:record.state});
+        const record=recordFor(student.id);save(student.id,record);return json(res,200,{student,round:record.round,state:record.state});
       }
       if (req.method === 'POST' && route === '/api/events') return json(res,200,handleEvent(await readBody(req)));
       if (route.startsWith('/api/')) fail(404,'接口不存在');

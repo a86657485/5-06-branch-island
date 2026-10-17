@@ -18,5 +18,10 @@
 .quiz-cards,.quiz-slots,.tier-switch{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
 .quiz-card,.quiz-slot{min-height:44px;padding:8px 12px;border:2px solid #73957a;border-radius:10px;background:#fffef8}
 .quiz-card.chosen,.answer.chosen{outline:3px solid #1175bb}
+.focus-hint{margin:0 0 8px;padding:8px 12px;border-radius:10px;background:#fff7df;border:2px solid #d0ad49}
+.focus-target{outline:4px solid #147d78;outline-offset:4px;border-radius:12px;position:relative}
+.focus-target[data-strength="1"],.focus-target[data-strength="2"]{animation:focus-pulse 1s ease-in-out infinite;outline-width:6px}
+.focus-target.tap-hand::after{content:"👆";position:absolute;right:8px;top:-18px;font-size:22px;animation:focus-pulse 1s ease-in-out infinite}
+@keyframes focus-pulse{50%{outline-color:#ffcf5a}}
 .quiz-frame{padding:10px 12px;background:#f4ebd4;border-radius:8px}
 .quiz-slot{display:flex;flex-direction:column;align-items:flex-start}
