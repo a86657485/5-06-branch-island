@@ -364,3 +364,25 @@ test('流程图、预测和闸机接单在刷新后还在',async t=>{
  assert.equal(restored.state.intro.accepted,true);
  assert.equal(restored.state.intro.judged,'half');
 });
+test('概念提示记 hinted，操作帮助不会',async t=>{
+ const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
+ const ventilation={model:'ventilation',operator:'>=',yes:'on',no:'off'};
+ const nav=await c.event('nav_help','sale',{trigger:'goto',strength:0,idleMs:0,step:'1',focusId:'guide',levelId:'sale'});
+ assert.equal(nav.state.levels.sale.hinted,false);
+ const hint=await c.event('concept_hint','sale',{level:1,evidenceKind:'station'});
+ assert.equal(hint.result.hinted,true);
+ assert.equal(hint.state.levels.sale.hinted,true);
+ assert.equal(hint.state.conceptHints[0].level,1);
+ assert.equal(hint.state.navHelp.length,1);
+ const hinted=await c.complete('sale',ventilation,[29,30,31].map(temperature=>({temperature})),'boundary');
+ assert.equal(hinted.result.attemptKind,'hinted');
+ assert.equal(hinted.result.hinted,true);
+ await c.event('run','repair',{config:{model:'ventilation',operator:'>=',yes:'off',no:'on'},input:{temperature:30}});
+ const repair=await c.complete('repair',ventilation,[29,30,31].map(temperature=>({temperature})),'swap');
+ assert.equal(repair.result.passed,true);
+ assert.equal(repair.result.attemptKind,'first');
+ assert.equal(repair.result.hinted,false);
+ const moved=await c.complete('cross',cross,[{facility:true},{facility:false}],'one');
+ assert.equal(moved.result.attemptKind,'transfer');
+ assert.equal(moved.state.levels.cross.hinted,false);
+});

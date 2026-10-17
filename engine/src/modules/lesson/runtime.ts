@@ -40,7 +40,10 @@ export async function configure(player:RpgPlayer){
   if(result.predictions?.locked&&['sale','repair'].includes(id)){
    const temperature=input().temperature;
    const value=result.predictions[temperature];
-   if(value)await rpc('predict',{value,input:input(),config:ctx().draft.config});
+   if(value){
+    await rpc('predict',{value,input:input(),config:ctx().draft.config});
+    if((scene().actions||[])[1]!=='predict')await patchScene(player,{...advance(scene(),'predict')});
+   }
   }
   await apply(player);
  }

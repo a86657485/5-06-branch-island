@@ -42,6 +42,7 @@ test('场景草稿只保存有限坐标与短摘要，缓存票据不改变评�
   assert.equal(cleaned.ticket.output,'10');assert.equal(cleaned.ticket.branch,'no');
   assert.equal('trace' in cleaned.ticket,false);assert.equal('unknown' in cleaned,false);
   assert.deepEqual(a.validateSceneDraft({...draft,actorId:null,facility:false,pair:'pair-a',collected:['a','b'],signal:'red'}).collected,['a','b']);
+  assert.equal(a.validateSceneDraft({...draft,lastFeedback:'条件不成立。\n你的条件：30＞30 → 不成立'}).lastFeedback.includes('\n'), true);
   for(const change of [{x:-1},{x:Infinity},{x:1201},{y:801},{facing:'diagonal'},{actorId:'anyone'},{phase:'x'.repeat(41)},{measured:1},{actions:Array(9).fill('gate')},{visited:Array(21).fill('guide')},{lastFeedback:'x'.repeat(501)},{ticket:{...ticket,correct:'yes'}},{facility:'false'},{pair:'pair-c'},{collected:['c']},{signal:'yellow'}]) {
     assert.throws(()=>a.validateSceneDraft({...draft,...change}),/场景|坐标|摘要|角色|方向|票|设施|能量|信号/);
   }

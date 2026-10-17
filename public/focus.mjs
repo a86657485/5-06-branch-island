@@ -51,17 +51,12 @@ const OPENING = {
 export function routeDots(mapId, output = 'bridge') {
   const east = mapId === 'crossing-east';
   const bridge = output !== 'crossing';
-  const from = east ? [700, 520] : [400, 560];
-  const mid = bridge ? (east ? [900, 400] : [470, 430]) : (east ? [980, 640] : [470, 650]);
-  const to = bridge
-    ? (east ? PLACES['crossing-east'].bridgeEast : PLACES.crossing.bridgeWest)
-    : (east ? PLACES['crossing-east'].crossingEast : PLACES.crossing.crossingWest);
+  const places = east ? PLACES['crossing-east'] : PLACES.crossing;
+  const target = bridge ? (east ? places.bridgeEast : places.bridgeWest) : (east ? places.crossingEast : places.crossingWest);
+  const y = bridge ? 336 : 680;
+  const endX = target[0] - 32;
   const points = [];
-  const legs = [[from, mid], [mid, to]];
-  for (const [start, end] of legs) {
-    const steps = Math.max(1, Math.round(Math.hypot(end[0] - start[0], end[1] - start[1]) / 32));
-    for (let i = 0; i < steps; i += 1) points.push({ x: Math.round(start[0] + (end[0] - start[0]) * i / steps), y: Math.round(start[1] + (end[1] - start[1]) * i / steps) });
-  }
+  for (let x = endX - 32 * 4; x <= endX; x += 32) points.push({ x, y });
   return points;
 }
 
@@ -117,7 +112,8 @@ function stationFocus(levelId, scene, level, draft) {
     return pack({ id: place, step: '2', kind: 'map', thinking: false, goto: true, hint, strong: '走到发光的圆圈上按 E。', target: at(mapId, place) });
   }
   if (!flow.locked) {
-    return pack({ id: 'control', step: '3', kind: 'map', thinking: false, goto: true, hint: levelId === 'repair' ? '先运行原程序，看 30℃。' : '到规则控制柜，按 E 打开。', strong: '走到发光的圆圈上按 E。', target: at(mapId, 'control') });
+    const drawHint = levelId === 'repair' ? '先运行原程序，看 30℃。' : levelId === 'cross' ? '到导行屏，按 E 打开画图。' : '到规则控制柜，按 E 打开。';
+    return pack({ id: 'control', step: '3', kind: 'map', thinking: false, goto: true, hint: drawHint, strong: '走到发光的圆圈上按 E。', target: at(mapId, 'control') });
   }
   if (!sentence.locked) {
     return pack({ id: 'control', step: '6', kind: 'map', thinking: false, goto: true, hint: '回控制柜，用词块拼一句。', strong: '按 E 打开拼句。', target: at(mapId, 'control') });

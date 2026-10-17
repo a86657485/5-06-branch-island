@@ -18,7 +18,7 @@ test('前往园艺员时站在东侧并面向他，不朝向南边的核验仪',
   const point = id => ({ x: places[id][0], y: places[id][1] });
   const others = ['sensor', 'control', 'fan', 'verify', 'portal'].map(point);
   const stand = standBeside(point('guide'), point('start'), others);
-  assert.deepEqual(stand, { x: places.guide[0] + 32, y: places.guide[1], direction: 'left' });
+  assert.deepEqual(stand, { x: places.guide[0] + 16, y: places.guide[1], direction: 'left' });
   assert.equal(Math.hypot(stand.x - places.verify[0], stand.y - places.verify[1]) >= 40, true);
   const south = { x: places.guide[0], y: places.guide[1] + 32 };
   assert.equal(Math.hypot(south.x - places.verify[0], south.y - places.verify[1]) < 40, true);

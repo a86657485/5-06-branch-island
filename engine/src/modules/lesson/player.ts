@@ -29,8 +29,15 @@ if (typeof window !== 'undefined') window.addEventListener('lesson-goto', event 
  const context = getContext();
  if (context?.draft) context.draft.rpg = { version: 1, engine: 'rpgjs', mapId: runtime.map, position: { x: stand.x, y: stand.y }, direction: stand.direction };
  player.setVariable('focusTarget', detail.place || '');
- void player.changeMap(runtime.map, { x: stand.x, y: stand.y }).then(() => { player.changeDirection(direction); void saveCheckpoint(runtime, player); }).catch(error => console.warn('前往下一目标未完成', error));
+ void player.changeMap(runtime.map, { x: stand.x, y: stand.y }).then(() => { holdFacing(player, direction, stand); void saveCheckpoint(runtime, player); }).catch(error => console.warn('前往下一目标未完成', error));
 });
+function holdFacing(player: RpgPlayer, direction: Direction, at: { x: number, y: number }) {
+ player.changeDirection(direction);
+ player.directionFixed = true;
+ const name = direction === Direction.Up ? 'up' : direction === Direction.Left ? 'left' : direction === Direction.Right ? 'right' : 'down';
+ player.setVariable('faceLock', name);
+ player.setVariable('faceLockAt', { x: at.x, y: at.y });
+}
 async function saveCheckpoint(runtime:Runtime,player:RpgPlayer){
  if(runtime.map!==mapFor(ctx())||player.getCurrentMap()?.id!==runtime.map)return;
  const dir=player.direction(),direction=dir===Direction.Up?'up':dir===Direction.Left?'left':dir===Direction.Right?'right':'down';
@@ -57,12 +64,19 @@ export const player:RpgPlayerHooks={
  map.setAutoTick(true);
  player.setHitbox(24,24);
  const saved=ctx().draft.rpg;if(saved?.mapId===map.id){const direction=directions[saved.direction as keyof typeof directions];if(direction)player.changeDirection(direction);}
- if(pendingApproach?.mapId===map.id)player.changeDirection(pendingApproach.direction);
+ if(pendingApproach?.mapId===map.id)holdFacing(player,pendingApproach.direction,{x:player.x(),y:player.y()});
  player.setVariable('lessonBusy',false);player.setVariable('deviceOutput',ctx().draft.scene?.deviceOutput||'off');player.syncChanges();
  if(mapFor(ctx())!==map.id)void runtime.enter(ctx());
  },
  async onMove(player){
  const runtime=sessions.get(player.id);if(!runtime||runtime.changing||mapFor(ctx())!==runtime.map||!getContext()?.draft.scene)return;
+ const lock=player.getVariable('faceLock');
+ if(lock){
+  const at=player.getVariable('faceLockAt') as {x?:number,y?:number}|undefined;
+  const ax=typeof at?.x==='number'?at.x:player.x(),ay=typeof at?.y==='number'?at.y:player.y();
+  if(Math.hypot(player.x()-ax,player.y()-ay)>12){player.directionFixed=false;player.setVariable('faceLock','');}
+  else{const direction=directions[lock as keyof typeof directions];if(direction)player.changeDirection(direction);player.directionFixed=true;}
+ }
  pendingApproach=null;
  await checkRoute(player);
  clearTimeout(runtime.checkpointTimer);runtime.checkpointTimer=setTimeout(()=>{void saveCheckpoint(runtime,player);},250);

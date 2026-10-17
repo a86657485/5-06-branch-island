@@ -48,7 +48,6 @@ export function emptySentence(mode = 'sale'): Sentence { return { slots: Array(m
 export function emptyPredictions(): Predictions { return { 29: '', 30: '', 31: '', locked: false }; }
 
 export function placeCard(flow: Flow, slot: 'diamond' | 'yes' | 'no', cardId: string): Flow {
-  if (flow.locked && !flow.preset) return flow;
   return { ...flow, preset: false, locked: false, [slot]: cardId };
 }
 

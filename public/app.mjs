@@ -168,7 +168,7 @@ function renderTask(idx){
    if(!sameOwner())return {passed:false,feedback:'身份已切换，请在当前身份下继续。'};
    try{
     const d=draft(id),result=R.validateComplete(id,d.config,state.runs[id]||[],d.reason,state.levels[id]?.evidenceStart||0);
-    if(!result.passed)return result;
+    if(!result.passed){send('complete',id,{config:d.config,reason:d.reason});return result;}
     const earned=!state.levels[id]?.completed;
     state.levels[id]={...state.levels[id],completed:true,valid:true,points:25,reason:d.reason};state.points=ids.reduce((n,key)=>n+(state.levels[key]?.completed?25:0),0);
     send('complete',id,{config:d.config,reason:d.reason});
@@ -179,7 +179,17 @@ function renderTask(idx){
   onNext(){if(!sameOwner())return;const next=ids[idx+1]||'quiz';if(!legacy&&next==='quiz'){setTimeout(()=>{if(sameOwner())goToTask('quiz');},0);return {levelId:'quiz'};}return goToTask(next);},
   onFlow(){showHelp(`<h2>${titles[idx]} · 当前执行过程</h2><div class="scene-flow-preview">${flow()}</div><p>根据条件是否成立，一次只执行“是”或“否”对应的一条路径。</p>`);},
   onHelp(){showHelp(`<h2>智慧园区 · 怎么操作</h2><ol><li>${legacy?'点击NPC或设备的名称，角色会沿步道走近，抵达后交谈或操作。':'使用方向键、WASD或屏幕方向按钮行走，走近并面向NPC或设备。'}</li><li>按E、空格或屏幕交互按钮，与面前的对象交谈。</li><li>先领取委托、读取现场输入，在设备旁设置规则并预测。</li><li>亲自执行、到核验点观察结果，再向NPC汇报。不同情况都要验证。</li></ol><p>对话右上角的×可随时关闭，进度会保留。帮助不扣积分。</p><p class="muted">场景参考深圳智慧园林；地图、人物和30℃规则均为教学仿真。</p>`);},
-  onNavHelp(data){if(!sameOwner())return null;send('nav_help',id,{trigger:data.trigger||'button',strength:data.strength??0,idleMs:data.idleMs||0,step:data.step||'',focusId:data.focusId||'',mapId:data.mapId||'',levelId:id});return {saved:true};}
+  onNavHelp(data){if(!sameOwner())return null;send('nav_help',id,{trigger:data.trigger||'button',strength:data.strength??0,idleMs:data.idleMs||0,step:data.step||'',focusId:data.focusId||'',mapId:data.mapId||'',levelId:id});return {saved:true};},
+  onConceptHint(){
+   if(!sameOwner())return null;
+   const level=state.levels[id]||{};
+   const focus=currentFocus({levelId:id,scene:draft(id).scene,level,draft:draft(id)});
+   if(!level.submissions){showHelp('<h2>怎么操作</h2><p>走到发光标记前，按 E 打开面前的人或设备。第一次提交前，求助只说明操作，不会记成概念提示。</p>');send('nav_help',id,{trigger:'button',strength:0,idleMs:0,step:focus.step,focusId:focus.id,mapId:focus.target?.mapId||'',levelId:id});return {kind:'operation'};}
+   showHelp('<h2>概念提示</h2><p>第一次提交已经做过。同意之后，这一站再完成会记为在提示下完成。操作帮助不会这样记。</p><button type="button" id="accept-concept">我同意看概念提示</button>');
+   const accept=$('#accept-concept');
+   if(accept)accept.onclick=()=>{send('concept_hint',id,{level:1,evidenceKind:'station'});state.levels[id].hinted=true;const note=document.createElement('p');note.textContent='概念提示：菱形里要放能用“是”或“否”回答的问题。成立只走一边，不成立走另一边。';$('#help-content').append(note);accept.disabled=true;};
+   return {kind:'offer'};
+  }
   };
  };
  const host=makeHost(initialId);

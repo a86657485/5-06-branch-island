@@ -59,7 +59,7 @@
     if ('signal' in scene) { check(['red','green'].includes(scene.signal),'场景信号状态不正确'); clean.signal = scene.signal; }
     if ('deviceOutput' in scene) { check(['on','off'].includes(scene.deviceOutput),'设备执行状态不正确'); clean.deviceOutput=scene.deviceOutput; }
     if ('temperatureCase' in scene) { check([29,30,31].includes(scene.temperatureCase),'场景温度体验不正确'); clean.temperatureCase = scene.temperatureCase; }
-    if ('lastFeedback' in scene) { check(shortText(scene.lastFeedback,500),'场景反馈摘要过长或格式不正确'); clean.lastFeedback = scene.lastFeedback; }
+    if ('lastFeedback' in scene) { check(typeof scene.lastFeedback === 'string' && scene.lastFeedback.length <= 500 && !/[\u0000-\u0009\u000b-\u001f]/.test(scene.lastFeedback),'场景反馈摘要过长或格式不正确'); clean.lastFeedback = scene.lastFeedback; }
     return clean;
   }
   function validateRpgDraft(rpg,id) {

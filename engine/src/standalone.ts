@@ -182,9 +182,10 @@ function projectWorld(target: { x?: number, y?: number }) {
   return { x: sx, y: sy, offscreen: sx < rect.left || sx > rect.right || sy < rect.top || sy > rect.bottom };
 }
 function paintPanelFocus(focus: { kind?: string, id?: string }) {
-  document.querySelectorAll('.card-tray.focus-target, .flow-slot.focus-target, .studio.focus-target').forEach(node => node.classList.remove('focus-target'));
+  document.querySelectorAll('.card-tray.focus-target, .flow-slot.focus-target, .studio.focus-target, .predict-option.focus-target').forEach(node => node.classList.remove('focus-target'));
   if (focus.kind !== 'panel' || !focus.id) return;
   document.querySelector(`[data-focus="${focus.id}"]`)?.classList.add('focus-target');
+  if (focus.id === 'predict-row-next') document.querySelectorAll('.predict-row.next button').forEach(node => node.classList.add('focus-target'));
   if (focus.id === 'slot-next' || focus.id === 'sentence-slot-next') {
     const region = focus.id === 'sentence-slot-next' ? '[data-region="sentence-cards"]' : '[data-region="flow-cards"]';
     document.querySelector(region)?.classList.add('focus-target');
@@ -231,7 +232,7 @@ function paintFocus(focus = lessonFocus()) {
   const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
   if (goto) {
     goto.disabled = !focus.goto;
-    goto.title = focus.goto ? '前往下一目标' : (focus.gotoReason || '这段要你亲自走过去');
+    goto.title = focus.goto ? '前往下一目标' : (focus.gotoReason || '');
     goto.classList.toggle('focus-target', focusStrength >= 2 && focus.goto);
   }
 }
@@ -262,6 +263,12 @@ document.getElementById('engine-goto')?.addEventListener('click', () => {
   noteActivity();
   window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { ...focus.target, goto: true } }));
   void request('navHelp', { levelId: context?.levelId, mapId: focus.target.mapId || '', step: focus.step, focusId: focus.id, trigger: 'goto', strength: 0, idleMs: 0 }).catch(() => undefined);
+});
+document.getElementById('engine-hint')?.addEventListener('click', () => {
+  if (!canControl()) return;
+  stopMovement();
+  noteActivity();
+  void request('conceptHint', { levelId: getContext()?.levelId }).catch(error => showStatus(error instanceof Error ? error.message : '求助暂时没有打开。'));
 });
 document.getElementById('engine-help')?.addEventListener('click', () => {
   const focus = lessonFocus();

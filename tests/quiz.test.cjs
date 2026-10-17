@@ -18,9 +18,9 @@ function baseAnswers(wrongIds = []) {
   return answers;
 }
 
-test('v5.1c 题库按层读取，学生端看不到答案和教师字段', () => {
-  assert.equal(quiz.version, '2026-10-17-branch-v5.1c');
-  assert.equal(quiz.bank.previousVersion, '2026-10-17-branch-v5.1b');
+test('v5.1d 题库按层读取，学生端看不到答案和教师字段', () => {
+  assert.equal(quiz.version, '2026-10-17-branch-v5.1d');
+  assert.equal(quiz.bank.previousVersion, '2026-10-17-branch-v5.1c');
   assert.match(quiz.bank.tiers.base.pointsRule, /首次作答/);
   assert.match(quiz.bank.tiers.base.pointsRule, /不加分/);
   assert.equal(quiz.byTier('base').length, 11);

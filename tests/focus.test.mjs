@@ -61,6 +61,10 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
   assert.equal(repairProbe.step, '2');
   assert.equal(repairProbe.hint, '选 30℃，先运行原程序看看。');
   assert.equal(currentFocus({ levelId: 'sale', scene: { phase: 'assigned', measured: false } }).hint, '到温度探头，选一个温度。');
+  const draw = currentFocus({ levelId: 'cross', scene: { phase: 'observed', measured: true, facility: true }, draft: { flow: { locked: false } }, level: { valid: false } });
+  assert.equal(draw.hint, '到导行屏，按 E 打开画图。');
+  assert.equal(draw.target.place, 'control');
+  assert.equal(currentFocus({ levelId: 'repair', scene: { phase: 'measured', measured: true }, draft: { flow: { locked: false } } }).hint, '先运行原程序，看 30℃。');
 });
 
 test('闸机引导从运维主管开始，出票后还要看告示再回答', () => {
@@ -99,6 +103,10 @@ test('脚印沿两条腿走，大约每 32 像素一点，不落在终点上', (
   for (const focus of [east, west]) {
     assert.equal(focus.dots.length > 3, true);
     assert.equal(focus.dots.some(dot => dot.x === focus.target.x && dot.y === focus.target.y), false);
+    const bridge = focus.target.place.startsWith('bridge');
+    for (const dot of focus.dots) {
+      assert.equal(bridge ? dot.y >= 288 && dot.y <= 392 : dot.y >= 608 && dot.y <= 744, true);
+    }
     for (let i = 1; i < focus.dots.length; i += 1) {
       const gap = Math.hypot(focus.dots[i].x - focus.dots[i - 1].x, focus.dots[i].y - focus.dots[i - 1].y);
       assert.equal(gap <= 48, true);

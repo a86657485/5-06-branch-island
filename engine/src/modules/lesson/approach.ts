@@ -1,9 +1,9 @@
-/** 站在目标旁一格，面向目标，并躲开旁边的其他事件。 */
+/** 站到目标身上一点，面向目标。16 像素比身位窄，互动框才碰得到 24 像素的人或设备。 */
 
 export type ApproachPoint = { x: number; y: number };
 export type Approach = ApproachPoint & { direction: 'up' | 'down' | 'left' | 'right' };
 
-export function standBeside(target: ApproachPoint, from: ApproachPoint, others: ApproachPoint[] = [], tile = 32, clearance = 40): Approach {
+export function standBeside(target: ApproachPoint, from: ApproachPoint, others: ApproachPoint[] = [], tile = 16, clearance = 40): Approach {
   const sides: Approach[] = [
     { x: target.x + tile, y: target.y, direction: 'left' },
     { x: target.x - tile, y: target.y, direction: 'right' },

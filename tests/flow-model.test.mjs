@@ -62,6 +62,14 @@ test('路口绿灯判断不能执行，返修要先看到故障', () => {
   assert.equal(swapped.config.no, 'off');
 });
 
+test('锁定后换一张卡片会解开流程图', () => {
+  const locked = lockFlow('sale', { diamond: 'gt30', yes: 'on', no: 'off', locked: false }).flow;
+  const edited = placeCard(locked, 'diamond', 'ge30');
+  assert.equal(edited.diamond, 'ge30');
+  assert.equal(edited.locked, false);
+  assert.equal(edited.yes, 'on');
+});
+
 test('三个温度都选了才能锁定预测', () => {
   assert.equal(lockPredictions({ 29: 'on', 30: '', 31: 'off', locked: false }).ok, false);
   const locked = lockPredictions({ 29: 'off', 30: 'on', 31: 'on', locked: false });

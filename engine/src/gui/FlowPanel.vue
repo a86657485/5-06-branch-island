@@ -26,6 +26,10 @@ const diagnose = ref('');
 const lockedConfig = ref<Record<string, unknown> | null>(null);
 const cards = computed(() => cardsFor(mode));
 const slotName = computed(() => nextSlot(board.value));
+const nextTemperature = computed(() => {
+  if (predictions.value.locked) return 0;
+  return ([29, 30, 31] as const).find(temperature => predictions.value[temperature] !== 'on' && predictions.value[temperature] !== 'off') || 0;
+});
 const lockedOut = computed(() => mode === 'repair' && !props.diagnosed);
 const alarm = computed(() => /菱形|不能用来/.test(message.value));
 const labels: Record<string, string> = { diamond: '菱形 · 判断', yes: '是', no: '否' };
@@ -63,6 +67,7 @@ function lock() {
   if (result.ok && result.config) {
     const changed = !!lockedConfig.value && JSON.stringify(lockedConfig.value) !== JSON.stringify(result.config);
     predictions.value = unlockPredictionsOnEdit(predictions.value, changed);
+    if (changed) sentence.value = { ...sentence.value, locked: false };
     lockedConfig.value = result.config;
     publish({ config: result.config });
   }
@@ -112,10 +117,10 @@ onMounted(() => {
       </div>
       <SentencePanel v-else-if="view === 'sentence'" :mode="mode" :flow="board" :sentence="sentence" @save="sentence = $event; publish()" @locked="sentence = $event; publish()" />
       <div v-else class="predict-table" data-focus="predict-row-next">
-        <div v-for="temperature in ([29,30,31] as const)" :key="temperature" class="predict-row">
+        <div v-for="temperature in ([29,30,31] as const)" :key="temperature" class="predict-row" :class="{ next: temperature === nextTemperature }">
           <b>{{ temperature }}℃</b>
-          <button type="button" :class="{ on: predictions[temperature] === 'on' }" @click="predictions = setPrediction(predictions, temperature, 'on'); publish()">启动</button>
-          <button type="button" :class="{ on: predictions[temperature] === 'off' }" @click="predictions = setPrediction(predictions, temperature, 'off'); publish()">关闭</button>
+          <button type="button" class="predict-option" :class="{ on: predictions[temperature] === 'on' }" @click="predictions = setPrediction(predictions, temperature, 'on'); publish()">启动</button>
+          <button type="button" class="predict-option" :class="{ on: predictions[temperature] === 'off' }" @click="predictions = setPrediction(predictions, temperature, 'off'); publish()">关闭</button>
         </div>
         <button type="button" class="studio-lock" data-focus="predict-lock" @click="lockTable">锁定预测</button>
       </div>
@@ -141,6 +146,7 @@ onMounted(() => {
 .flow-fixed, .flow-slot { padding: 8px; text-align: center; }
 .flow-fixed { border: 2px dashed #8aa888; border-radius: 12px; }
 .flow-slot.next, .sentence-slot.next { outline: 4px solid #e39b00; }
+.predict-row.next button { outline: 3px solid #1175bb; outline-offset: 2px; }
 .flow-slot b, .flow-slot span { display: block; }
 .card-tray { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; padding: 8px; border: 2px solid #d7e2cc; border-radius: 12px; }
 .studio-card { padding: 8px 10px; }

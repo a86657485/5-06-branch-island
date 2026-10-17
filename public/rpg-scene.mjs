@@ -1,5 +1,5 @@
 const copy = value => JSON.parse(JSON.stringify(value));
-const methods = new Set(['change','predict','experiment','reason','complete','next','flow','help','checkpoint','evaluate','navHelp']);
+const methods = new Set(['change','predict','experiment','reason','complete','next','flow','help','checkpoint','evaluate','navHelp','conceptHint']);
 
 export function createRpgScene(initialHost) {
   const { root } = initialHost;
@@ -56,6 +56,7 @@ export function createRpgScene(initialHost) {
           case 'help': value = host.onHelp(); break;
           case 'checkpoint': value = host.onChange({rpg:data.rpg || data}); break;
           case 'navHelp': value = host.onNavHelp?.(data); break;
+          case 'conceptHint': value = host.onConceptHint?.(); break;
         }
         value = await value;
         return {type:'rpgjs-result',requestId:message.requestId,result:{context:context(),value:value ?? null}};

@@ -79,6 +79,18 @@ test('RPGJS 在选择时保存首预测，核验不重复记预测，验收后�
  host.onNext();assert.equal(h.scenes.length,1);assert.equal(h.scenes[0].host.levelId,'repair');assert.equal(s.points,25);
 });
 
+test('未通过的验收也会提交，方便之后把概念提示和独立完成分开',()=>{
+ const h=appHarness(true),s=state();
+ s.drafts.cross={config:{yes:'bridge',no:'bridge'},reason:'none',input:{facility:false}};
+ s.runs.cross=[{config:{yes:'bridge',no:'bridge'},input:{facility:false},correct:false}];
+ s.levels.cross={evidenceStart:0,submissions:0,hinted:false};
+ h.app.setState(s);h.app.setCurrent('cross');h.app.renderTask(2);
+ const result=h.scenes.at(-1).host.onComplete({deferRender:true});
+ assert.equal(result.passed,false);
+ assert.equal(h.events.filter(event=>event.type==='complete'&&event.levelId==='cross').length,1);
+ assert.equal(h.app.getState().levels.cross.completed,undefined);
+});
+
 test('同一身份重新挂载后，旧引擎回调不再写入新场景',()=>{
  const h=appHarness(true),s=state();h.app.setState(s);h.app.renderTask(0);const old=h.scenes[0].host;
  h.app.renderTask(0);const before=h.events.length;

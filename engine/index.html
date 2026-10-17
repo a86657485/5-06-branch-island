@@ -42,6 +42,7 @@
       .path-dot { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: #e39b00; border: 3px solid #173b31; box-shadow: 0 0 0 3px #fff6; }
       #engine-task-hint[data-strength="1"], #engine-task-hint[data-strength="2"], #engine-goto.focus-target { outline:4px solid #ffcf5a; animation:focus-pulse 1s ease-in-out infinite; }
       .card-tray.focus-target, .flow-slot.focus-target, .studio.focus-target { outline: 4px solid #e39b00; outline-offset: 4px; }
+      .predict-option.focus-target, .predict-row.next button { outline: 3px solid #1175bb; outline-offset: 2px; }
       @keyframes focus-pulse { 50% { outline-color:#147d78; border-color:#fff; } }
       @keyframes focus-bounce { 50% { transform:translateY(-6px); } }
       @media(max-width:600px){#engine-task-hint{max-width:calc(100% - 20px);top:62px;left:10px;font-size:14px;padding:7px 10px;}}
@@ -60,6 +61,7 @@
       <nav class="engine-tools" aria-label="探究帮助">
         <button id="engine-flow" type="button">查看流程</button>
         <button id="engine-help" type="button">操作帮助</button>
+        <button id="engine-hint" type="button">求助</button>
         <button id="engine-goto" type="button">前往下一目标</button>
       </nav>
       <div class="engine-pad" aria-label="按住方向按钮行走">

@@ -26,7 +26,7 @@ function isPrivateAddress(address) {
   return parts[0] === 127 || parts[0] === 10 || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) || (parts[0] === 192 && parts[1] === 168) || (parts[0] === 169 && parts[1] === 254);
 }
 function initialState() {
-  return { drafts: {}, levels: Object.fromEntries(rules.levels.map(level => [level.id, { completed: false, valid: false, points: 0, completedAt: null, reason: null, evidenceStart: 0 }])), runs: Object.fromEntries(rules.levels.map(level => [level.id, []])), predictions: Object.fromEntries(rules.levels.map(level => [level.id, []])), attempts: [], points: 0, quizOpenedAt: null, exam: { openedAt: null }, quiz: { base: { first: null, latest: null, attempts: [], firstSubmittedAt: null, firstScore: null, passed: false }, challenge: { unlockedAt: null, closed: false, first: null, latest: null, attempts: [], firstSubmittedAt: null } }, awards: {}, navHelp: [], intro: { accepted: false, heightCase: null, judged: null, ticket: null, idea: null, sawSign: false, done: false, skipped: false, review: false, blocked: null } };
+  return { drafts: {}, levels: Object.fromEntries(rules.levels.map(level => [level.id, { completed: false, valid: false, points: 0, completedAt: null, reason: null, evidenceStart: 0 }])), runs: Object.fromEntries(rules.levels.map(level => [level.id, []])), predictions: Object.fromEntries(rules.levels.map(level => [level.id, []])), attempts: [], points: 0, quizOpenedAt: null, exam: { openedAt: null }, quiz: { base: { first: null, latest: null, attempts: [], firstSubmittedAt: null, firstScore: null, passed: false }, challenge: { unlockedAt: null, closed: false, first: null, latest: null, attempts: [], firstSubmittedAt: null } }, awards: {}, navHelp: [], conceptHints: [], intro: { accepted: false, heightCase: null, judged: null, ticket: null, idea: null, sawSign: false, done: false, skipped: false, review: false, blocked: null } };
 }
 function ensureState(state) {
   state.exam ||= { openedAt: null };
@@ -39,6 +39,12 @@ function ensureState(state) {
   state.quiz.challenge.attempts ||= [];
   state.awards ||= {};
   state.navHelp ||= [];
+  state.conceptHints ||= [];
+  for (const level of Object.values(state.levels || {})) {
+    if (!level || typeof level !== 'object') continue;
+    level.submissions ??= 0;
+    if (level.hinted == null) level.hinted = false;
+  }
   state.attempts ||= [];
   if (!('intro' in state)) state.intro = null;
   return state;
@@ -258,7 +264,7 @@ function createService(options = {}) {
     const round = roundOf(student);
     if (body.round !== round) fail(409, '记录属于其他课次，请刷新课堂');
     if (typeof body.eventId !== 'string' || !body.eventId || body.eventId.length > 120) fail(400, '记录标识不完整');
-    if (!['draft','run','prediction','complete','quiz','nav_help'].includes(body.type)) fail(400, '记录类型不正确');
+    if (!['draft','run','prediction','complete','quiz','nav_help','concept_hint'].includes(body.type)) fail(400, '记录类型不正确');
     if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) fail(400, '记录内容不正确');
     const previous = db.prepare('SELECT result FROM events WHERE studentId=? AND round=? AND eventId=?').get(student.id,round,body.eventId);
     if (previous) { const kept = recordFor(student.id); return envelope(student.id, kept, JSON.parse(previous.result)); }
@@ -277,6 +283,13 @@ function createService(options = {}) {
       state.navHelp.push(entry);
       if (state.navHelp.length > 300) state.navHelp.splice(0, state.navHelp.length - 300);
       result = { saved: true };
+    } else if (body.type === 'concept_hint') {
+      requireOpen(state, id);
+      const levelNo = Number(payload.level);
+      if (![1, 2, 3].includes(levelNo)) fail(400, '概念提示等级不正确');
+      state.conceptHints.push({ levelId: id, level: levelNo, evidenceKind: typeof payload.evidenceKind === 'string' ? payload.evidenceKind.slice(0, 40) : 'station', at: now() });
+      state.levels[id].hinted = true;
+      result = { saved: true, hinted: true };
     } else if (body.type === 'draft' && id === 'intro') {
       state.intro = sanitizeIntro(payload);
       result = { saved: true };
@@ -345,9 +358,13 @@ function createService(options = {}) {
       } else {
         useConfig(record,id,config);
         result = rules.validateComplete(id,config,state.runs[id],payload.reason,state.levels[id].evidenceStart || 0);
+        state.levels[id].submissions = (state.levels[id].submissions || 0) + 1;
         state.levels[id].valid = result.passed;
         if (result.passed) {
           const level = state.levels[id];
+          const hinted = level.hinted === true;
+          level.attemptKind = hinted ? 'hinted' : (level.submissions > 1 ? 'revision' : (id === 'cross' || id === 'minimum' ? 'transfer' : 'first'));
+          result = { ...result, attemptKind: level.attemptKind, hinted };
           level.reason = payload.reason;
           meta.validatedConfigs[id] = rules.configKey(id,config);
           if (!level.completed) { level.completed = true; level.points = rules.levels.find(level => level.id === id).points; level.completedAt = now(); state.points += level.points; }

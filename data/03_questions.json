@@ -1,6 +1,6 @@
 {
-  "version": "2026-10-17-branch-v5.1c",
-  "previousVersion": "2026-10-17-branch-v5.1b",
+  "version": "2026-10-17-branch-v5.1d",
+  "previousVersion": "2026-10-17-branch-v5.1c",
   "lesson": "五年级第6课《判断选择用分支》（501—504）",
   "codeSource": "/workspace/g5l6/design/01_目标证据与时间表.md（老师2026-10-17已确认：S1/S2/S3必做+E1选做；ND1、ND2为难点；考核10分钟）",
   "paperRule": "分层固定卷：基础层11题（全体必做，以简单为主，只看是否掌握学习目标）+ 挑战层12题（基础层提交后由服务端解锁，只加分）。各层按数组顺序呈现，不抽题；reserveQuestions不进卷",
