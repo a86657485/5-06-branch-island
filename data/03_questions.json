@@ -1,6 +1,6 @@
 {
-  "version": "2026-10-17-branch-v5.1a",
-  "previousVersion": "2026-10-17-branch-v5.1",
+  "version": "2026-10-17-branch-v5.1b",
+  "previousVersion": "2026-10-17-branch-v5.1a",
   "lesson": "五年级第6课《判断选择用分支》（501—504）",
   "codeSource": "/workspace/g5l6/design/01_目标证据与时间表.md（老师2026-10-17已确认：S1/S2/S3必做+E1选做；ND1、ND2为难点；考核10分钟）",
   "paperRule": "分层固定卷：基础层11题（全体必做，以简单为主，只看是否掌握学习目标）+ 挑战层12题（基础层提交后由服务端解锁，只加分）。各层按数组顺序呈现，不抽题；reserveQuestions不进卷",
@@ -8,7 +8,7 @@
     "base": {
       "count": 11,
       "passLine": 8,
-      "passLineNote": "达标总分线8/11：老师定8/11（约73%），本课特定（2026-10-18，备课团队转达）；规则形式“总分线＋每个目标至少一半”为老师已定；各目标最低线＝该目标基础层题数的一半，向上取整；未经课堂校准",
+      "passLineNote": "达标总分线8/11：老师定8/11（约73%），本课特定（2026-10-18，备课团队转达）；规则形式“总分线＋每个目标至少一半”为老师已定；各目标最低线＝该目标基础层题数的一半，向上取整（11个目标码含ZD1、ZD2，老师已确认）；K5不另加“检验”下限（已定：不另加）；未经课堂校准",
       "points": 20,
       "pointsRule": "同学生、同应用、同轮次，基础层第一次达标（首答或重做均可，重做达标标“重考达标”）时记20分，只记一次",
       "pointsNote": "20分老师已确认（2026-10-17）",
@@ -28,7 +28,7 @@
         "ND1",
         "ND2"
       ],
-      "objectiveMinimumsNote": "评分只读这个数组。老师已确认含 ZD1、ZD2，为本课最终名单（2026-10-18）。各目标最低线＝该目标基础层题数的一半，向上取整。"
+      "objectiveMinimumsNote": "评分只读这个数组。老师已确认含 ZD1、ZD2，为本课最终名单（2026-10-18）。题目的 goalIds 可以是空数组，该题仍按 keyIds 与 keyDifficultyIds 计入目标。各目标最低线＝该目标基础层题数的一半，向上取整。"
     },
     "challenge": {
       "count": 12,
@@ -327,17 +327,13 @@
           2
         ]
       },
-      "goalIds": [
-        "G2"
-      ],
+      "goalIds": [],
       "keyIds": [
         "K2",
         "K3"
       ],
       "keyDifficultyIds": [
-        "ZD2",
-        "ND1",
-        "ND2"
+        "ND1"
       ],
       "evidenceId": "D6",
       "misconceptionMap": {
@@ -3552,5 +3548,5 @@
     }
   ],
   "interactionRule": "单选：点一个选项。其余题型统一为“先点卡片，再点空格（也可拖）”；当前空格高亮，填好自动高亮下一个空；全部空格填好后点“确认本题”才前进，不自动跳题；未填满时“确认本题”不可点",
-  "thresholdNote": "达标总分、奖励线和挑战加分线只读 tiers.base.passLine、tiers.base.rewardLine、tiers.challenge.passLine。目标最低线名单只读 tiers.base.objectiveMinimums。"
+  "thresholdNote": "达标总分、奖励线和挑战加分线只读 tiers.base.passLine、tiers.base.rewardLine、tiers.challenge.passLine。目标最低线名单只读 tiers.base.objectiveMinimums。题目的 goalIds 允许为空数组。"
 }

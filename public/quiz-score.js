@@ -46,9 +46,18 @@
       const allowed = new Set(tiers);
       return questions.filter(question => allowed.has(question.tier)).map(publicQuestion);
     }
-    function objectiveIds(question) {
-      return [...new Set([...(question.goalIds || []), ...(question.keyIds || []), ...(question.keyDifficultyIds || [])])];
+    function idList(question, field) {
+      if (!Object.hasOwn(question, field) || question[field] === undefined) return [];
+      const value = question[field];
+      if (!Array.isArray(value) || value.some(code => typeof code !== 'string' || !/^[A-Z]+\d+$/.test(code))) {
+        throw new Error(`题目 ${question.id || ''} 的 ${field} 必须是目标编号数组，可以是空数组`);
+      }
+      return value;
     }
+    function objectiveIds(question) {
+      return [...new Set([...idList(question, 'goalIds'), ...idList(question, 'keyIds'), ...idList(question, 'keyDifficultyIds')])];
+    }
+    for (const question of questions) objectiveIds(question);
     function grade(tier, answers) {
       const list = byTier(tier);
       const details = list.map(question => ({

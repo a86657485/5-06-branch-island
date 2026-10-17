@@ -18,8 +18,8 @@ function baseAnswers(wrongIds = []) {
   return answers;
 }
 
-test('v5.1a 题库按层读取，学生端看不到答案和教师字段', () => {
-  assert.equal(quiz.version, '2026-10-17-branch-v5.1a');
+test('v5.1b 题库按层读取，学生端看不到答案和教师字段', () => {
+  assert.equal(quiz.version, '2026-10-17-branch-v5.1b');
   assert.equal(quiz.byTier('base').length, 11);
   assert.equal(quiz.byTier('challenge').length, 12);
   assert.equal(quiz.questions.length, 23);
@@ -65,18 +65,53 @@ test('7/11 不奖励；8/11 奖励但目标未过半时记为未达标', () => {
   assert.equal(quiz.basePassed(short), false);
 });
 
-test('每题计入哪些目标只看题目上的编号，改 q22 的映射会改变统计', () => {
+test('q22 的 goalIds 为空数组仍然有效，只计入 K2、K3、ND1', () => {
+  const question = quiz.questions.find(item => item.id === 'q22');
+  assert.deepEqual(question.goalIds, []);
+  assert.deepEqual(question.keyIds, ['K2', 'K3']);
+  assert.deepEqual(question.keyDifficultyIds, ['ND1']);
+  const visible = quiz.publicQuestions(['base']).find(item => item.id === 'q22');
+  assert.equal('goalIds' in visible, false);
+  const before = quiz.grade('base', baseAnswers());
+  const total = (result, code) => result.objectives.find(item => item.code === code).total;
+  assert.equal(before.details.find(item => item.id === 'q22').correct, true);
+  assert.equal(total(before, 'G2'), 9);
+  assert.equal(total(before, 'ZD2'), 3);
+  assert.equal(total(before, 'ND2'), 2);
+  assert.equal(total(before, 'K2'), 3);
+  assert.equal(total(before, 'K3'), 3);
+  assert.equal(total(before, 'ND1'), 5);
+  assert.equal(quiz.basePassed(before), true);
+
+  const copy = structuredClone(quiz.bank);
+  const edited = copy.questions.find(item => item.id === 'q22');
+  edited.goalIds = ['G1'];
+  edited.keyIds = [];
+  edited.keyDifficultyIds = [];
+  const after = create(copy).grade('base', baseAnswers());
+  assert.equal(total(after, 'G2'), total(before, 'G2'));
+  assert.equal(total(after, 'K2'), total(before, 'K2') - 1);
+  assert.equal(total(after, 'K3'), total(before, 'K3') - 1);
+  assert.equal(total(after, 'ND1'), total(before, 'ND1') - 1);
+  assert.equal(total(after, 'G1'), total(before, 'G1') + 1);
+});
+
+test('只有空 goalIds、没有其他目标编号的题目也能加载和计分', () => {
   const copy = structuredClone(quiz.bank);
   const question = copy.questions.find(item => item.id === 'q22');
-  const before = quiz.grade('base', baseAnswers());
-  question.goalIds = ['G1'];
+  question.goalIds = [];
   question.keyIds = [];
   question.keyDifficultyIds = [];
-  const after = create(copy).grade('base', baseAnswers());
-  const total = (result, code) => result.objectives.find(item => item.code === code).total;
-  assert.equal(total(after, 'G2'), total(before, 'G2') - 1);
-  assert.equal(total(after, 'ZD2'), total(before, 'ZD2') - 1);
-  assert.equal(total(after, 'G1'), total(before, 'G1') + 1);
+  const api = create(copy);
+  const graded = api.grade('base', baseAnswers());
+  assert.equal(graded.details.find(item => item.id === 'q22').correct, true);
+  assert.equal(graded.score, 11);
+  assert.equal(api.basePassed(graded), true);
+  assert.throws(() => {
+    const broken = structuredClone(copy);
+    broken.questions.find(item => item.id === 'q22').goalIds = 'G2';
+    create(broken);
+  }, /goalIds/);
 });
 
 test('流程图等价条件交换出口算对，只改符号不算对', () => {

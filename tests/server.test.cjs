@@ -84,7 +84,9 @@ test('分层考核三站当前通过后开放，首答与奖励分开，挑战�
   assert.equal(still.examGate.open,false);assert.deepEqual(still.examGate.missing,['cross']);
   await c.complete('cross',cross,[{facility:true},{facility:false}],'one');
   const opened=await c.api('/api/quiz?studentId=s1');
-  assert.equal(opened.examGate.open,true);assert.equal(opened.quizVersion,'2026-10-17-branch-v5.1a');
+  assert.equal(opened.examGate.open,true);assert.equal(opened.quizVersion,quiz.version);
+  const q22=opened.questions.find(question=>question.id==='q22');
+  assert.equal(q22.goal,'流程图补充');assert.equal('goalIds' in q22,false);
   assert.equal(opened.questions.length,11);assert.equal(opened.questions.some(question=>question.tier==='challenge'),false);
   assert.equal('answer' in opened.questions[0],false);assert.equal('explanation' in opened.questions[0],false);
   const baseAnswers={};for(const question of quiz.byTier('base')) baseAnswers[question.id]=question.answer;
@@ -122,7 +124,10 @@ test('拒绝跨源写入、过大提交、旧轮次和非法题目索引，私�
   await c.api('/api/login',{classId:'501',studentId:'s1'});
   assert.equal((await c.event('prediction','sale',{value:'yes'},{round:0})).status,409);
   const {isPrivateAddress}=require(source);assert.equal(isPrivateAddress('192.168.1.15'),true);assert.equal(isPrivateAddress('::ffff:10.0.0.9'),true);assert.equal(isPrivateAddress('8.8.8.8'),false);
-  assert.equal((await c.api('/api/teacher/solutions')).status,200);
+  const solutions=await c.api('/api/teacher/solutions');
+  assert.equal(solutions.status,200);
+  assert.deepEqual(solutions.questions.find(question=>question.id==='q22').goalIds,[]);
+  assert.equal((await c.api('/api/teacher?classId=501')).status,200);
   assert.equal((await fetch(c.url()+'/roster.json')).status,404);
   assert.equal((await fetch(c.url()+'/server.cjs')).status,404);
   assert.equal((await fetch(c.url()+'/runtime/classroom.sqlite')).status,404);
