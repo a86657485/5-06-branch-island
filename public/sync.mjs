@@ -1,5 +1,17 @@
 export function reconcileState(local, remote, preserveDrafts = true) {
-  return { ...remote, drafts: preserveDrafts ? local.drafts : remote.drafts };
+  if (!preserveDrafts || !local?.drafts) return { ...remote, drafts: preserveDrafts ? local?.drafts : remote.drafts };
+  const drafts = { ...(remote.drafts || {}) };
+  for (const [id, draft] of Object.entries(local.drafts)) {
+    const remoteDraft = drafts[id];
+    if (draft && remoteDraft && typeof draft === 'object') {
+      if (!draft.config && remoteDraft.config) draft.config = remoteDraft.config;
+      if (!draft.flow && remoteDraft.flow) draft.flow = remoteDraft.flow;
+      if (!draft.input && remoteDraft.input) draft.input = remoteDraft.input;
+      if (!draft.sentence && remoteDraft.sentence) draft.sentence = remoteDraft.sentence;
+    }
+    drafts[id] = draft;
+  }
+  return { ...remote, drafts };
 }
 
 export class SyncQueue {

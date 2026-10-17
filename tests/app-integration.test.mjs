@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import rules from '../public/rules.js';
 import adventure from '../public/adventure-rules.js';
+import { createIntro, introAct, TESTERS } from '../public/intro.mjs';
 
 function appHarness(rpg = false) {
  const nodes = new Map();
@@ -12,14 +13,15 @@ function appHarness(rpg = false) {
  const context = vm.createContext({ window:{BranchRules:rules,AdventureRules:adventure,addEventListener(){}}, location:{search:rpg?'':'?engine=legacy'},document:{querySelector:node,querySelectorAll:()=>[]},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},URLSearchParams,AbortSignal,Date,JSON,crypto:{randomUUID:()=>`event-${events.length}`},setInterval(){},setTimeout(){},console,
   SyncQueue:class {constructor(){this.events=[];}pending(){return 0;}add(e){events.push(e);}async flush(){}},reconcileState:(_local,remote)=>remote,
   createIdleTimer:()=>({configure(){},setPaused(){},tick(){},reset(){},strength(){return 0}}),
-  currentFocus:()=>({id:'guide',step:'1',hint:'先听现场负责人说任务。',strong:'走到发光的圆圈上按 E。',thinking:false,goto:true,gotoReason:'',pause:false,kind:'map',target:{stationId:'sale',mapId:'greenhouse',x:1,y:1}}),
+  currentFocus:()=>({id:'guide',step:'1',hint:'先听园艺员说任务。',strong:'走到发光的圆圈上按 E。',thinking:false,goto:true,gotoReason:'',pause:false,kind:'map',target:{stationId:'sale',mapId:'greenhouse',x:1,y:1}}),
+  createIntro, introAct, TESTERS,
   createParkScene:host=>{ const scene={host,destroy(){host.onChange({scene:{version:1,x:20,y:30}});},refresh(){}};scenes.push(scene);return scene; },
   createRpgScene:host=>{const scene={engine:'rpgjs',host,destroy(){},refresh(){},navigate(id){this.host=host.forLevel(id);}};scenes.push(scene);return scene;}
  });
  let source = fs.readFileSync(new URL('../public/app.mjs',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace(/boot\(\)\.catch[\s\S]*$/,'');
- source += `\nglobalThis.testApp={renderTask,destroyScene,draft,quizDraft,setState(s){state=s;user={id:'student-a',classId:'501',name:'同学甲'};},setCurrent(id){current=id;},getState(){return state;},setQuizVersion(v){quizVersion=v;},setUser(u){user=u;}};`;
+ source += `\nglobalThis.testApp={render,renderTask,destroyScene,draft,quizDraft,setState(s){state=s;user={id:'student-a',classId:'501',name:'同学甲'};},setCurrent(id){current=id;},getState(){return state;},setQuizVersion(v){quizVersion=v;},setUser(u){user=u;}};`;
  vm.runInContext(source,context);
- return {app:context.testApp,scenes,events,storage};
+ return {app:context.testApp,scenes,events,storage,node};
 }
 const state = () => ({drafts:{},levels:{},runs:{},predictions:{},attempts:[],points:0});
 
@@ -81,5 +83,31 @@ test('同一身份重新挂载后，旧引擎回调不再写入新场景',()=>{
  const h=appHarness(true),s=state();h.app.setState(s);h.app.renderTask(0);const old=h.scenes[0].host;
  h.app.renderTask(0);const before=h.events.length;
  old.onChange({prediction:'off'});
- assert.equal(h.events.length,before);assert.notEqual(s.drafts.sale.prediction,'off');
+ assert.equal(h.events.length,before);assert.notEqual(s.drafts.sale?.prediction,'off');
+});
+
+test('再次进入已通过的站不提交默认配置',()=>{
+ const h=appHarness(true);
+ const config={model:'ventilation',operator:'>=',yes:'on',no:'off'};
+ const s=state();
+ s.drafts.sale={config,input:{temperature:30},scene:{version:1,x:10,y:20,facing:'down',phase:'assigned',measured:true,actions:[],visited:[],actorId:'sensor30',temperatureCase:30}};
+ s.levels.sale={completed:true,valid:true,points:25,evidenceStart:0};
+ s.runs.sale=[{config,input:{temperature:30}}];
+ h.app.setState(s);h.app.renderTask(0);
+ assert.equal(h.events.length,0);
+ assert.equal(h.app.getState().levels.sale.valid,true);
+ assert.equal(h.app.getState().drafts.sale.config.yes,'on');
+ assert.equal(h.app.getState().drafts.sale.config.no,'off');
+});
+
+test('开考前能看到缺的站，回到该站按钮可以点',()=>{
+ const h=appHarness(true);
+ const s=state();
+ s.levels={sale:{completed:true,valid:true},repair:{completed:false,valid:false},cross:{completed:false,valid:false},minimum:{completed:false,valid:false}};
+ h.app.setState(s);h.app.setCurrent('quiz');h.app.render();
+ const html=h.node('#workbench').innerHTML;
+ assert.match(html,/温室控制器返修/);
+ assert.match(html,/回到该站（温室控制器返修）/);
+ assert.equal(html.includes('data-back="repair" disabled'),false);
+ assert.match(h.node('#app').innerHTML,/还差哪一站/);
 });

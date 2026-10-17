@@ -38,6 +38,8 @@
       #focus-marker.edge { transform:translate(-50%, -50%); }
       #focus-marker.edge .focus-ring { display:none; }
       #focus-marker.edge .focus-arrow { font-size:42px; }
+      #path-dots { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
+      .path-dot { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: #e39b00; border: 3px solid #173b31; box-shadow: 0 0 0 3px #fff6; }
       #engine-task-hint[data-strength="1"], #engine-task-hint[data-strength="2"], #engine-goto.focus-target { outline:4px solid #ffcf5a; animation:focus-pulse 1s ease-in-out infinite; }
       @keyframes focus-pulse { 50% { outline-color:#147d78; border-color:#fff; } }
       @keyframes focus-bounce { 50% { transform:translateY(-6px); } }
@@ -51,6 +53,7 @@
   <body>
     <div id="rpg"><div id="vue-gui-overlay"></div></div>
     <p id="engine-task-hint" role="status" hidden></p>
+    <div id="path-dots" hidden></div>
     <div id="focus-marker" hidden><span class="focus-ring" aria-hidden="true"></span><span class="focus-arrow" aria-hidden="true">↓</span><span id="focus-label">下一目标</span></div>
     <div id="engine-controls" aria-label="园区操作" hidden>
       <nav class="engine-tools" aria-label="探究帮助">

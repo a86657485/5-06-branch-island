@@ -99,7 +99,8 @@ test('分层考核三站当前通过后开放，首答与奖励分开，挑战�
   const first=await c.event('quiz','quiz',{tier:'base',answers:baseAnswers,quizVersion:opened.quizVersion},{eventId:'exam-one'});
   assert.equal(first.result.score,10);assert.equal(first.result.passed,true);assert.equal(first.result.rewardUnlocked,true);assert.equal(first.result.challengeUnlocked,true);
   assert.equal(first.state.quiz.base.firstScore,10);assert.equal(first.state.quiz.base.attempts.length,1);assert.equal(first.state.points,95);
-  assert.equal(first.result.details.find(detail=>detail.id==='q35').correct,false);assert.equal('correctAnswer' in first.result.details.find(detail=>detail.correct),false);
+  const wrongDetail=first.result.details.find(detail=>detail.id==='q35');
+  assert.equal(wrongDetail.correct,false);assert.equal('correctAnswer' in wrongDetail,false);assert.ok(wrongDetail.explanation);assert.equal('correctAnswer' in first.result.details.find(detail=>detail.correct),false);
   const retry=await c.event('quiz','quiz',{tier:'base',answers:baseAnswers},{eventId:'exam-one'});assert.equal(retry.state.quiz.base.attempts.length,1);
   const withChallenge=await c.api('/api/quiz?studentId=s1');assert.equal(withChallenge.questions.filter(question=>question.tier==='challenge').length,12);
   assert.equal((await c.event('quiz','quiz',{tier:'challenge',answers:{}})).status,400);
@@ -310,4 +311,30 @@ test('换课次后重新登录不带上节进度，上节记录留在教师历�
  assert.equal((await c.event('draft','sale',{config:sale},{round:1})).status,409);
  const board=await c.api('/api/teacher?classId=501');
  assert.equal(board.lessonRound,2);assert.equal(board.summary.points,0);assert.equal(board.priorSessions.length,1);assert.equal(board.priorSessions[0].students.find(student=>student.id==='s1').points,25);
+});
+
+test('再次进入已通过的站，默认配置和纯场景保存都不作废',async t=>{
+ const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
+ const ventilation={model:'ventilation',operator:'>=',yes:'on',no:'off'};
+ const broken={model:'ventilation',operator:'>=',yes:'off',no:'on'};
+ await c.complete('sale',ventilation,[29,30,31].map(temperature=>({temperature})),'boundary');
+ await c.event('draft','sale',{config:ventilation,input:{temperature:30}});
+ await c.event('run','repair',{config:broken,input:{temperature:30}});
+ await c.complete('repair',ventilation,[29,30,31].map(temperature=>({temperature})),'swap');
+ await c.event('draft','repair',{config:ventilation,input:{temperature:30}});
+ await c.complete('cross',cross,[{facility:true},{facility:false}],'one');
+ await c.event('draft','cross',{config:cross,input:{facility:true}});
+ const scene={version:1,x:200,y:300,facing:'up',phase:'assigned',measured:false,actions:[],visited:[],actorId:'sensor30',temperatureCase:30};
+ const saleVisit=await c.event('draft','sale',{config:{model:'ventilation',operator:'>=',yes:'',no:''},scene});
+ assert.equal(saleVisit.state.levels.sale.valid,true);assert.equal(saleVisit.state.drafts.sale.config.yes,'on');assert.equal(saleVisit.state.points,75);
+ const crossVisit=await c.event('draft','cross',{config:{yes:'',no:''},scene:{...scene,actorId:'cross-open',facility:true}});
+ assert.equal(crossVisit.state.levels.cross.valid,true);assert.equal(crossVisit.state.drafts.cross.config.yes,'bridge');
+ const repairVisit=await c.event('draft','repair',{config:broken,scene});
+ assert.equal(repairVisit.state.levels.repair.valid,true);assert.equal(repairVisit.state.drafts.repair.config.yes,'on');
+ const sceneOnly=await c.event('draft','sale',{scene:{...scene,x:240}});
+ assert.equal(sceneOnly.state.levels.sale.valid,true);assert.equal(sceneOnly.state.drafts.sale.config.yes,'on');
+ const changed=await c.event('draft','sale',{config:{...ventilation,operator:'>'},flow:{diamond:'gt30',yes:'on',no:'off',locked:true}});
+ assert.equal(changed.state.levels.sale.valid,false);assert.equal(changed.state.points,75);
+ const boundary=await c.event('run','sale',{config:{model:'ventilation',operator:'>',yes:'on',no:'off'},input:{temperature:30}});
+ assert.equal(boundary.result.correct,false);assert.deepEqual(boundary.result.mCodes,['M3']);assert.equal(boundary.result.conditionText,'30 ＞ 30');
 });

@@ -40,8 +40,41 @@ function pack(focus) {
   };
 }
 
-function stationFocus(levelId, scene, level) {
+const OPENING = {
+  gate: '走到运维主管面前，按 E 交谈。',
+  sale: '先听园艺员说任务。',
+  repair: '听维修员说控制器的问题。',
+  cross: '听巡检员说导行屏的任务。',
+  minimum: '听能源工程师说配电规则。'
+};
+
+export function routeDots(mapId, output = 'bridge') {
+  const east = mapId === 'crossing-east';
+  const bridge = output !== 'crossing';
+  const from = east ? [700, 520] : [400, 560];
+  const mid = bridge ? (east ? [900, 400] : [470, 430]) : (east ? [980, 640] : [470, 650]);
+  const to = bridge
+    ? (east ? PLACES['crossing-east'].bridgeEast : PLACES.crossing.bridgeWest)
+    : (east ? PLACES['crossing-east'].crossingEast : PLACES.crossing.crossingWest);
+  const points = [];
+  const legs = [[from, mid], [mid, to]];
+  for (const [start, end] of legs) {
+    const steps = Math.max(1, Math.round(Math.hypot(end[0] - start[0], end[1] - start[1]) / 32));
+    for (let i = 0; i < steps; i += 1) points.push({ x: Math.round(start[0] + (end[0] - start[0]) * i / steps), y: Math.round(start[1] + (end[1] - start[1]) * i / steps) });
+  }
+  return points;
+}
+
+function opening(levelId) {
+  return OPENING[levelId] || OPENING.sale;
+}
+
+function stationFocus(levelId, scene, level, draft) {
   const mapId = mapFor(levelId, scene);
+  const flow = draft?.flow || {};
+  const sentence = draft?.sentence || {};
+  const predictions = draft?.predictionsLocked || {};
+  const panel = draft?.panel || scene?.panel || '';
   const walked = (scene.actions || []).includes('route') || (scene.visited || []).includes('verified');
   const crossingWalk = levelId === 'cross' && scene.ticket && !walked && !level?.valid;
   if (crossingWalk) {
@@ -49,7 +82,7 @@ function stationFocus(levelId, scene, level) {
     const place = mapId === 'crossing-east'
       ? (useCrossing ? 'crossingEast' : 'bridgeEast')
       : (useCrossing ? 'crossingWest' : 'bridgeWest');
-    return pack({
+    const focus = pack({
       id: place, step: '10', kind: 'map', thinking: false, goto: false,
       gotoReason: '这段要你亲自走过去',
       hint: '沿导行屏指的路，亲自走过去。',
@@ -57,23 +90,54 @@ function stationFocus(levelId, scene, level) {
       pause: scene.signal === 'red',
       target: at(mapId, place)
     });
+    focus.dots = routeDots(mapId, useCrossing ? 'crossing' : 'bridge');
+    return focus;
   }
   if (level?.valid) {
     return pack({ id: 'guide', step: 'done', kind: 'map', thinking: false, goto: true, hint: '本站已验收，去找负责人汇报。', strong: '走到发光标记，按 E 继续。', target: at(mapId, 'guide') });
   }
+  if (panel === 'flow' && (!flow.diamond || !flow.yes || !flow.no)) {
+    return pack({ id: 'slot-next', step: '4', kind: 'panel', thinking: true, goto: false, hint: '点亮着的空格，再点一张卡片。', strong: '先点卡片区，再点空格。', target: {} });
+  }
+  if (panel === 'flow' && !flow.locked) {
+    return pack({ id: 'flow-lock', step: '5', kind: 'panel', thinking: false, goto: false, hint: '放好了，点锁定流程图。', strong: '点锁定流程图。', target: {} });
+  }
+  if (panel === 'sentence' && !sentence.locked) {
+    return pack({ id: 'sentence-slot-next', step: '6', kind: 'panel', thinking: true, goto: false, hint: '点空格，再点一个词块。', strong: '先点词块区，再点空格。', target: {} });
+  }
+  if (panel === 'predict' && !predictions.locked) {
+    return pack({ id: 'predict-row-next', step: '7', kind: 'panel', thinking: true, goto: false, hint: '每个温度选：启动还是关闭？', strong: '点这一行的启动或关闭。', target: {} });
+  }
   if (!scene.phase || scene.phase === 'start') {
-    return pack({ id: 'guide', step: '1', kind: 'map', thinking: false, goto: true, hint: '先听现场负责人说任务。', strong: '走到发光的圆圈上按 E。', target: at(mapId, 'guide') });
+    return pack({ id: 'guide', step: '1', kind: 'map', thinking: false, goto: true, hint: opening(levelId), strong: '走到发光的圆圈上按 E。', target: at(mapId, 'guide') });
   }
   if (!scene.measured) {
     const place = levelId === 'cross' ? 'observe' : levelId === 'minimum' ? 'batteryA' : 'sensor';
-    const hint = levelId === 'cross' ? '到观察点看看路口附近。' : levelId === 'minimum' ? '去读两组电池的电量。' : '到探头，选一个读数。';
+    const hint = levelId === 'cross' ? '到观察点看看路口附近。' : levelId === 'minimum' ? '去读两组电池的电量。' : '到温度探头，选一个温度。';
     return pack({ id: place, step: '2', kind: 'map', thinking: false, goto: true, hint, strong: '走到发光的圆圈上按 E。', target: at(mapId, place) });
   }
+  if (!flow.locked) {
+    return pack({ id: 'control', step: '3', kind: 'map', thinking: false, goto: true, hint: levelId === 'repair' ? '先运行原程序，看 30℃。' : '到规则控制柜，按 E 打开。', strong: '走到发光的圆圈上按 E。', target: at(mapId, 'control') });
+  }
+  if (!sentence.locked) {
+    return pack({ id: 'control', step: '6', kind: 'map', thinking: false, goto: true, hint: '回控制柜，用词块拼一句。', strong: '按 E 打开拼句。', target: at(mapId, 'control') });
+  }
+  if ((levelId === 'sale' || levelId === 'repair') && !predictions.locked) {
+    return pack({ id: 'control', step: '7', kind: 'map', thinking: false, goto: true, hint: '回控制柜，锁定三个温度的预测。', strong: '按 E 打开预测表。', target: at(mapId, 'control') });
+  }
   if (!scene.ticket) {
-    return pack({ id: 'control', step: '3', kind: 'panel', thinking: true, goto: true, hint: '到控制台设置规则，先预测再执行。', strong: '点控制区域，不标出某一张卡。', target: at(mapId, 'control') });
+    return pack({ id: 'control', step: '8', kind: 'map', thinking: false, goto: true, hint: '点执行本次温度。', strong: '在控制柜里点执行。', target: at(mapId, 'control') });
   }
   const place = levelId === 'minimum' ? 'monitor' : 'verify';
   return pack({ id: place, step: '9', kind: 'map', thinking: false, goto: true, hint: '到核验处保存这次结果。', strong: '走到发光的圆圈上按 E。', target: at(mapId, place) });
+}
+
+function gateFocus(intro) {
+  if (!intro?.heightCase) return pack({ id: 'gate-ruler', step: '2', kind: 'map', thinking: false, goto: false, hint: '到量高立柱按 E，量一位测试者。', strong: '点立柱旁的测试者。', target: { place: 'gate-ruler' } });
+  if (!intro.judged) return pack({ id: 'i0-judge', step: '3', kind: 'panel', thinking: true, goto: false, hint: '先判一判：这位该买哪种票？', strong: '点半价或全价这一整块。', target: {} });
+  if (!intro.ticket) return pack({ id: 'gate-turnstile', step: '4', kind: 'map', thinking: false, goto: false, hint: '到闸机按 E，让它出票。', strong: '点闸机出票。', target: { place: 'gate-turnstile' } });
+  if (!intro.done) return pack({ id: 'gate-portal', step: '7', kind: 'map', thinking: false, goto: false, hint: '从北边园区通道去温室。', strong: '点通道进入温室。', target: { place: 'gate-portal' } });
+  return pack({ id: 'guide', step: '1', kind: 'map', thinking: false, goto: true, hint: opening('sale'), strong: '走到发光的圆圈上按 E。', target: {} });
 }
 
 function examFocus(exam) {
@@ -104,7 +168,8 @@ function examFocus(exam) {
   });
 }
 
-export function currentFocus({ levelId = 'sale', scene = null, level = null, exam = null } = {}) {
+export function currentFocus({ levelId = 'sale', scene = null, level = null, draft = null, exam = null, intro = null } = {}) {
+  if (levelId === 'gate' || intro) return gateFocus(intro || {});
   if (levelId === 'quiz' || exam) return examFocus(exam || {});
-  return stationFocus(levelId, scene || {}, level || {});
+  return stationFocus(levelId, scene || {}, level || {}, draft || {});
 }

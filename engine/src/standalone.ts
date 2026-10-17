@@ -5,7 +5,9 @@ import { inject, provideRpg, RpgClientEngine, startGame } from "@rpgjs/client";
 import { Direction } from '@rpgjs/common';
 import startServer from "./server";
 import configClient from "./config/config.client";
+import { createApp } from 'vue';
 import { dispose, getContext, ready, request, subscribeContext } from './classroom-bridge';
+import FlowPanel from './gui/FlowPanel.vue';
 import { createIdleTimer } from '../../public/idle-timer.mjs';
 import { currentFocus } from '../../public/focus.mjs';
 
@@ -101,24 +103,21 @@ const taskHint = document.getElementById('engine-task-hint');
 const focusMarker = document.getElementById('focus-marker');
 const focusLabel = document.getElementById('focus-label');
 const focusArrow = focusMarker?.querySelector('.focus-arrow');
-let focusStrength = 0;
-let shownFocusKey = '';
+const pathDots = document.getElementById('path-dots');
 let lastMoveReset = 0;
 const idle = createIdleTimer({
   onStrength(detail) {
     const context = getContext();
     const focus = lessonFocus(context);
-    focusStrength = detail.strength;
     paintFocus(focus);
     void request('navHelp', { levelId: context?.levelId, mapId: focus.target.mapId || context?.draft?.rpg?.mapId || '', step: focus.step, focusId: focus.id, trigger: 'idle', strength: detail.strength, idleMs: detail.idleMs }).catch(() => undefined);
   }
 });
 function lessonFocus(context = getContext()) {
-  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level });
+  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level, draft: context?.draft });
 }
 function noteActivity() {
   idle.reset();
-  focusStrength = 0;
 }
 let viewportCache: any;
 function findViewport(node: any): any {
@@ -167,9 +166,36 @@ function projectTarget(target: { x?: number, y?: number, mapId?: string }) {
     arrow: offscreen ? arrow : '↓'
   };
 }
+function projectWorld(target: { x?: number, y?: number }) {
+  const canvas = document.querySelector('#rpg canvas') as HTMLCanvasElement | null;
+  const x = Number(target?.x);
+  const y = Number(target?.y);
+  if (!canvas || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const rect = canvas.getBoundingClientRect();
+  const viewport = mapViewport();
+  if (!viewport) return null;
+  const global = viewport.toGlobal({ x, y });
+  if (!Number.isFinite(global?.x) || !Number.isFinite(global?.y)) return null;
+  const sx = rect.left + Number(global.x);
+  const sy = rect.top + Number(global.y);
+  return { x: sx, y: sy, offscreen: sx < rect.left || sx > rect.right || sy < rect.top || sy > rect.bottom };
+}
+function paintDots(dots: Array<{ x: number, y: number }> = []) {
+  if (!pathDots) return;
+  pathDots.replaceChildren();
+  const visible = dots.map(dot => projectWorld(dot)).filter(point => point && !point.offscreen);
+  pathDots.hidden = visible.length === 0;
+  for (const point of visible) {
+    const mark = document.createElement('span');
+    mark.className = 'path-dot';
+    mark.style.left = `${point!.x}px`;
+    mark.style.top = `${point!.y}px`;
+    pathDots.appendChild(mark);
+  }
+}
 function paintFocus(focus = lessonFocus()) {
-  const key = `${focus.target?.mapId || ''}:${focus.id}:${focus.step}`;
-  if (key !== shownFocusKey) { shownFocusKey = key; focusStrength = 0; }
+  if (new URLSearchParams(location.search).has('preview')) return;
+  const focusStrength = idle.strength();
   if (taskHint) {
     taskHint.textContent = focusStrength ? focus.strong : focus.hint;
     taskHint.hidden = false;
@@ -190,6 +216,7 @@ function paintFocus(focus = lessonFocus()) {
     }
     focusLabel.textContent = point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '';
   }
+  paintDots(focus.dots || []);
   const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
   if (goto) {
     goto.disabled = !focus.goto;
@@ -242,11 +269,64 @@ async function start() {
   if (controls) controls.hidden = false;
 }
 
-start().catch(error => {
+const previewing = new URLSearchParams(location.search).has('preview');
+if (!previewing) start().catch(error => {
   console.error('RPGJS could not start', error);
   showStatus(error instanceof Error ? error.message : '园区暂未加载成功。已保存的学习记录会保留。', true);
 });
 
 window.addEventListener('pagehide', () => { stopMovement(); dispose(); }, { once: true });
 
-subscribeContext(()=>{ focusStrength = 0; syncIdle(); });
+window.addEventListener('lesson-artifact', event => {
+  if (window.parent === window) return;
+  const detail = (event as CustomEvent<Record<string, unknown>>).detail || {};
+  void request('change', { patch: detail }).catch(() => undefined);
+});
+subscribeContext(() => { syncIdle(); });
+
+function mountPreview() {
+  const preview = new URLSearchParams(location.search).get('preview');
+  if (preview === 'flow' || preview === 'sentence' || preview === 'predict') {
+    const host = document.createElement('div');
+    host.id = 'studio-preview';
+    host.style.cssText = 'position:fixed;inset:0;z-index:3000;background:#173b31;';
+    document.body.appendChild(host);
+    createApp(FlowPanel, {
+      mode: 'sale',
+      preview,
+      diagnosed: true,
+      flow: { diamond: 'ge30', yes: 'on', no: 'off', locked: preview !== 'flow' }
+    }).mount(host);
+    return;
+  }
+  if (preview !== 'dots') return;
+  const focus = currentFocus({
+    levelId: 'cross',
+    scene: { phase: 'executed', measured: true, facility: true, ticket: { output: 'bridge' }, actions: [], signal: 'green' },
+    level: { valid: false }
+  });
+  const host = document.createElement('div');
+  host.id = 'dots-preview';
+  host.style.cssText = 'position:fixed;inset:0;z-index:3000;background:#3d7a52;';
+  const dots = focus.dots || [];
+  const xs = dots.map(dot => dot.x);
+  const ys = dots.map(dot => dot.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  for (const dot of dots) {
+    const mark = document.createElement('span');
+    mark.className = 'path-dot';
+    mark.style.position = 'absolute';
+    mark.style.left = `${12 + ((dot.x - minX) / (maxX - minX || 1)) * 76}%`;
+    mark.style.top = `${18 + ((dot.y - minY) / (maxY - minY || 1)) * 68}%`;
+    host.appendChild(mark);
+  }
+  const caption = document.createElement('p');
+  caption.textContent = '脚印停在目标前。这段要亲自走过去。';
+  caption.style.cssText = 'position:absolute;left:24px;bottom:24px;margin:0;padding:12px 16px;background:#fffaf0;border-radius:12px;color:#173b31;font-weight:700;';
+  host.appendChild(caption);
+  document.body.appendChild(host);
+}
+mountPreview();

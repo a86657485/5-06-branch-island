@@ -26,7 +26,7 @@ function isPrivateAddress(address) {
   return parts[0] === 127 || parts[0] === 10 || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) || (parts[0] === 192 && parts[1] === 168) || (parts[0] === 169 && parts[1] === 254);
 }
 function initialState() {
-  return { drafts: {}, levels: Object.fromEntries(rules.levels.map(level => [level.id, { completed: false, valid: false, points: 0, completedAt: null, reason: null, evidenceStart: 0 }])), runs: Object.fromEntries(rules.levels.map(level => [level.id, []])), predictions: Object.fromEntries(rules.levels.map(level => [level.id, []])), attempts: [], points: 0, quizOpenedAt: null, exam: { openedAt: null }, quiz: { base: { first: null, latest: null, attempts: [], firstSubmittedAt: null, firstScore: null, passed: false }, challenge: { unlockedAt: null, closed: false, first: null, latest: null, attempts: [], firstSubmittedAt: null } }, awards: {}, navHelp: [] };
+  return { drafts: {}, levels: Object.fromEntries(rules.levels.map(level => [level.id, { completed: false, valid: false, points: 0, completedAt: null, reason: null, evidenceStart: 0 }])), runs: Object.fromEntries(rules.levels.map(level => [level.id, []])), predictions: Object.fromEntries(rules.levels.map(level => [level.id, []])), attempts: [], points: 0, quizOpenedAt: null, exam: { openedAt: null }, quiz: { base: { first: null, latest: null, attempts: [], firstSubmittedAt: null, firstScore: null, passed: false }, challenge: { unlockedAt: null, closed: false, first: null, latest: null, attempts: [], firstSubmittedAt: null } }, awards: {}, navHelp: [], intro: { heightCase: null, judged: null, ticket: null, idea: null, sawSign: false, done: false, skipped: false, review: false, blocked: null } };
 }
 function ensureState(state) {
   state.exam ||= { openedAt: null };
@@ -40,6 +40,7 @@ function ensureState(state) {
   state.awards ||= {};
   state.navHelp ||= [];
   state.attempts ||= [];
+  if (!('intro' in state)) state.intro = null;
   return state;
 }
 function createService(options = {}) {
@@ -116,7 +117,6 @@ function createService(options = {}) {
     if (detail.answered && !detail.correct) {
       row.explanation = question.explanation || '';
       row.review = question.review || '';
-      row.correctAnswer = question.answer;
     }
     return row;
   }
@@ -220,7 +220,28 @@ function createService(options = {}) {
     if (index < 0) fail(400, '找不到这个任务');
     if (rules.levels.slice(0,index).some(level => !state.levels[level.id].completed)) fail(409, '请先完成前面的主线任务');
   }
-  const draftConfigKey = (id,config) => JSON.stringify(rules.normalizeConfig(id,config,true));
+    const draftConfigKey = (id,config) => JSON.stringify(rules.normalizeConfig(id,config,true));
+  function isVisitDefault(id, config) {
+    if (!config || typeof config !== 'object') return false;
+    if (id === 'cross') return config.yes === '' && config.no === '';
+    if (id === 'minimum') return !config.operator && !config.yes && !config.no;
+    if (id === 'sale') return config.model === 'ventilation' && config.operator === '>=' && config.yes === '' && config.no === '';
+    if (id === 'repair') return config.model === 'ventilation' && config.operator === '>=' && config.yes === 'off' && config.no === 'on';
+    return false;
+  }
+  function sanitizeIntro(payload) {
+    const intro = { heightCase: null, judged: null, ticket: null, idea: null, sawSign: false, done: false, skipped: false, review: false, blocked: null };
+    if ([116, 138].includes(payload.heightCase)) intro.heightCase = payload.heightCase;
+    if (payload.judged === 'half' || payload.judged === 'full') intro.judged = payload.judged;
+    if (payload.ticket === '10') intro.ticket = '10';
+    if (typeof payload.idea === 'string') intro.idea = payload.idea.slice(0, 40);
+    intro.sawSign = !!payload.sawSign;
+    intro.done = !!payload.done;
+    intro.skipped = !!payload.skipped;
+    intro.review = !!payload.review;
+    if (typeof payload.blocked === 'string') intro.blocked = payload.blocked.slice(0, 80);
+    return intro;
+  }
   function useConfig(record, id, config, partial = false) {
     const key = partial ? draftConfigKey(id,config) : rules.configKey(id,config);
     if (record.meta.currentConfigs[id] !== key) {
@@ -255,6 +276,9 @@ function createService(options = {}) {
       state.navHelp.push(entry);
       if (state.navHelp.length > 300) state.navHelp.splice(0, state.navHelp.length - 300);
       result = { saved: true };
+    } else if (body.type === 'draft' && id === 'intro') {
+      state.intro = sanitizeIntro(payload);
+      result = { saved: true };
     } else if (body.type === 'quiz' || (body.type === 'draft' && id === 'quiz')) {
       const gate = examGateFor(student.id, record);
       if (!state.quizOpenedAt) fail(409, '完成温室、返修和路口三站的当前验证后再进入考核');
@@ -288,7 +312,10 @@ function createService(options = {}) {
             state.levels[id].valid = false;
           }
         }
-        state.drafts[id] = payload;
+        const previousDraft = state.drafts[id] && typeof state.drafts[id] === 'object' && !Array.isArray(state.drafts[id]) ? state.drafts[id] : {};
+        const visitDefault = payload.config && state.levels[id]?.valid && isVisitDefault(id, payload.config) && !payload.flow;
+        if (visitDefault) delete payload.config;
+        state.drafts[id] = { ...previousDraft, ...payload, config: payload.config || previousDraft.config, input: payload.input ? { ...(previousDraft.input || {}), ...payload.input } : previousDraft.input, flow: payload.flow || previousDraft.flow, sentence: payload.sentence || previousDraft.sentence };
         meta.draftTimes[id] = editedAt;
         if (id !== 'quiz' && payload.config) useConfig(record,id,payload.config,true);
         result = { saved: true };
@@ -300,6 +327,7 @@ function createService(options = {}) {
       if (scene && 'prediction' in payload && payload.prediction !== scene.prediction) fail(400, '场景预测与当前预测不一致，请重新确认');
       // 实验始终累计；过时补传不替换当前草稿中的方案。
       if (!state.drafts[id]?.config || draftConfigKey(id,state.drafts[id].config) === rules.configKey(id,config)) useConfig(record,id,config);
+      if (config.model === 'ventilation' && (config.operator === '>' || config.operator === '<=') && payload.input?.temperature === 30 && !evaluated.correct) evaluated.mCodes = ['M3'];
       state.runs[id].push({ config, input: payload.input, ...evaluated, ...(scene ? { scene } : {}), at: now() });
       result = evaluated;
     } else if (body.type === 'prediction') {

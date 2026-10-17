@@ -2,6 +2,7 @@ import { Components, EventMode, type EventDefinition, type RpgPlayer } from '@rp
 import { getContext, request, type BridgeMethod } from '../../classroom-bridge';
 import { ask, type DialogChoice } from '../../gui/ask';
 import { advance, resetTrial, evidenceFor } from './experiment';
+import { conditionLine, emptyFlow, emptyPredictions, emptySentence, faultSeen, repairPreset } from '../../gui/flow-model';
 import { waitForActivePlayer,mapForContext } from './active-player';
 export const ctx=()=> {const value=getContext();if(!value)throw new Error('课堂正在连接，请稍候。');return value;};
 export function scene():Record<string,any>{return ctx().draft.scene;}
@@ -23,22 +24,25 @@ export async function predict(player:RpgPlayer){
 }
 export async function configure(player:RpgPlayer){
  if(scene().ticket){await say(player,'本次结果待核验','本次程序已执行，请先走到核验点保存实际结果，再修改程序。');return;}
- if(!scene().measured){await say(player,'控制柜','先读取现场输入。');return;}
- const id=ctx().levelId;let keep=true;
- while(keep){
- const c=ctx().draft.config;const label=(v:string)=>outputChoices().find(o=>o.id===v)?.label||'待设置';
- const diagnosed=ctx().runs.some(run=>run.input?.temperature===30&&run.config?.yes==='off'&&run.config?.no==='on'&&!run.correct);
- const locked=id==='repair'&&!diagnosed;
- const value=await say(player,'规则控制柜',`${id==='cross'?'判断：附近有可用天桥？':id==='minimum'?`判断：a ${c.operator||'？'} b`:`判断：温度 ${c.operator||'？'} 30°C` }\n成立：${label(c.yes)}\n不成立：${label(c.no)}${locked?'\n维修记录：先用原程序执行30°C，观察故障后再改。':''}`,[...(!locked?[...(id!=='cross'&&id!=='repair'?[{id:'operator',label:'修改判断条件'}]:[]),{id:'yes',label:'设置成立分支'},{id:'no',label:'设置不成立分支'}]:[]),{id:'predict',label:'作出本次预测'},{id:'apply',label:'执行当前程序'}]);
- if(!value)break;
- if(value==='predict'){await predict(player);continue;}
- if(value==='apply'){await apply(player);break;}
- const options=value==='operator'?(id==='minimum'?[{id:'<',label:'a < b'},{id:'>',label:'a > b'}]:id==='repair'?[{id:'<',label:'温度 < 30°C'},{id:'>=',label:'温度 ≥ 30°C'}]:[{id:'>=',label:'温度 ≥ 30°C'},{id:'>',label:'温度 ＞ 30°C'},{id:'<',label:'温度 < 30°C'},{id:'<=',label:'温度 ≤ 30°C'}]):outputChoices();
- const chosen=await say(player,'修改规则',value==='operator'?'请选择判断条件。':`当条件${value==='yes'?'成立':'不成立'}时执行什么？`,options);if(!chosen)continue;
- const next={...c,[value]:chosen};if(JSON.stringify(next)!==JSON.stringify(c)){
- const s:Record<string,any>={...scene(),actions:[id==='cross'?'observe':id==='minimum'?'collect':id==='repair'?'inspect':'measure'],phase:'measured'};delete s.ticket;
- await rpc('change',{patch:{config:next,prediction:'',scene:s}});
- }
+ const id=ctx().levelId;
+ if(!scene().measured && id!=='cross'){await say(player,'控制柜','先读取现场输入。');return;}
+ const mode=id==='repair'?'repair':id==='cross'?'cross':id==='minimum'?'minimum':'sale';
+ const diagnosed=faultSeen(ctx().runs);
+ const result=await player.gui('flow-panel').open({
+  mode,
+  flow:ctx().draft.flow||(mode==='repair'?repairPreset():emptyFlow()),
+  sentence:ctx().draft.sentence||emptySentence(mode),
+  predictions:ctx().draft.predictionsLocked||emptyPredictions(),
+  diagnosed:mode!=='repair'||diagnosed
+ },{waitingAction:true,blockPlayerInput:true}) as {action?:string,predictions?:{locked?:boolean,[key:string]:unknown}} | null;
+ if(!result||result.action==='close')return;
+ if(result.action==='run'){
+  if(result.predictions?.locked&&['sale','repair'].includes(id)){
+   const temperature=input().temperature;
+   const value=result.predictions[temperature];
+   if(value)await rpc('predict',{value,input:input(),config:ctx().draft.config});
+  }
+  await apply(player);
  }
 }
 export async function apply(player:RpgPlayer){
@@ -56,7 +60,7 @@ export async function record(player:RpgPlayer,finalStep:string,outcome?:string){
  const next=advance(s,finalStep);const evidence=evidenceFor(id,next,s.ticket.output,ctx().draft.prediction,outcome);
  const result=await rpc('experiment',{input:input(),prediction:ctx().draft.prediction,sceneEvidence:evidence});
  if(!result)throw new Error('本次实验没有保存，请重试核验。');
- const message=`条件${result.condition?'成立':'不成立'}，只执行${result.branch==='yes'?'成立':'不成立'}分支。${result.correct?'符合任务目标。':'实际结果与任务目标不符，请检查条件及分支配置。'}`;
+ const message=`条件${result.condition?'成立':'不成立'}，只执行${result.branch==='yes'?'成立':'不成立'}分支。${result.correct?'符合任务目标。':'实际结果与任务目标不符，请检查条件及分支配置。'}${result.correct?'':`\n你的条件：${conditionLine(result)}`}`;
  const clean:Record<string,any>={...s,actions:[],phase:'assigned',measured:false,lastFeedback:message,visited:[...new Set([...(s.visited||[]),'verified'])]};delete clean.ticket;
  await rpc('change',{patch:{scene:clean,prediction:''}});player.syncChanges();await say(player,'现场核验',message);return result;
 }

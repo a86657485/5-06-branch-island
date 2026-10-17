@@ -69,7 +69,7 @@
     const selected = config[branch];
     output = id === 'minimum' ? String(input[selected]) : selected;
     const label = value => config.model === 'ventilation' ? value === 'on' ? '启动风机' : '关闭风机' : id === 'cross' ? value === 'bridge' ? '走天桥或地下通道' : '到有信号灯的人行横道按信号通行' : id === 'minimum' ? `输出 ${value}` : `收 ${value} 元`;
-    return { condition, branch, output, expected, correct: output === expected, trace: [inputText, `判断“${conditionText}”：${condition ? '成立' : '不成立'}`, `只执行${condition ? '成立' : '不成立'}分支：${label(output)}`] };
+    return { condition, conditionText, branch, output, expected, correct: output === expected, trace: [inputText, `判断“${conditionText}”：${condition ? '成立' : '不成立'}`, `只执行${condition ? '成立' : '不成立'}分支：${label(output)}`] };
   }
   function validateComplete(id, config, runs, reason, evidenceStart = 0) {
     const key = configKey(id, config);

@@ -8,8 +8,12 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
   assert.equal(start.id, 'guide');
   assert.equal(start.goto, true);
   assert.equal(start.target.place, 'guide');
+  assert.equal(start.hint, '先听园艺员说任务。');
   assert.equal([...start.hint].length <= 30, true);
   assert.equal(start.hint.includes('≥'), false);
+  assert.equal(currentFocus({ levelId: 'repair', scene: { phase: 'start' } }).hint, '听维修员说控制器的问题。');
+  assert.equal(currentFocus({ levelId: 'cross', scene: { phase: 'start' } }).hint, '听巡检员说导行屏的任务。');
+  assert.equal(currentFocus({ levelId: 'minimum', scene: { phase: 'start' } }).hint, '听能源工程师说配电规则。');
 
   const walk = currentFocus({
     levelId: 'cross',
@@ -29,6 +33,30 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
   });
   assert.equal(wrongRoute.target.place, 'bridgeWest');
   assert.equal(wrongRoute.goto, false);
+  assert.equal(walk.dots.length > 3, true);
+  assert.equal(walk.dots.some(dot => dot.x === walk.target.x && dot.y === walk.target.y), false);
+  assert.notDeepEqual(walk.dots, wrongRoute.dots);
+
+  const slot = currentFocus({
+    levelId: 'sale',
+    scene: { phase: 'assigned', measured: true },
+    draft: { panel: 'flow', flow: { diamond: '', yes: '', no: '', locked: false } }
+  });
+  assert.equal(slot.id, 'slot-next');
+  assert.equal(slot.step, '4');
+  assert.equal(slot.thinking, true);
+  const sentence = currentFocus({
+    levelId: 'sale',
+    scene: { phase: 'assigned', measured: true },
+    draft: { panel: 'sentence', flow: { locked: true }, sentence: { locked: false, slots: [] } }
+  });
+  assert.equal(sentence.id, 'sentence-slot-next');
+  const predict = currentFocus({
+    levelId: 'sale',
+    scene: { phase: 'assigned', measured: true },
+    draft: { panel: 'predict', flow: { locked: true }, sentence: { locked: true }, predictionsLocked: { locked: false } }
+  });
+  assert.equal(predict.id, 'predict-row-next');
 });
 
 test('考核页焦点框住整题或提交按钮，思考步骤用 40 秒', () => {

@@ -3,6 +3,7 @@ import { createParkScene } from './scene.mjs';
 import { createRpgScene } from './rpg-scene.mjs';
 import { createIdleTimer } from './idle-timer.mjs';
 import { currentFocus } from './focus.mjs';
+import { createIntro, introAct, TESTERS } from './intro.mjs';
 const R = window.BranchRules;
 let quizStrength = 0;
 let gateInfoSent = false;
@@ -59,7 +60,7 @@ const queue = new SyncQueue(localStorage,e => api('/api/events',e),(event,data)=
 function syncStatus(){if(demo)return '独立演示 · 不计入班级';const n=queue.pending(user?.id);return n?`${n}条待同步 · ${queue.error?'连接未完成，记录已保留':'正在保存'}`:'已同步保存';}
 function updateHeader(){if($('#save-status'))$('#save-status').textContent=syncStatus();if($('#points'))$('#points').textContent=`${state.points || 0} 积分`;updateRoutes();}
 function examOpened(){return !!(state.quizOpenedAt||state.exam?.openedAt);}
-function canEnter(id){return demo || (id==='quiz'?examOpened():ids.includes(id)&&(ids.indexOf(id)===0||state.levels[ids[ids.indexOf(id)-1]]?.completed));}
+function canEnter(id){return demo || (id==='quiz'?true:ids.includes(id)&&(ids.indexOf(id)===0||state.levels[ids[ids.indexOf(id)-1]]?.completed));}
 function updateRoutes(){document.querySelectorAll('[data-route]').forEach(button=>{const id=button.dataset.route;button.disabled=!canEnter(id);button.classList.toggle('selected',current===id);if(id!=='quiz'){const level=state.levels[id],stop=button.querySelector('.stop'),small=button.querySelector('small');if(stop)stop.textContent=level?.completed?'✓':ids.indexOf(id)+1;if(small)small.textContent=level?.completed?(level.valid?'已完成 · 当前已验证':'曾完成 · 当前待重验'):(canEnter(id)?'可开始探索':'完成上一站解锁');}});}
 function goToTask(id){
  if(!canEnter(id))throw new Error('请先完成前面的主线任务。');
@@ -77,11 +78,13 @@ function send(type,levelId,payload){
 function draft(id=current){if(!state.drafts[id])state.drafts[id]=clone(defaults[id]);return state.drafts[id];}
 function destroyScene(){const scene=activeScene;activeScene=null;scene?.destroy();sceneGeneration++;}
 function prepareSceneDraft(id){
- const d=draft(id),oldModel=['sale','repair'].includes(id)&&d.config?.model!=='ventilation';
+ const d=state.drafts[id];
+ if(!d) return null;
+ const oldModel=['sale','repair'].includes(id)&&d.config?.model!=='ventilation';
  if(oldModel){localStorage.setItem(`branch-island-task-archive:${user.id}:${round}:${id}:${Date.now()}`,JSON.stringify(d));state.drafts[id]=clone(defaults[id]);}
- if(['sale','repair'].includes(id)&&draft(id).scene?.version===1&&!Number.isFinite(draft(id).scene.temperatureCase)){delete draft(id).scene;}
+ if(['sale','repair'].includes(id)&&state.drafts[id]?.scene?.version===1&&!Number.isFinite(state.drafts[id].scene.temperatureCase)){delete state.drafts[id].scene;}
  if(oldModel){state.levels[id]||={completed:false,points:0};state.levels[id].evidenceStart=(state.runs[id]||[]).length;state.levels[id].valid=false;}
- return draft(id);
+ return state.drafts[id];
 }
 function setNotice(text){notice=text;const target=$('#notice')||$('#scene-toast');if(target){target.textContent=text;target.hidden=!text;}}
 function option(value,label,selected){return `<option value="${esc(value)}" ${value===selected?'selected':''}>${esc(label)}</option>`;}
@@ -101,12 +104,13 @@ function login(){
  $('#manual-name').oninput=e=>{manual=e.target.value;selectedStudent='';$('#student-select').value='';$('#chosen-identity').textContent=`${loginClass}班 · ${manual || '尚未填写姓名'}`;};
  $('#login').onclick=async()=>{try{if(!selectedStudent&&!manual.trim())throw new Error('先选择自己的姓名，或在“名单中没有我”填写。');const data=await api('/api/login',{classId:loginClass,...(manual.trim()?{name:manual.trim()}:{studentId:selectedStudent})});attach(data);}catch(e){$('#login-error').textContent=e.message;}};
 }
-function attach(data){destroyScene();user=data.student;if(data.round!==round)queue.retire(user.id,data.round);round=data.round;state=data.state;const local=JSON.parse(localStorage.getItem(cacheKey())||'null');const pendingThisRound=queue.events.some(event=>event.studentId===user.id&&event.round===round);if(pendingThisRound&&local)state=local.state;current=pendingThisRound&&local?.current?local.current:(ids.find(id=>!state.levels[id]?.completed)||'quiz');if(!demo)localStorage.setItem('branch-island-identity',JSON.stringify({user,round}));saveLocal();render();queue.flush().then(updateHeader);}
+function attach(data){destroyScene();user=data.student;if(data.round!==round)queue.retire(user.id,data.round);round=data.round;state=data.state;const local=JSON.parse(localStorage.getItem(cacheKey())||'null');const pendingThisRound=queue.events.some(event=>event.studentId===user.id&&event.round===round);if(pendingThisRound&&local)state=local.state;current=pendingThisRound&&local?.current?local.current:(ids.find(id=>!state.levels[id]?.completed)||'quiz');if(new URLSearchParams(location.search).get('task')==='quiz')current='quiz';if(!demo)localStorage.setItem('branch-island-identity',JSON.stringify({user,round}));saveLocal();render();queue.flush().then(updateHeader);}
 function render(){
  destroyScene();
  if(!user)return login();
+ if(!legacy && state.intro && state.intro.done!==true && state.intro.skipped!==true)return renderIntro();
  const idx=ids.indexOf(current);const unlocked=id=>demo || ids.indexOf(id)===0 || state.levels[ids[ids.indexOf(id)-1]]?.completed;
- $('#app').innerHTML=`${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar"><a class="brand" href="#">分支冒险岛<span>判断选择用分支</span></a><div class="identity"><span>${demo?'演示调试员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${state.points||0} 积分</strong><button id="switch-user" class="quiet">切换身份</button></div></header><div class="app-shell"><aside class="map"><p class="eyebrow">园区巡检路线</p><h2>让判断驱动行动</h2><nav aria-label="任务路线">${ids.map((id,i)=>`<button data-route="${id}" class="route-item ${current===id?'selected':''}" ${unlocked(id)?'':'disabled'}><span class="stop">${state.levels[id]?.completed?'✓':i+1}</span><span><b>${titles[i]}</b><small>${state.levels[id]?.completed?(state.levels[id].valid?'已完成 · 当前已验证':'曾完成 · 当前待重验'):(unlocked(id)?'可开始探索':'完成上一站解锁')}</small></span></button>`).join('')}<button data-route="quiz" class="route-item ${current==='quiz'?'selected':''}" ${canEnter('quiz')?'':'disabled'}><span class="stop">Q</span><span><b>独立检测</b><small>${state.quiz?.base?.first?`基础层 ${state.quiz.base.firstScore}/${state.quiz.base.first.total}`:(examOpened()?'可以开始':'完成温室、返修和路口后开始')}</small></span></button></nav><div class="map-note">每站25积分，合理试错不扣分。<br>检测成绩与通关积分分开记录。</div><div id="save-status" class="save-status" role="status">${syncStatus()}</div></aside><main id="workbench" class="workbench"></main></div>`;
+ $('#app').innerHTML=`${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar"><a class="brand" href="#">分支冒险岛<span>判断选择用分支</span></a><div class="identity"><span>${demo?'演示调试员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${state.points||0} 积分</strong><button id="switch-user" class="quiet">切换身份</button></div></header><div class="app-shell"><aside class="map"><p class="eyebrow">园区巡检路线</p><h2>让判断驱动行动</h2><nav aria-label="任务路线">${ids.map((id,i)=>`<button data-route="${id}" class="route-item ${current===id?'selected':''}" ${unlocked(id)?'':'disabled'}><span class="stop">${state.levels[id]?.completed?'✓':i+1}</span><span><b>${titles[i]}</b><small>${state.levels[id]?.completed?(state.levels[id].valid?'已完成 · 当前已验证':'曾完成 · 当前待重验'):(unlocked(id)?'可开始探索':'完成上一站解锁')}</small></span></button>`).join('')}<button data-route="quiz" class="route-item ${current==='quiz'?'selected':''}" ${canEnter('quiz')?'':'disabled'}><span class="stop">Q</span><span><b>独立检测</b><small>${state.quiz?.base?.first?`基础层 ${state.quiz.base.firstScore}/${state.quiz.base.first.total}`:(examOpened()?'可以开始':'还差哪一站')}</small></span></button></nav><div class="map-note">每站25积分，合理试错不扣分。<br>检测成绩与通关积分分开记录。</div><div id="save-status" class="save-status" role="status">${syncStatus()}</div></aside><main id="workbench" class="workbench"></main></div>`;
  $('[data-route]') && document.querySelectorAll('[data-route]').forEach(btn=>btn.onclick=()=>goToTask(btn.dataset.route));
  $('.brand').onclick=e=>{e.preventDefault();goToTask('sale');};
  $('#switch-user').onclick=()=>{destroyScene();saveLocal();localStorage.removeItem('branch-island-identity');user=null;selectedStudent='';manual='';notice='';lastRun=null;if(demo){location.href='/teacher.html';return;}login();};
@@ -122,15 +126,17 @@ function renderTask(idx){
   const idx=ids.indexOf(id),sameOwner=()=>user?.id===ownerId&&round===ownerRound&&sceneGeneration===generation&&(legacy||current===id);
   const save=()=>{if(sameOwner())send('draft',id,draft(id));};
   return {
-  root:$('#workbench'),levelId:id,demo,forLevel:makeHost,getDraft:()=>draft(id),getRuns:()=>state.runs[id]||[],getLevel:()=>state.levels[id],getEvidenceStart:()=>state.levels[id]?.evidenceStart||0,reasons:reasonOptions[id],
+  root:$('#workbench'),levelId:id,demo,forLevel:makeHost,getDraft:()=>state.drafts[id]||clone(defaults[id]),getRuns:()=>state.runs[id]||[],getLevel:()=>state.levels[id],getEvidenceStart:()=>state.levels[id]?.evidenceStart||0,reasons:reasonOptions[id],
   onChange(patch){
    if(!sameOwner())return;
-   if('rpg' in patch){patch={...patch,rpg:window.AdventureRules.validateRpgDraft(patch.rpg)};const maps={sale:['greenhouse'],repair:['workshop'],cross:['crossing','crossing-east'],minimum:['energy']};if(!maps[id].includes(patch.rpg.mapId))throw new Error('当前位置与任务场景不一致。');}
-   const d=draft(id);
-   if(patch.config&&JSON.stringify(R.normalizeConfig(id,d.config,true))!==JSON.stringify(R.normalizeConfig(id,patch.config,true))){state.levels[id]||={completed:false,points:0};state.levels[id].evidenceStart=(state.runs[id]||[]).length;state.levels[id].valid=false;lastRun=null;}
+   if('rpg' in patch){patch={...patch,rpg:window.AdventureRules.validateRpgDraft(patch.rpg)};const maps={sale:['greenhouse'],repair:['workshop'],cross:['crossing','crossing-east'],minimum:['energy'],gate:['greenhouse']};if(!maps[id].includes(patch.rpg.mapId))throw new Error('当前位置与任务场景不一致。');}
+   const editing=['config','flow','sentence','predictionsLocked','input','prediction','reason'].some(key=>key in patch);
+   if(!state.drafts[id] && !editing){state.drafts[id]={};for(const key of ['scene','rpg','panel'])if(key in patch)state.drafts[id][key]=clone(patch[key]);updateHeader();save();updateHeader();return {saved:true};}
+   const d=state.drafts[id]||(state.drafts[id]={});
+   if(patch.config&&d.config&&JSON.stringify(R.normalizeConfig(id,d.config,true))!==JSON.stringify(R.normalizeConfig(id,{...d.config,...patch.config},true))){state.levels[id]||={completed:false,points:0};state.levels[id].evidenceStart=(state.runs[id]||[]).length;state.levels[id].valid=false;lastRun=null;}
    if(patch.input&&JSON.stringify(patch.input)!==JSON.stringify(d.input))lastRun=null;
-   for(const key of ['config','input'])if(patch[key])d[key]={...d[key],...patch[key]};
-   for(const key of ['prediction','scene','reason','rpg'])if(key in patch)d[key]=clone(patch[key]);
+   for(const key of ['config','input'])if(patch[key])d[key]={...(d[key]||{}),...patch[key]};
+   for(const key of ['prediction','scene','reason','rpg','flow','sentence','predictionsLocked','diagnoseAnswer','panel'])if(key in patch)d[key]=clone(patch[key]);
    save();updateHeader();return {saved:true};
   },
   onEvaluate({input,config}){if(!sameOwner())throw new Error('当前任务已切换。');return R.evaluate(id,config||draft(id).config,input||draft(id).input);},
@@ -176,7 +182,21 @@ function renderTask(idx){
  };
  const host=makeHost(initialId);
  activeScene=(legacy?createParkScene:createRpgScene)(host);
- send('draft',initialId,draft(initialId));
+}
+function renderIntro(){
+ const intro=state.intro||createIntro();
+ const focus=currentFocus({levelId:'gate',intro});
+ $('#app').innerHTML=`<header class="topbar"><a class="brand" href="#">分支冒险岛<span>判断选择用分支</span></a><div class="identity"><span>${esc(user.classId)}班 · ${esc(user.name)}</span><strong id="points">${state.points||0} 积分</strong></div></header><main class="gate-page"><p id="gate-hint" class="focus-hint">${esc(focus.hint)}</p><h1>闸机故障单</h1><p>运维主管：半价票判错了。测试者已经站在量高立柱旁，不会跟着你走。</p><svg class="gate-map" viewBox="0 0 640 360" role="img" aria-label="入口闸机示意"><rect width="640" height="360" fill="#e7f2ea"/><rect x="40" y="250" width="560" height="36" fill="#d7c4a2"/><rect x="300" y="40" width="70" height="150" fill="#c9d7c2"/><text x="312" y="120">通道</text><rect x="150" y="168" width="120" height="70" fill="#fff" stroke="#184c3b"/><text x="168" y="208">量高立柱</text>${TESTERS.map(tester=>`<g transform="translate(${tester.x} ${tester.y})"><circle r="16" fill="${tester.height===116?'#f2c14e':'#7eb6d9'}"/><text y="36" text-anchor="middle">${tester.height}</text></g>`).join('')}<rect x="430" y="150" width="90" height="80" fill="#173b31"/><text x="446" y="195" fill="white">闸机</text><rect x="40" y="40" width="180" height="70" fill="#fffaf0" stroke="#c5a048"/><text x="52" y="70">告示：＜120 半价</text><text x="52" y="92">否则全价 10 元</text></svg><p data-focus="${esc(focus.id)}" class="focus-target">${intro.blocked?esc(intro.blocked):intro.ticket?`闸机出票：全价 ${intro.ticket} 元。告示写的是半价 5 元。`:'先听运维主管说故障。'}</p><div class="gate-actions"><button type="button" id="gate-measure" data-focus="gate-ruler">量 116 厘米</button><button type="button" id="gate-half">判半价</button><button type="button" id="gate-full">判全价</button><button type="button" id="gate-ticket" data-focus="gate-turnstile">闸机出票</button><button type="button" id="gate-sign">看告示</button><button type="button" id="gate-idea">看情况收费</button><button type="button" id="gate-leave" class="primary" data-focus="gate-portal">去温室</button><button type="button" id="gate-skip">跳过导入</button><button type="button" id="gate-review">重看故障单</button></div></main>`;
+ const act=name=>extra=>{const next=introAct(intro,name,extra);state.intro=next;saveLocal();send('draft','intro',next);render();};
+ $('#gate-measure').onclick=()=>act('measure')(116);
+ $('#gate-half').onclick=()=>act('judge')('half');
+ $('#gate-full').onclick=()=>act('judge')('full');
+ $('#gate-ticket').onclick=()=>act('ticket')();
+ $('#gate-sign').onclick=()=>act('sign')();
+ $('#gate-idea').onclick=()=>act('idea')('看情况收费');
+ $('#gate-leave').onclick=()=>act('leave')();
+ $('#gate-skip').onclick=()=>act('skip')();
+ $('#gate-review').onclick=()=>act('review')();
 }
 function showHelp(html){$('#help-content').innerHTML=html;$('#help').showModal();}
 $('#close-help').onclick=()=>$('#help').close();$('#help').addEventListener('click',e=>{if(e.target===$('#help'))$('#help').close();});
@@ -197,7 +217,7 @@ async function renderQuiz(){
   const required=(R.levels||[]).filter(level=>level.required!==false);
   const missing=required.filter(level=>!state.levels[level.id]?.valid);
   const closedFocus=currentFocus({levelId:'quiz',exam:{open:false,missing:missing.map(level=>({id:level.id,title:level.title}))}});
-  $('#workbench').innerHTML=`<p id="quiz-focus-hint" class="focus-hint" role="status">${esc(closedFocus.hint)}</p><h1>考核还没开放</h1><p>温室、返修和路口三站都当前通过后，考核会自动打开。选做的储能柜不参与。</p><ul id="exam-missing">${missing.map(level=>`<li>${esc(level.title)}</li>`).join('')}</ul>${missing.map((level,index)=>`<button class="primary${index===0?' focus-target':''}" data-back="${level.id}" ${index===0?'data-focus="exam-missing"':''}>回到${esc(level.title)}</button>`).join(' ')}`;
+  $('#workbench').innerHTML=`<p id="quiz-focus-hint" class="focus-hint" role="status">${esc(closedFocus.hint)}</p><h1>考核还没开放</h1><p>温室、返修和路口三站都当前通过后，考核会自动打开。选做的储能柜不参与。</p><ul id="exam-missing">${missing.map(level=>`<li>${esc(level.title)}</li>`).join('')}</ul>${missing.map((level,index)=>`<button class="primary${index===0?' focus-target':''}" data-back="${level.id}" ${index===0?'data-focus="exam-missing"':''}>回到该站（${esc(level.title)}）</button>`).join(' ')}`;
   document.querySelectorAll('[data-back]').forEach(button=>button.onclick=()=>goToTask(button.dataset.back));
   if(!gateInfoSent){gateInfoSent=true;send('nav_help','quiz',{trigger:'gate_info',strength:0,idleMs:0,step:closedFocus.step,focusId:closedFocus.id,levelId:'quiz'});}
   quizIdle.configure({key:`quiz:${closedFocus.id}`,thinking:false});

@@ -25,3 +25,8 @@
 @keyframes focus-pulse{50%{outline-color:#ffcf5a}}
 .quiz-frame{padding:10px 12px;background:#f4ebd4;border-radius:8px}
 .quiz-slot{display:flex;flex-direction:column;align-items:flex-start}
+.gate-page{max-width:980px;margin:0 auto;padding:24px 20px 40px}
+.gate-map{width:100%;height:auto;border:3px solid #184c3b;border-radius:16px;background:#e7f2ea}
+.gate-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.gate-actions button{min-height:44px}
+#exam-missing{margin:8px 0 16px;line-height:1.8}
