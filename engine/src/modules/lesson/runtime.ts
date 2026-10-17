@@ -2,15 +2,18 @@ import { Components, EventMode, type EventDefinition, type RpgPlayer } from '@rp
 import { getContext, request, type BridgeMethod } from '../../classroom-bridge';
 import { ask, type DialogChoice } from '../../gui/ask';
 import { advance, resetTrial, evidenceFor } from './experiment';
-import { conditionLine, emptyFlow, emptyPredictions, emptySentence, faultSeen, repairPreset } from '../../gui/flow-model';
+import { conditionLine, emptyFlow, emptyPredictions, emptySentence, faultSeen, repairPreset, repairSymbolHint } from '../../gui/flow-model';
 import { waitForActivePlayer,mapForContext } from './active-player';
 export const ctx=()=> {const value=getContext();if(!value)throw new Error('课堂正在连接，请稍候。');return value;};
 export function scene():Record<string,any>{return ctx().draft.scene;}
 export function input(){const s=scene(),id=ctx().levelId;return id==='cross'?{facility:!!s.facility}:id==='minimum'?(s.pair==='pair-b'?{a:9,b:2}:{a:3,b:8}):{temperature:s.temperatureCase||30};}
 export async function rpc<T=any>(method:BridgeMethod,payload:Record<string,any>={}) {const levelId=ctx().levelId;const result=await request<T>(method,{levelId,...payload});if(ctx().levelId!==levelId&&method!=='next')throw new Error('任务已切换，请继续当前场景。');return result;}
-export async function patchScene(player:RpgPlayer,patch:Record<string,any>){const next={...scene(),...patch};const result=await rpc('change',{patch:{scene:next,input:inputFor(next)}});player.syncChanges();return result;}
 function inputFor(s:Record<string,any>){const id=ctx().levelId;return id==='cross'?{facility:!!s.facility}:id==='minimum'?(s.pair==='pair-b'?{a:9,b:2}:{a:3,b:8}):{temperature:s.temperatureCase||30};}
-export async function clearPending(player:RpgPlayer,patch:Record<string,any>={}) {const s={...resetTrial(scene()),phase:'assigned',...patch};const result=await rpc('change',{patch:{scene:s,input:inputFor(s),prediction:''}});player.syncChanges();return result;}
+function stageScene(next:Record<string,any>){const draft=ctx().draft;const snapshot={scene:draft.scene,sceneRev:draft.sceneRev||0};draft.scene=next;draft.sceneRev=snapshot.sceneRev+1;return snapshot;}
+function restoreScene(snapshot:{scene:any,sceneRev:number}){const draft=ctx().draft;if((draft.sceneRev||0)===snapshot.sceneRev+1){draft.scene=snapshot.scene;draft.sceneRev=snapshot.sceneRev;}}
+async function commitScene(player:RpgPlayer,next:Record<string,any>,extra:Record<string,any>={}){const snapshot=stageScene(next);try{const result=await rpc('change',{patch:{scene:next,input:inputFor(next),...extra}});player.syncChanges();return result;}catch(error){restoreScene(snapshot);throw error;}}
+export async function patchScene(player:RpgPlayer,patch:Record<string,any>){return commitScene(player,{...scene(),...patch});}
+export async function clearPending(player:RpgPlayer,patch:Record<string,any>={}){const s={...resetTrial(scene()),phase:'assigned',...patch};return commitScene(player,s,{prediction:''});}
 export async function say(player:RpgPlayer,name:string,text:string,choices?:DialogChoice[]){const id=ctx().levelId,mapId=mapForContext(ctx());const current=await waitForActivePlayer(player.id,mapId);if(ctx().levelId!==id||mapForContext(ctx())!==mapId)return null;const answer=await ask(current,{name,text,choices});return ctx().levelId===id&&mapForContext(ctx())===mapId?answer:null;}
 export function event(name:string,graphic:string,action:(player:RpgPlayer,event?:any)=>Promise<unknown>):EventDefinition{
  return {name,mode:EventMode.Scenario,onInit(){this.setGraphic(graphic);this.setHitbox(24,24);this.through=true;this.setComponentsTop(Components.text(name,{fill:'#163e31',fontSize:15,}));},async onAction(player:RpgPlayer){if(player.getVariable('lessonBusy'))return;player.setVariable('lessonBusy',true);try{await action(player,this);}catch(error){await say(player,name,error instanceof Error?error.message:'操作未完成，请重试。');}finally{player.setVariable('lessonBusy',false);}}};
@@ -63,9 +66,10 @@ export async function record(player:RpgPlayer,finalStep:string,outcome?:string){
  const next=advance(s,finalStep);const evidence=evidenceFor(id,next,s.ticket.output,ctx().draft.prediction,outcome);
  const result=await rpc('experiment',{input:input(),prediction:ctx().draft.prediction,sceneEvidence:evidence});
  if(!result)throw new Error('本次实验没有保存，请重试核验。');
- const message=`条件${result.condition?'成立':'不成立'}，只执行${result.branch==='yes'?'成立':'不成立'}分支。${result.correct?'符合任务目标。':'实际结果与任务目标不符，请检查条件及分支配置。'}${result.correct?'':`\n你的条件：${conditionLine(result)}`}`;
+ const hint=!result.correct&&input().temperature===30?repairSymbolHint(ctx().draft.config):'';
+ const message=`条件${result.condition?'成立':'不成立'}，只执行${result.branch==='yes'?'成立':'不成立'}分支。${result.correct?'符合任务目标。':'实际结果与任务目标不符，请检查条件及分支配置。'}${result.correct?'':`\n你的条件：${conditionLine(result)}`}${hint?`\n${hint}`:''}`;
  const clean:Record<string,any>={...s,actions:[],phase:'assigned',measured:false,lastFeedback:message,visited:[...new Set([...(s.visited||[]),'verified'])]};delete clean.ticket;
- await rpc('change',{patch:{scene:clean,prediction:''}});player.syncChanges();await say(player,'现场核验',message);return result;
+ await commitScene(player,clean,{prediction:''});await say(player,'现场核验',message);return result;
 }
 export async function review(player:RpgPlayer){
  const reasons=ctx().reasons.map((r:any)=>Array.isArray(r)?{id:r[0],label:r[1]}:{id:r.value,label:r.label});

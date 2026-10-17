@@ -21,13 +21,19 @@ export function slotIds(question) {
 
 export function slotsOf(question) { return slotIds(question); }
 
+export function groupsIntoTargets(question) {
+  const targets = question?.interaction?.targets || [];
+  return !!question && question.type !== 'single_choice' && question.type !== 'ordering' && question.type !== 'matching' && targets.length > 0 && slotIds(question).length === 0;
+}
+
 export function filled(question, value) {
   if (!question || value == null) return false;
   if (question.type === 'single_choice') return Number.isInteger(value) && value >= 0 && value < question.options.length;
   if (question.type === 'ordering') return Array.isArray(value) && value.length === question.options.length && value.every(item => Number.isInteger(item) && item >= 0 && item < question.options.length);
-  if (question.type === 'matching') {
+  if (question.type === 'matching' || groupsIntoTargets(question)) {
     const targets = new Set((question.interaction?.targets || []).map(target => target.id));
-    return slotIds(question).every(slot => targets.has(value?.[slot]));
+    const keys = question.type === 'matching' ? slotIds(question) : question.options.map((_, index) => String(index));
+    return keys.every(slot => targets.has(value?.[slot]));
   }
   return slotIds(question).every(slot => Number.isInteger(value?.[slot]) && value[slot] >= 0 && value[slot] < question.options.length);
 }
@@ -44,7 +50,7 @@ export function placeCard(session, slotId) {
     const next = Array.isArray(session.answers[question.id]) ? session.answers[question.id].slice() : Array(question.options.length).fill(null);
     next[Number(slotId)] = session.card;
     session.answers[question.id] = next;
-  } else if (question.type === 'matching') {
+  } else if (question.type === 'matching' || groupsIntoTargets(question)) {
     const next = { ...(session.answers[question.id] || {}) };
     next[String(session.card)] = slotId;
     session.answers[question.id] = next;

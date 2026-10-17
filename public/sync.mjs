@@ -15,11 +15,12 @@ export function reconcileState(local, remote, preserveDrafts = true) {
 }
 
 export class SyncQueue {
-  constructor(storage, send, onResult = () => {}, onArchived = () => {}) {
+  constructor(storage, send, onResult = () => {}, onArchived = () => {}, onRejected = () => {}) {
     this.storage = storage;
     this.send = send;
     this.onResult = onResult;
     this.onArchived = onArchived;
+    this.onRejected = onRejected;
     this.archiveKey = 'branch-island-archived-events-v1';
     this.key = 'branch-island-pending-v1';
     this.events = JSON.parse(storage.getItem(this.key) || '[]');
@@ -68,6 +69,16 @@ export class SyncQueue {
           this.events = this.events.filter(e => e !== event);
           this.save();
           this.onArchived(event, error);
+          continue;
+        }
+        if (error.status === 400) {
+          const archive = JSON.parse(this.storage.getItem(this.archiveKey) || '[]');
+          archive.push({ event, reason: error.message, archivedAt: new Date().toISOString() });
+          this.storage.setItem(this.archiveKey, JSON.stringify(archive));
+          this.events = this.events.filter(e => e !== event);
+          this.save();
+          this.error = error.message;
+          this.onRejected(event, error);
           continue;
         }
         this.error = error.message;

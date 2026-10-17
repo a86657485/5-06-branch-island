@@ -115,7 +115,7 @@ const idle = createIdleTimer({
   }
 });
 function lessonFocus(context = getContext()) {
-  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level, draft: context?.draft });
+  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level, draft: context?.draft, panelOpen: !!document.querySelector('.studio') });
 }
 function noteActivity() {
   idle.reset();

@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, ref } from 'vue';
 import { inject } from 'vue';
 import SentencePanel from './SentencePanel.vue';
 import { toPlain } from './plain';
-import { cardsFor, emptyFlow, emptyPredictions, emptySentence, lockFlow, lockPredictions, nextSlot, placeCard, repairEditMessage, repairPreset, setPrediction, unlockPredictionsOnEdit, type Flow, type Predictions, type Sentence } from './flow-model';
+import { cardsFor, emptyFlow, emptyPredictions, emptySentence, lockFlow, lockPredictions, nextSlot, placeCard, repairEditMessage, repairPreset, repairSymbolHint, setPrediction, unlockPredictionsOnEdit, type Flow, type Predictions, type Sentence } from './flow-model';
 
 const props = defineProps<{
   mode?: string;
@@ -62,7 +62,8 @@ function lock() {
   const blocked = repairEditMessage(mode === 'repair', !!props.diagnosed);
   if (blocked) { message.value = blocked; return; }
   const result = lockFlow(mode, board.value);
-  message.value = result.message;
+  const symbol = mode === 'repair' ? repairSymbolHint(result.config as { operator?: string; yes?: string; no?: string }) : '';
+  message.value = symbol ? `${result.message} ${symbol}` : result.message;
   board.value = result.flow;
   if (result.ok && result.config) {
     const changed = !!lockedConfig.value && JSON.stringify(lockedConfig.value) !== JSON.stringify(result.config);

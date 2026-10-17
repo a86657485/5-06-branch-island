@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { advanceRoute } from '../engine/src/modules/lesson/route-progress.mjs';
+import { advanceRoute, bothRoadsVerified } from '../engine/src/modules/lesson/route-progress.mjs';
 
 function walk(points, route = 'bridge', key = 'test') {
   return points.reduce((progress, position) => advanceRoute(progress, position, route, key), undefined);
@@ -9,6 +9,15 @@ function walk(points, route = 'bridge', key = 'test') {
 function crossingLine(y) {
   return Array.from({ length: 34 }, (_, index) => ({ x: 450 + index * 20, y }));
 }
+
+test('两种现场都正确到达后才让游客过街', () => {
+  const open = { input: { facility: true }, correct: true, scene: { outcome: 'arrived' } };
+  const closed = { input: { facility: false }, correct: true, scene: { outcome: 'arrived' } };
+  const blocked = { input: { facility: false }, correct: false, scene: { outcome: 'blocked' } };
+  assert.equal(bothRoadsVerified([open, blocked]), false);
+  assert.equal(bothRoadsVerified([open, closed]), true);
+  assert.equal(bothRoadsVerified([open, closed], 1), false);
+});
 
 test('route evidence requires walking from the west entrance through the middle to the east exit', () => {
   const progress = walk(crossingLine(340));

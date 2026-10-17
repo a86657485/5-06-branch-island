@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chooseCard, confirmCurrent, emptySession, goNext, placeCard } from '../public/quiz-flow.mjs';
+import { chooseCard, confirmCurrent, emptySession, filled, goNext, placeCard } from '../public/quiz-flow.mjs';
 
 const question = {
   id: 'q22',
@@ -21,4 +21,21 @@ test('填槽和确认都停在当前题，确认后才能到下一题', () => {
   confirmCurrent(session);
   assert.equal(session.index, 0);
   assert.equal(goNext(session), 1);
+});
+
+test('分类题把每张卡片放进目标框', () => {
+  const sort = {
+    id: 'q20', type: 'drag_op', options: ['15%', '20%', '21%', '35%'],
+    interaction: { targets: [{ id: 'remind', label: '提醒充电' }, { id: 'none', label: '不提醒' }] }
+  };
+  const session = emptySession([sort]);
+  chooseCard(session, 0); placeCard(session, 'remind');
+  chooseCard(session, 1); placeCard(session, 'remind');
+  chooseCard(session, 2); placeCard(session, 'none');
+  assert.equal(filled(sort, session.answers.q20), false);
+  chooseCard(session, 3); placeCard(session, 'none');
+  assert.deepEqual(session.answers.q20, { 0: 'remind', 1: 'remind', 2: 'none', 3: 'none' });
+  assert.equal(filled(sort, session.answers.q20), true);
+  confirmCurrent(session);
+  assert.equal(session.confirmed.q20, true);
 });

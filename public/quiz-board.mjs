@@ -1,4 +1,4 @@
-import { canLeave, chooseCard, chooseSingle, confirmCurrent, currentQuestion, filled, goNext, goTo, placeCard, slotIds } from './quiz-flow.mjs';
+import { canLeave, chooseCard, chooseSingle, confirmCurrent, currentQuestion, filled, goNext, goTo, groupsIntoTargets, placeCard, slotIds } from './quiz-flow.mjs';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
@@ -24,7 +24,7 @@ function optionLabel(question, index) {
 }
 
 function slotLabel(question, slot, value) {
-  if (question.type === 'matching') {
+  if (question.type === 'matching' || groupsIntoTargets(question)) {
     const target = (question.interaction?.targets || []).find(item => item.id === value);
     return target?.label || target?.text || value || '空';
   }
@@ -48,7 +48,7 @@ export function mountQuiz(root, options) {
   const targets = question.interaction?.targets || [];
   const frame = question.interaction?.frame || question.interaction?.code || '';
   const cards = question.options.map((text, index) => `<button type="button" data-card="${index}" class="quiz-card ${session.card === index ? 'chosen' : ''}" ${pending ? 'disabled' : ''}>${esc(text)}</button>`).join('');
-  const slotButtons = question.type === 'matching'
+  const slotButtons = question.type === 'matching' || groupsIntoTargets(question)
     ? targets.map(target => `<button type="button" data-slot="${esc(target.id)}" class="quiz-slot" ${pending ? 'disabled' : ''}>${esc(target.label || target.text || target.id)}</button>`).join('')
     : slots.map(slot => `<button type="button" data-slot="${esc(slot)}" class="quiz-slot" ${pending ? 'disabled' : ''}><b>${esc(slot)}</b><span>${esc(slotLabel(question, slot, question.type === 'ordering' ? value?.[Number(slot)] : value?.[slot]))}</span></button>`).join('');
   const single = question.type === 'single_choice'

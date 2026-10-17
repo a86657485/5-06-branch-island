@@ -1,6 +1,6 @@
 import layout from '../../tiled/layout.json';
 import { EventMode, type EventDefinition, type RpgPlayer } from '@rpgjs/server';
-import { advanceRoute, closedBridgeSelected } from './route-progress.mjs';
+import { advanceRoute, bothRoadsVerified, closedBridgeSelected } from './route-progress.mjs';
 import {
   apply, clearPending, configure, ctx, event, input, patchScene, predict,
   record, review, rpc, say, scene
@@ -134,11 +134,82 @@ async function signalLamp(player: RpgPlayer) {
     : '红灯已亮，入口关闭。请在安全侧等待。');
 }
 
+let visitorShape: { teleport?: (position: { x: number; y: number }) => Promise<unknown>; x?: { set: (value: number) => void }; y?: { set: (value: number) => void } } | undefined;
+
+function visitorSkipped(player: RpgPlayer) {
+  if (player.getVariable('skipVisitor')) return true;
+  try { return localStorage.getItem('branch-island-skip-visitor') === '1'; } catch { return false; }
+}
+
+function setVisitorSkipped(player: RpgPlayer, skipped: boolean) {
+  player.setVariable('skipVisitor', skipped);
+  try {
+    if (skipped) localStorage.setItem('branch-island-skip-visitor', '1');
+    else localStorage.removeItem('branch-island-skip-visitor');
+  } catch { /* 本机偏好写不了时，仍记住这一次角色变量 */ }
+}
+
+async function slideVisitor(route: 'bridge' | 'crossing', stopped: () => boolean) {
+  const y = route === 'bridge' ? 336 : 680;
+  for (let step = 0; step <= 12; step += 1) {
+    if (stopped()) return;
+    const x = 420 + (1040 - 420) * step / 12;
+    try {
+      if (typeof visitorShape?.teleport === 'function') await visitorShape.teleport({ x, y });
+      else { visitorShape?.x?.set?.(x); visitorShape?.y?.set?.(y); }
+    } catch { /* 关掉演出后不再追位置 */ }
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+}
+
+async function showVisitor(player: RpgPlayer) {
+  if (visitorSkipped(player)) return say(player, '交通设施巡检员', '游客过街演出已关闭。路上的游客可以再打开。');
+  const route = scene().facility === false ? 'crossing' : 'bridge';
+  let stopped = false;
+  const motion = slideVisitor(route, () => stopped);
+  const choice = await say(player, '过街游客', route === 'bridge'
+    ? '有可用天桥，我走天桥过马路。这段大约三秒，可以关掉。'
+    : '天桥现在不可用，我走斑马线过马路。这段大约三秒，可以关掉。', [
+    { id: 'skip', label: '关闭动画' }
+  ]);
+  stopped = true;
+  await motion;
+  if (choice === 'skip') {
+    setVisitorSkipped(player, true);
+    return say(player, '过街游客', '动画已关闭。以后仍可以找我重新看。');
+  }
+  return say(player, '交通设施巡检员', '游客安全过街了，辛苦啦！');
+}
+
+async function visitorTalk(player: RpgPlayer) {
+  if (!bothRoadsVerified(ctx().runs, ctx().evidenceStart)) {
+    return say(player, '过街游客', '两种现场都测对以后，我再按导行屏过马路。');
+  }
+  if (visitorSkipped(player)) {
+    const again = await say(player, '过街游客', '过街动画已关闭。', [
+      { id: 'watch', label: '再看一次过街' },
+      { id: 'keep', label: '保持关闭' }
+    ]);
+    if (again !== 'watch') return;
+    setVisitorSkipped(player, false);
+  }
+  return showVisitor(player);
+}
+
 async function verifyRoad(player: RpgPlayer) {
   if (!scene().ticket || !scene().actions.includes('route') || scene().phase !== 'arrived') {
     return say(player, '通行核验台', '还没有这次完整通行的记录。请从西侧入口沿程序选中的路线走过道路，不能只从旁边来到核验台。');
   }
   await record(player, 'verify', 'arrived');
+  if (bothRoadsVerified(ctx().runs, ctx().evidenceStart)) {
+    const match = await say(player, '通行核验台', '开放 → 你走了天桥（如果那一半）｜封闭 → 你走了斑马线（否则那一半）。', [
+      { id: 'yes', label: '对得上' },
+      { id: 'no', label: '对不上' }
+    ]);
+    if (match === 'no') return say(player, '通行核验台', '对照两次实际走过的路，再看句子里的如果和否则。');
+    if (match !== 'yes') return;
+    return showVisitor(player);
+  }
   return say(player, '通行核验台', '已保存本次现场、先前预测、实际选中分支与通行结果。请找巡检员说明为什么一次判断只执行一个出口；还需测试另一种设施现场。');
 }
 
@@ -170,6 +241,10 @@ export const crossingEvents = [
   placed('crossing','bridgeWest','bridge-entrance',event('天桥入口','portal',bridgeEntrance)),
   {id:'road-signal',x:474,y:608,event:event('人行信号灯','monitor',signalLamp)},
   placed('crossing','verify','road-verify',event('通行核验台','monitor',verifyRoad)),
+  placed('crossing','visitor','road-visitor',(() => {
+    const base = event('过街游客','staff',visitorTalk);
+    return { ...base, onInit() { base.onInit?.call(this); visitorShape = this; } };
+  })()),
   {id:'bridge-gate',x:590,y:285,event:gate('bridge')},
   {id:'crossing-gate',x:590,y:620,event:gate('crossing')}
 ];

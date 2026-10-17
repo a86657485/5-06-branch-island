@@ -64,12 +64,12 @@ function opening(levelId) {
   return OPENING[levelId] || OPENING.sale;
 }
 
-function stationFocus(levelId, scene, level, draft) {
+function stationFocus(levelId, scene, level, draft, panelOpen) {
   const mapId = mapFor(levelId, scene);
   const flow = draft?.flow || {};
   const sentence = draft?.sentence || {};
   const predictions = draft?.predictionsLocked || {};
-  const panel = draft?.panel || scene?.panel || '';
+  const panel = panelOpen === false ? '' : (draft?.panel || scene?.panel || '');
   const walked = (scene.actions || []).includes('route') || (scene.visited || []).includes('verified');
   const crossingWalk = levelId === 'cross' && scene.ticket && !walked && !level?.valid;
   if (crossingWalk) {
@@ -168,8 +168,8 @@ function examFocus(exam) {
   });
 }
 
-export function currentFocus({ levelId = 'sale', scene = null, level = null, draft = null, exam = null, intro = null } = {}) {
+export function currentFocus({ levelId = 'sale', scene = null, level = null, draft = null, exam = null, intro = null, panelOpen = undefined } = {}) {
   if (levelId === 'gate' || intro) return gateFocus(intro || {});
   if (levelId === 'quiz' || exam) return examFocus(exam || {});
-  return stationFocus(levelId, scene || {}, level || {}, draft || {});
+  return stationFocus(levelId, scene || {}, level || {}, draft || {}, panelOpen);
 }

@@ -30,7 +30,7 @@
     const allowed = value => choices.includes(value) || (partial && (value === '' || value === undefined));
     if (!allowed(config.yes) || !allowed(config.no)) throw new Error('请检查两个分支的选择');
     if (id === 'cross') return { yes: config.yes ?? '', no: config.no ?? '' };
-    const operators = id === 'minimum' ? ['<', '>'] : id === 'repair' ? ['<', '>='] : ['<', '>=', '>', '<='];
+    const operators = id === 'minimum' ? ['<', '>'] : ['<', '>=', '>', '<='];
     if (!operators.includes(config.operator) && !(partial && (config.operator === '' || config.operator === undefined))) throw new Error('请检查判断条件');
     return { ...(ventilation ? {model:'ventilation'} : {}), operator: config.operator ?? '', yes: config.yes ?? '', no: config.no ?? '' };
   }

@@ -8,7 +8,7 @@ import { currentFocus, mapFor } from '../public/focus.mjs';
 import { DIALOG_DISMISS_EVENTS, dialogCloseValue, dialogCloseWritesEvidence } from '../engine/src/gui/dialog-policy.ts';
 import { closedBridgeSelected } from '../engine/src/modules/lesson/route-progress.mjs';
 import {
-  conditionLine, lockFlow, placeCard, repairEditMessage, repairPreset, unlockPredictionsOnEdit
+  conditionLine, lockFlow, placeCard, repairEditMessage, repairPreset, repairSymbolHint, unlockPredictionsOnEdit
 } from '../engine/src/gui/flow-model.ts';
 
 const layout = JSON.parse(fs.readFileSync(new URL('../engine/src/tiled/layout.json', import.meta.url), 'utf8'));
@@ -61,8 +61,15 @@ test('返修没看到故障不能改，只改符号仍然错，对调出口或�
   const symbolChanged = { model: 'ventilation', operator: '<', yes: 'on', no: 'off' };
   assert.equal(rules.evaluate('repair', symbolChanged, { temperature: 30 }).correct, false);
   assert.equal(rules.evaluate('repair', symbolChanged, { temperature: 30 }).output, 'off');
+  assert.match(repairSymbolHint(symbolChanged), /仍然不转/);
+  const greater = { model: 'ventilation', operator: '>', yes: 'on', no: 'off' };
+  assert.equal(rules.normalizeConfig('repair', greater).operator, '>');
+  assert.equal(rules.evaluate('repair', greater, { temperature: 30 }).correct, false);
+  assert.equal(rules.evaluate('repair', greater, { temperature: 31 }).correct, true);
+  assert.match(repairSymbolHint(greater), /仍然不转/);
   const swapped = { model: 'ventilation', operator: '>=', yes: 'on', no: 'off' };
   const restored = { model: 'ventilation', operator: '<', yes: 'off', no: 'on' };
+  assert.equal(repairSymbolHint(restored), '');
   for (const config of [swapped, restored]) {
     for (const temperature of [29, 30, 31]) assert.equal(rules.evaluate('repair', config, { temperature }).correct, true);
   }

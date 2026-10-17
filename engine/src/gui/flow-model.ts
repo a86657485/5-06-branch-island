@@ -115,6 +115,15 @@ export function repairEditMessage(repair: boolean, diagnosed: boolean) {
   return repair && !diagnosed ? '先用原程序跑一次 30℃，看到故障才能改。' : '';
 }
 
+/** 只改判断符号、出口不跟着换时，30℃仍然走错。改回 ＜ 且出口仍是故障程序的两边，则是接受的修法。 */
+export function repairSymbolHint(config?: { operator?: string; yes?: string; no?: string }) {
+  if (!config) return '';
+  if (config.operator === '>' && config.no === 'off') return '只把 ≥ 改成 ＞，30℃不成立，会走“否”。否如果是关闭，风机仍然不转。';
+  if (config.operator === '<' && config.yes === 'on' && config.no === 'off') return '只改成 ＜、出口仍按 ≥ 来接，30℃不小于 30，风机仍然不转。';
+  if (config.operator === '<=') return '≤30 在 30℃成立。请对照告示，看成立时风机该不该转。';
+  return '';
+}
+
 export function unlockPredictionsOnEdit(table: Predictions, changed: boolean): Predictions {
   if (!changed || !table.locked) return table;
   return { ...table, locked: false };

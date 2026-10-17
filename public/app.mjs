@@ -58,8 +58,10 @@ const queue = new SyncQueue(localStorage,e => api('/api/events',e),(event,data)=
  }
 },(event,error)=>{
  if(user&&event.studentId===user.id){state.drafts.quiz={tier:'base',answers:{},index:0,confirmed:{},quizVersion};questions=[];quizReview=false;notice='旧版待提交答卷已完整保留在本机未评分存档，请按新版重新作答。';saveLocal();if(current==='quiz')renderQuiz();updateHeader();}
+},(event,error)=>{
+ if(user&&event.studentId===user.id){const reason=error?.message||'请按提示修改';queue.error=`这条记录没有保存：${reason}。请按提示修改后继续，后面的操作仍会保存。`;setNotice(queue.error);updateHeader();}
 });
-function syncStatus(){if(demo)return '独立演示 · 不计入班级';const n=queue.pending(user?.id);return n?`${n}条待同步 · ${queue.error?'连接未完成，记录已保留':'正在保存'}`:'已同步保存';}
+function syncStatus(){if(demo)return '独立演示 · 不计入班级';const n=queue.pending(user?.id);if(n)return `${n}条待同步 · ${queue.error?'连接未完成，记录已保留':'正在保存'}`;if(queue.error)return queue.error;return '已同步保存';}
 function updateHeader(){if($('#save-status'))$('#save-status').textContent=syncStatus();if($('#points'))$('#points').textContent=`${state.points || 0} 积分`;updateRoutes();}
 function examOpened(){return !!(state.quizOpenedAt||state.exam?.openedAt);}
 function canEnter(id){return demo || (id==='quiz'?true:ids.includes(id)&&(ids.indexOf(id)===0||state.levels[ids[ids.indexOf(id)-1]]?.completed));}
@@ -88,7 +90,7 @@ function prepareSceneDraft(id){
  if(oldModel){state.levels[id]||={completed:false,points:0};state.levels[id].evidenceStart=(state.runs[id]||[]).length;state.levels[id].valid=false;}
  return state.drafts[id];
 }
-function setNotice(text){notice=text;const target=$('#notice')||$('#scene-toast');if(target){target.textContent=text;target.hidden=!text;}}
+function setNotice(text){notice=text;const target=$('#notice')||$('#scene-toast')||$('#sync-notice');if(target){target.textContent=text;target.hidden=!text;}}
 function option(value,label,selected){return `<option value="${esc(value)}" ${value===selected?'selected':''}>${esc(label)}</option>`;}
 function outputLabel(value){return ({on:'启动风机',off:'停止风机',bridge:'走天桥',crossing:'到斑马线按信号通行',a:'电池A优先充电',b:'电池B优先充电'})[value] || '选择执行的动作';}
 function conditionLabel(id=current){const d=draft(id);if(id==='cross')return '附近有可用天桥吗？';if(id==='minimum')return d.config.operator?`电量 a ${d.config.operator} b 吗？`:'两组电量怎样比较？';return `温度 ${d.config.operator==='>='?'≥':'＜'} 30℃？`;}
@@ -112,7 +114,7 @@ function render(){
  if(!user)return login();
  if(!legacy && state.intro && state.intro.done!==true && state.intro.skipped!==true)return renderIntro();
  const idx=ids.indexOf(current);const unlocked=id=>demo || ids.indexOf(id)===0 || state.levels[ids[ids.indexOf(id)-1]]?.completed;
- $('#app').innerHTML=`${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar"><a class="brand" href="#">分支冒险岛<span>判断选择用分支</span></a><div class="identity"><span>${demo?'演示调试员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${state.points||0} 积分</strong><button id="switch-user" class="quiet">切换身份</button></div></header><div class="app-shell"><aside class="map"><p class="eyebrow">园区巡检路线</p><h2>让判断驱动行动</h2><nav aria-label="任务路线">${ids.map((id,i)=>`<button data-route="${id}" class="route-item ${current===id?'selected':''}" ${unlocked(id)?'':'disabled'}><span class="stop">${state.levels[id]?.completed?'✓':i+1}</span><span><b>${titles[i]}</b><small>${state.levels[id]?.completed?(state.levels[id].valid?'已完成 · 当前已验证':'曾完成 · 当前待重验'):(unlocked(id)?'可开始探索':'完成上一站解锁')}</small></span></button>`).join('')}<button data-route="quiz" class="route-item ${current==='quiz'?'selected':''}" ${canEnter('quiz')?'':'disabled'}><span class="stop">Q</span><span><b>独立检测</b><small>${state.quiz?.base?.first?`基础层 ${state.quiz.base.firstScore}/${state.quiz.base.first.total}`:(examOpened()?'可以开始':'还差哪一站')}</small></span></button></nav><div class="map-note">每站25积分，合理试错不扣分。<br>检测成绩与通关积分分开记录。</div><div id="save-status" class="save-status" role="status">${syncStatus()}</div></aside><main id="workbench" class="workbench"></main></div>`;
+ $('#app').innerHTML=`${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar"><a class="brand" href="#">分支冒险岛<span>判断选择用分支</span></a><div class="identity"><span>${demo?'演示调试员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${state.points||0} 积分</strong><button id="switch-user" class="quiet">切换身份</button></div></header><div class="app-shell"><aside class="map"><p class="eyebrow">园区巡检路线</p><h2>让判断驱动行动</h2><nav aria-label="任务路线">${ids.map((id,i)=>`<button data-route="${id}" class="route-item ${current===id?'selected':''}" ${unlocked(id)?'':'disabled'}><span class="stop">${state.levels[id]?.completed?'✓':i+1}</span><span><b>${titles[i]}</b><small>${state.levels[id]?.completed?(state.levels[id].valid?'已完成 · 当前已验证':'曾完成 · 当前待重验'):(unlocked(id)?'可开始探索':'完成上一站解锁')}</small></span></button>`).join('')}<button data-route="quiz" class="route-item ${current==='quiz'?'selected':''}" ${canEnter('quiz')?'':'disabled'}><span class="stop">Q</span><span><b>独立检测</b><small>${state.quiz?.base?.first?`基础层 ${state.quiz.base.firstScore}/${state.quiz.base.first.total}`:(examOpened()?'可以开始':'还差哪一站')}</small></span></button></nav><div class="map-note">每站25积分，合理试错不扣分。<br>检测成绩与通关积分分开记录。</div><div id="save-status" class="save-status" role="status">${syncStatus()}</div><p id="sync-notice" class="save-status" role="status" ${notice?'':'hidden'}>${esc(notice)}</p></aside><main id="workbench" class="workbench"></main></div>`;
  $('[data-route]') && document.querySelectorAll('[data-route]').forEach(btn=>btn.onclick=()=>goToTask(btn.dataset.route));
  $('.brand').onclick=e=>{e.preventDefault();goToTask('sale');};
  $('#switch-user').onclick=()=>{destroyScene();saveLocal();localStorage.removeItem('branch-island-identity');user=null;selectedStudent='';manual='';notice='';lastRun=null;if(demo){location.href='/teacher.html';return;}login();};
@@ -133,12 +135,13 @@ function renderTask(idx){
    if(!sameOwner())return;
    if('rpg' in patch){patch={...patch,rpg:window.AdventureRules.validateRpgDraft(patch.rpg)};const maps={sale:['greenhouse'],repair:['workshop'],cross:['crossing','crossing-east'],minimum:['energy'],gate:['greenhouse']};if(!maps[id].includes(patch.rpg.mapId))throw new Error('当前位置与任务场景不一致。');}
    const editing=['config','flow','sentence','predictionsLocked','input','prediction','reason'].some(key=>key in patch);
-   if(!state.drafts[id] && !editing){state.drafts[id]={};for(const key of ['scene','rpg','panel'])if(key in patch)state.drafts[id][key]=clone(patch[key]);updateHeader();save();updateHeader();return {saved:true};}
+   if(!state.drafts[id] && !editing){state.drafts[id]=clone(defaults[id]);for(const key of ['scene','rpg','panel'])if(key in patch)state.drafts[id][key]=clone(patch[key]);updateHeader();save();updateHeader();return {saved:true};}
    const d=state.drafts[id]||(state.drafts[id]={});
    if(patch.config&&d.config&&JSON.stringify(R.normalizeConfig(id,d.config,true))!==JSON.stringify(R.normalizeConfig(id,{...d.config,...patch.config},true))){state.levels[id]||={completed:false,points:0};state.levels[id].evidenceStart=(state.runs[id]||[]).length;state.levels[id].valid=false;lastRun=null;}
    if(patch.input&&JSON.stringify(patch.input)!==JSON.stringify(d.input))lastRun=null;
    for(const key of ['config','input'])if(patch[key])d[key]={...(d[key]||{}),...patch[key]};
    for(const key of ['prediction','scene','reason','rpg','flow','sentence','predictionsLocked','diagnoseAnswer','panel'])if(key in patch)d[key]=clone(patch[key]);
+   if('scene' in patch)d.sceneRev=(d.sceneRev||0)+1;
    save();updateHeader();return {saved:true};
   },
   onEvaluate({input,config}){if(!sameOwner())throw new Error('当前任务已切换。');return R.evaluate(id,config||draft(id).config,input||draft(id).input);},

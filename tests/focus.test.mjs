@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { currentFocus } from '../public/focus.mjs';
+import { keepNewerScene } from '../engine/src/classroom-bridge.ts';
 import { createIdleTimer } from '../public/idle-timer.mjs';
 
 test('同一时刻只有一个焦点，过街行走时不能一键前往', () => {
@@ -33,6 +34,15 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
   });
   assert.equal(wrongRoute.target.place, 'bridgeWest');
   assert.equal(wrongRoute.goto, false);
+  const closedPanel = currentFocus({
+    levelId: 'cross',
+    scene: walk && { phase: 'executed', measured: true, facility: true, ticket: { output: 'bridge' }, actions: [], signal: 'green' },
+    level: { valid: false },
+    draft: { panel: 'sentence', flow: { locked: true }, sentence: { locked: false, slots: [] } },
+    panelOpen: false
+  });
+  assert.equal(closedPanel.step, '10');
+  assert.equal(closedPanel.dots.length, walk.dots.length);
   assert.equal(walk.dots.length > 3, true);
   assert.equal(walk.dots.some(dot => dot.x === walk.target.x && dot.y === walk.target.y), false);
   assert.notDeepEqual(walk.dots, wrongRoute.dots);
@@ -164,4 +174,17 @@ test('停顿最多加强两次，地图 20 秒、思考 40 秒', () => {
   time += 80000;
   idle.tick();
   assert.equal(idle.strength(), 1);
+});
+
+test('较旧的场景回包不会抹掉已经开始的过街', () => {
+  const newer = { levelId: 'cross', draft: { sceneRev: 2, scene: { ticket: { output: 'bridge' }, phase: 'executed' } } };
+  const stale = { levelId: 'cross', draft: { sceneRev: 1, panel: 'sentence', scene: { phase: 'observed' } } };
+  const kept = keepNewerScene(newer, stale);
+  assert.equal(kept.draft.scene.ticket.output, 'bridge');
+  assert.equal(kept.draft.sceneRev, 2);
+  assert.equal(keepNewerScene(newer, { levelId: 'cross', draft: { sceneRev: 3, scene: { phase: 'assigned' } } }).draft.scene.phase, 'assigned');
+  const moved = keepNewerScene(newer, { levelId: 'repair', draft: { sceneRev: 0, scene: { phase: 'start', temperatureCase: 30 } } });
+  assert.equal(moved.levelId, 'repair');
+  assert.equal(moved.draft.scene.phase, 'start');
+  assert.equal(moved.draft.scene.temperatureCase, 30);
 });
