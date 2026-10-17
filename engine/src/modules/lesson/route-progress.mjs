@@ -1,3 +1,8 @@
+/** 封闭现场却选了天桥：入口受阻，并记一次错误。 */
+export function closedBridgeSelected(output, facility) {
+  return output === 'bridge' && !facility;
+}
+
 /** Track actual movement through one selected west-to-east road corridor. */
 export function advanceRoute(previous, position, route, key) {
   const progress = previous?.key === key && previous.route === route

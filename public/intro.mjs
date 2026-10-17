@@ -6,13 +6,14 @@ export const TESTERS = [
 ];
 
 export function createIntro() {
-  return { heightCase: null, judged: null, ticket: null, idea: null, sawSign: false, done: false, skipped: false, review: false, blocked: null };
+  return { accepted: false, heightCase: null, judged: null, ticket: null, idea: null, sawSign: false, done: false, skipped: false, review: false, blocked: null };
 }
 
 export function introAct(state, action, extra) {
   const current = state || createIntro();
   if (action === 'review') return { ...current, review: true, blocked: null };
   if (current.done || current.skipped) return current;
+  if (action === 'lead') return { ...current, accepted: true, blocked: null };
   if (action === 'skip') return { ...current, skipped: true, done: true, blocked: null };
   if (action === 'measure') {
     if (!TESTERS.some(tester => tester.height === extra)) return { ...current, blocked: '请在立柱旁量已经站好的测试者。' };

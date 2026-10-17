@@ -26,7 +26,7 @@ function isPrivateAddress(address) {
   return parts[0] === 127 || parts[0] === 10 || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) || (parts[0] === 192 && parts[1] === 168) || (parts[0] === 169 && parts[1] === 254);
 }
 function initialState() {
-  return { drafts: {}, levels: Object.fromEntries(rules.levels.map(level => [level.id, { completed: false, valid: false, points: 0, completedAt: null, reason: null, evidenceStart: 0 }])), runs: Object.fromEntries(rules.levels.map(level => [level.id, []])), predictions: Object.fromEntries(rules.levels.map(level => [level.id, []])), attempts: [], points: 0, quizOpenedAt: null, exam: { openedAt: null }, quiz: { base: { first: null, latest: null, attempts: [], firstSubmittedAt: null, firstScore: null, passed: false }, challenge: { unlockedAt: null, closed: false, first: null, latest: null, attempts: [], firstSubmittedAt: null } }, awards: {}, navHelp: [], intro: { heightCase: null, judged: null, ticket: null, idea: null, sawSign: false, done: false, skipped: false, review: false, blocked: null } };
+  return { drafts: {}, levels: Object.fromEntries(rules.levels.map(level => [level.id, { completed: false, valid: false, points: 0, completedAt: null, reason: null, evidenceStart: 0 }])), runs: Object.fromEntries(rules.levels.map(level => [level.id, []])), predictions: Object.fromEntries(rules.levels.map(level => [level.id, []])), attempts: [], points: 0, quizOpenedAt: null, exam: { openedAt: null }, quiz: { base: { first: null, latest: null, attempts: [], firstSubmittedAt: null, firstScore: null, passed: false }, challenge: { unlockedAt: null, closed: false, first: null, latest: null, attempts: [], firstSubmittedAt: null } }, awards: {}, navHelp: [], intro: { accepted: false, heightCase: null, judged: null, ticket: null, idea: null, sawSign: false, done: false, skipped: false, review: false, blocked: null } };
 }
 function ensureState(state) {
   state.exam ||= { openedAt: null };
@@ -230,7 +230,8 @@ function createService(options = {}) {
     return false;
   }
   function sanitizeIntro(payload) {
-    const intro = { heightCase: null, judged: null, ticket: null, idea: null, sawSign: false, done: false, skipped: false, review: false, blocked: null };
+    const intro = { accepted: false, heightCase: null, judged: null, ticket: null, idea: null, sawSign: false, done: false, skipped: false, review: false, blocked: null };
+    intro.accepted = !!payload.accepted;
     if ([116, 138].includes(payload.heightCase)) intro.heightCase = payload.heightCase;
     if (payload.judged === 'half' || payload.judged === 'full') intro.judged = payload.judged;
     if (payload.ticket === '10') intro.ticket = '10';

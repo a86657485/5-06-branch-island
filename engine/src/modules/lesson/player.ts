@@ -5,11 +5,14 @@ import { ready,subscribeContext,getContext } from '../../classroom-bridge';
 import { rpc,ctx } from './runtime';
 import { checkRoute } from './routes';
 import { mapForContext,registerActivePlayer,clearActivePlayer } from './active-player';
+import { standBeside } from './approach';
 const spawn=Object.fromEntries(Object.entries(layout).map(([id,m])=>[id,{x:m.positions.start[0],y:m.positions.start[1]}]));
 const mapFor=mapForContext;
 type Runtime={map:string,lastSave:number,active:RpgPlayer,unsub?:()=>void,changing:boolean,checkpointTimer?:ReturnType<typeof setTimeout>,enter:(c:any)=>Promise<void>};
 // RPGJS rehydrates a new player object on room transfers; the stable id survives.
 const sessions=new Map<string,Runtime>();
+const directions = { up: Direction.Up, down: Direction.Down, left: Direction.Left, right: Direction.Right };
+let pendingApproach: { mapId: string, direction: Direction } | null = null;
 if (typeof window !== 'undefined') window.addEventListener('lesson-goto', event => {
  const detail = (event as CustomEvent<{ goto?: boolean, x?: number, y?: number, mapId?: string, place?: string }>).detail || {};
  const x = detail.x;
@@ -18,14 +21,15 @@ if (typeof window !== 'undefined') window.addEventListener('lesson-goto', event 
  const runtime = [...sessions.values()].find(item => item.map === detail.mapId) || [...sessions.values()][0];
  const player = runtime?.active;
  if (!player || !runtime || runtime.changing || runtime.map !== detail.mapId) return;
- const dx = x - player.x();
- const dy = y - player.y();
- const dist = Math.hypot(dx, dy) || 1;
- const nx = Math.round(x - dx / dist * 32);
- const ny = Math.round(y - dy / dist * 32);
- const direction = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? Direction.Right : Direction.Left) : (dy > 0 ? Direction.Down : Direction.Up);
+ const positions = layout[runtime.map]?.positions || {};
+ const others = Object.entries(positions).filter(([id]) => id !== detail.place && id !== 'start').map(([, point]) => { const pair = point as number[]; return { x: pair[0], y: pair[1] }; });
+ const stand = standBeside({ x, y }, { x: player.x(), y: player.y() }, others);
+ const direction = directions[stand.direction];
+ pendingApproach = { mapId: runtime.map, direction };
+ const context = getContext();
+ if (context?.draft) context.draft.rpg = { version: 1, engine: 'rpgjs', mapId: runtime.map, position: { x: stand.x, y: stand.y }, direction: stand.direction };
  player.setVariable('focusTarget', detail.place || '');
- void player.changeMap(runtime.map, { x: nx, y: ny }).then(() => player.changeDirection(direction)).catch(error => console.warn('前往下一目标未完成', error));
+ void player.changeMap(runtime.map, { x: stand.x, y: stand.y }).then(() => { player.changeDirection(direction); void saveCheckpoint(runtime, player); }).catch(error => console.warn('前往下一目标未完成', error));
 });
 async function saveCheckpoint(runtime:Runtime,player:RpgPlayer){
  if(runtime.map!==mapFor(ctx())||player.getCurrentMap()?.id!==runtime.map)return;
@@ -52,12 +56,14 @@ export const player:RpgPlayerHooks={
  window.dispatchEvent(new CustomEvent('lesson-map-changed'));
  map.setAutoTick(true);
  player.setHitbox(24,24);
- const saved=ctx().draft.rpg;if(saved?.mapId===map.id){const direction={up:Direction.Up,down:Direction.Down,left:Direction.Left,right:Direction.Right}[saved.direction];if(direction)player.changeDirection(direction);}
+ const saved=ctx().draft.rpg;if(saved?.mapId===map.id){const direction=directions[saved.direction as keyof typeof directions];if(direction)player.changeDirection(direction);}
+ if(pendingApproach?.mapId===map.id)player.changeDirection(pendingApproach.direction);
  player.setVariable('lessonBusy',false);player.setVariable('deviceOutput',ctx().draft.scene?.deviceOutput||'off');player.syncChanges();
  if(mapFor(ctx())!==map.id)void runtime.enter(ctx());
  },
  async onMove(player){
  const runtime=sessions.get(player.id);if(!runtime||runtime.changing||mapFor(ctx())!==runtime.map||!getContext()?.draft.scene)return;
+ pendingApproach=null;
  await checkRoute(player);
  clearTimeout(runtime.checkpointTimer);runtime.checkpointTimer=setTimeout(()=>{void saveCheckpoint(runtime,player);},250);
  if(Date.now()-runtime.lastSave<2000)return;runtime.lastSave=Date.now();

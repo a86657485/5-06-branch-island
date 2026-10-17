@@ -16,6 +16,8 @@ const quizIdle = createIdleTimer({
 });
 setInterval(() => { if (current === 'quiz') quizIdle.tick(); }, 1000);
 const $ = s => document.querySelector(s);
+let gateTicketOpen = false;
+let gateSignTimer = 0;
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clone = v => JSON.parse(JSON.stringify(v));
 const eventId = () => globalThis.crypto?.randomUUID?.() || Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2,'0')).join('');
@@ -186,8 +188,14 @@ function renderTask(idx){
 function renderIntro(){
  const intro=state.intro||createIntro();
  const focus=currentFocus({levelId:'gate',intro});
- $('#app').innerHTML=`<header class="topbar"><a class="brand" href="#">分支冒险岛<span>判断选择用分支</span></a><div class="identity"><span>${esc(user.classId)}班 · ${esc(user.name)}</span><strong id="points">${state.points||0} 积分</strong></div></header><main class="gate-page"><p id="gate-hint" class="focus-hint">${esc(focus.hint)}</p><h1>闸机故障单</h1><p>运维主管：半价票判错了。测试者已经站在量高立柱旁，不会跟着你走。</p><svg class="gate-map" viewBox="0 0 640 360" role="img" aria-label="入口闸机示意"><rect width="640" height="360" fill="#e7f2ea"/><rect x="40" y="250" width="560" height="36" fill="#d7c4a2"/><rect x="300" y="40" width="70" height="150" fill="#c9d7c2"/><text x="312" y="120">通道</text><rect x="150" y="168" width="120" height="70" fill="#fff" stroke="#184c3b"/><text x="168" y="208">量高立柱</text>${TESTERS.map(tester=>`<g transform="translate(${tester.x} ${tester.y})"><circle r="16" fill="${tester.height===116?'#f2c14e':'#7eb6d9'}"/><text y="36" text-anchor="middle">${tester.height}</text></g>`).join('')}<rect x="430" y="150" width="90" height="80" fill="#173b31"/><text x="446" y="195" fill="white">闸机</text><rect x="40" y="40" width="180" height="70" fill="#fffaf0" stroke="#c5a048"/><text x="52" y="70">告示：＜120 半价</text><text x="52" y="92">否则全价 10 元</text></svg><p data-focus="${esc(focus.id)}" class="focus-target">${intro.blocked?esc(intro.blocked):intro.ticket?`闸机出票：全价 ${intro.ticket} 元。告示写的是半价 5 元。`:'先听运维主管说故障。'}</p><div class="gate-actions"><button type="button" id="gate-measure" data-focus="gate-ruler">量 116 厘米</button><button type="button" id="gate-half">判半价</button><button type="button" id="gate-full">判全价</button><button type="button" id="gate-ticket" data-focus="gate-turnstile">闸机出票</button><button type="button" id="gate-sign">看告示</button><button type="button" id="gate-idea">看情况收费</button><button type="button" id="gate-leave" class="primary" data-focus="gate-portal">去温室</button><button type="button" id="gate-skip">跳过导入</button><button type="button" id="gate-review">重看故障单</button></div></main>`;
+ const judgedLabel=intro.judged==='half'?'半价':intro.judged==='full'?'全价':'还没判';
+ const compare=intro.ticket?`<p class="gate-compare" data-focus="gate-sign">你判：${esc(judgedLabel)}｜闸机：全价 ${esc(intro.ticket)} 元</p>`:'';
+ const ticketView=gateTicketOpen?`<section id="gate-readonly" class="gate-readonly" role="dialog" aria-label="故障单"><h2>故障单（只读）</h2><p>运维主管：半价票判错了。告示写身高不足 120 厘米收半价，否则全价 10 元。闸机现在每次都出全价 10 元。</p><p>这张单只供再看，不会改身高、判定或已经出的票。</p><button type="button" id="gate-ticket-close">回到现场</button></section>`:'';
+ const hot=(id,step)=>focus.id===id&&focus.step===step?' focus-target':'';
+ const statusText=intro.blocked?esc(intro.blocked):intro.ticket?`闸机出票：全价 ${esc(intro.ticket)} 元。请和告示比一比。`:'测试者已经站在量高立柱旁，不会跟着你走。';
+ $('#app').innerHTML=`<header class="topbar"><a class="brand" href="#">分支冒险岛<span>判断选择用分支</span></a><div class="identity"><span>${esc(user.classId)}班 · ${esc(user.name)}</span><strong id="points">${state.points||0} 积分</strong></div></header><main class="gate-page"><p id="gate-hint" class="focus-hint">${esc(focus.hint)}</p><h1>闸机故障单</h1><p id="gate-status">${statusText}</p><svg class="gate-map" viewBox="0 0 640 360" role="img" aria-label="入口闸机示意"><rect width="640" height="360" fill="#e7f2ea"/><rect x="40" y="250" width="560" height="36" fill="#d7c4a2"/><rect x="300" y="40" width="70" height="150" fill="#c9d7c2"/><text x="312" y="120">通道</text><rect x="150" y="168" width="120" height="70" fill="#fff" stroke="#184c3b"/><text x="168" y="208">量高立柱</text>${TESTERS.map(tester=>`<g transform="translate(${tester.x} ${tester.y})"><circle r="16" fill="${tester.height===116?'#f2c14e':'#7eb6d9'}"/><text y="36" text-anchor="middle">${tester.height}</text></g>`).join('')}<rect x="430" y="150" width="90" height="80" fill="#173b31"/><text x="446" y="195" fill="white">闸机</text><rect x="40" y="40" width="180" height="70" fill="#fffaf0" stroke="#c5a048"/><text x="52" y="70">告示：＜120 半价</text><text x="52" y="92">否则全价 10 元</text></svg>${compare}${ticketView}<div class="gate-actions"><button type="button" id="gate-lead" data-focus="gate-lead" class="${hot('gate-lead','1')}">我去试一试</button><button type="button" id="gate-measure" data-focus="gate-ruler" class="${hot('gate-ruler','2')}">量 116 厘米</button><div class="gate-judge${hot('i0-judge','3')}" data-focus="i0-judge"><button type="button" id="gate-half">判半价</button><button type="button" id="gate-full">判全价</button></div><button type="button" id="gate-ticket" data-focus="gate-turnstile" class="${hot('gate-turnstile','4')}">闸机出票</button><button type="button" id="gate-sign" data-focus="gate-sign" class="${hot('gate-sign','5')}">看告示</button><button type="button" id="gate-idea" data-focus="gate-idea" class="${hot('gate-lead','6')}">看情况收费</button><button type="button" id="gate-leave" class="primary${hot('gate-portal','7')}" data-focus="gate-portal">去温室</button><button type="button" id="gate-skip">跳过导入</button><button type="button" id="gate-review">重看故障单</button></div></main>`;
  const act=name=>extra=>{const next=introAct(intro,name,extra);state.intro=next;saveLocal();send('draft','intro',next);render();};
+ $('#gate-lead').onclick=()=>act('lead')();
  $('#gate-measure').onclick=()=>act('measure')(116);
  $('#gate-half').onclick=()=>act('judge')('half');
  $('#gate-full').onclick=()=>act('judge')('full');
@@ -196,7 +204,10 @@ function renderIntro(){
  $('#gate-idea').onclick=()=>act('idea')('看情况收费');
  $('#gate-leave').onclick=()=>act('leave')();
  $('#gate-skip').onclick=()=>act('skip')();
- $('#gate-review').onclick=()=>act('review')();
+ $('#gate-review').onclick=()=>{gateTicketOpen=true;act('review')();};
+ if($('#gate-ticket-close'))$('#gate-ticket-close').onclick=()=>{gateTicketOpen=false;render();};
+ clearTimeout(gateSignTimer);
+ if(intro.ticket&&!intro.sawSign&&!intro.done&&!intro.skipped)gateSignTimer=setTimeout(()=>{const current=state.intro;if(!current?.ticket||current.sawSign||current.done)return;const next=introAct(current,'sign');state.intro=next;saveLocal();send('draft','intro',next);render();},20000);
 }
 function showHelp(html){$('#help-content').innerHTML=html;$('#help').showModal();}
 $('#close-help').onclick=()=>$('#help').close();$('#help').addEventListener('click',e=>{if(e.target===$('#help'))$('#help').close();});

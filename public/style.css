@@ -29,4 +29,7 @@
 .gate-map{width:100%;height:auto;border:3px solid #184c3b;border-radius:16px;background:#e7f2ea}
 .gate-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .gate-actions button{min-height:44px}
+.gate-judge{display:flex;gap:8px;padding:6px;border-radius:12px}
+.gate-compare,.gate-readonly{margin:12px 0;padding:12px 14px;border-radius:12px;background:#fffaf0;border:2px solid #c5a048;line-height:1.7}
+.gate-readonly h2{margin:0 0 8px;font-size:18px}
 #exam-missing{margin:8px 0 16px;line-height:1.8}

@@ -10,6 +10,7 @@ import { dispose, getContext, ready, request, subscribeContext } from './classro
 import FlowPanel from './gui/FlowPanel.vue';
 import { createIdleTimer } from '../../public/idle-timer.mjs';
 import { currentFocus } from '../../public/focus.mjs';
+import { toPlain } from './gui/plain';
 
 let engine: RpgClientEngine | undefined;
 let heldDirection: Direction | undefined;
@@ -180,6 +181,15 @@ function projectWorld(target: { x?: number, y?: number }) {
   const sy = rect.top + Number(global.y);
   return { x: sx, y: sy, offscreen: sx < rect.left || sx > rect.right || sy < rect.top || sy > rect.bottom };
 }
+function paintPanelFocus(focus: { kind?: string, id?: string }) {
+  document.querySelectorAll('.card-tray.focus-target, .flow-slot.focus-target, .studio.focus-target').forEach(node => node.classList.remove('focus-target'));
+  if (focus.kind !== 'panel' || !focus.id) return;
+  document.querySelector(`[data-focus="${focus.id}"]`)?.classList.add('focus-target');
+  if (focus.id === 'slot-next' || focus.id === 'sentence-slot-next') {
+    const region = focus.id === 'sentence-slot-next' ? '[data-region="sentence-cards"]' : '[data-region="flow-cards"]';
+    document.querySelector(region)?.classList.add('focus-target');
+  }
+}
 function paintDots(dots: Array<{ x: number, y: number }> = []) {
   if (!pathDots) return;
   pathDots.replaceChildren();
@@ -217,6 +227,7 @@ function paintFocus(focus = lessonFocus()) {
     focusLabel.textContent = point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '';
   }
   paintDots(focus.dots || []);
+  paintPanelFocus(focus);
   const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
   if (goto) {
     goto.disabled = !focus.goto;
@@ -226,7 +237,8 @@ function paintFocus(focus = lessonFocus()) {
 }
 function syncIdle(paused = dialogOpen || auxiliaryBusy || document.hidden) {
   const focus = lessonFocus();
-  idle.configure({ key: focus.target.mapId ? `${focus.target.mapId}:${focus.id}:${focus.step}` : '', thinking: focus.thinking });
+  const mapKey = focus.target?.mapId ? `${focus.target.mapId}:${focus.id}:${focus.step}` : '';
+  idle.configure({ key: mapKey || (focus.id ? `${focus.id}:${focus.step}` : ''), thinking: focus.thinking });
   idle.setPaused(paused || focus.pause);
   paintFocus(focus);
 }
@@ -277,10 +289,27 @@ if (!previewing) start().catch(error => {
 
 window.addEventListener('pagehide', () => { stopMovement(); dispose(); }, { once: true });
 
+let artifactQueue = Promise.resolve();
 window.addEventListener('lesson-artifact', event => {
   if (window.parent === window) return;
-  const detail = (event as CustomEvent<Record<string, unknown>>).detail || {};
-  void request('change', { patch: detail }).catch(() => undefined);
+  let patch: Record<string, unknown>;
+  try { patch = toPlain((event as CustomEvent<Record<string, unknown>>).detail || {}); }
+  catch (error) {
+    console.warn('流程图没有保存', error);
+    showStatus('流程图没有保存，请再点一次卡片和空格。');
+    return;
+  }
+  const context = getContext();
+  if (context?.draft) {
+    for (const key of ['flow', 'sentence', 'predictionsLocked', 'diagnoseAnswer', 'panel', 'config']) {
+      if (key in patch) context.draft[key] = patch[key];
+    }
+  }
+  syncIdle();
+  artifactQueue = artifactQueue.catch(() => undefined).then(async () => {
+    try { await request('change', { patch }); }
+    catch (error) { showStatus(error instanceof Error ? error.message : '流程图没有保存，请重试。'); }
+  });
 });
 subscribeContext(() => { syncIdle(); });
 

@@ -112,6 +112,15 @@ export function conditionLine(result: { conditionText?: string; condition?: bool
   return `${String(result.conditionText || '').replace(/\s/g, '')} → ${result.condition ? '成立' : '不成立'}`;
 }
 
+export function repairEditMessage(repair: boolean, diagnosed: boolean) {
+  return repair && !diagnosed ? '先用原程序跑一次 30℃，看到故障才能改。' : '';
+}
+
+export function unlockPredictionsOnEdit(table: Predictions, changed: boolean): Predictions {
+  if (!changed || !table.locked) return table;
+  return { ...table, locked: false };
+}
+
 export function nextSlot(flow: Flow): 'diamond' | 'yes' | 'no' | '' {
   if (!flow.diamond) return 'diamond';
   if (!flow.yes) return 'yes';

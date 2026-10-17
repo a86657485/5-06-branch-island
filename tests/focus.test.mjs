@@ -57,6 +57,54 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
     draft: { panel: 'predict', flow: { locked: true }, sentence: { locked: true }, predictionsLocked: { locked: false } }
   });
   assert.equal(predict.id, 'predict-row-next');
+  const repairProbe = currentFocus({ levelId: 'repair', scene: { phase: 'assigned', measured: false }, level: { valid: false } });
+  assert.equal(repairProbe.step, '2');
+  assert.equal(repairProbe.hint, '选 30℃，先运行原程序看看。');
+  assert.equal(currentFocus({ levelId: 'sale', scene: { phase: 'assigned', measured: false } }).hint, '到温度探头，选一个温度。');
+});
+
+test('闸机引导从运维主管开始，出票后还要看告示再回答', () => {
+  const fresh = currentFocus({ levelId: 'gate', intro: { accepted: false } });
+  assert.equal(fresh.step, '1');
+  assert.equal(fresh.id, 'gate-lead');
+  assert.equal(fresh.hint, '走到运维主管面前，按 E 交谈。');
+  const ruler = currentFocus({ levelId: 'gate', intro: { accepted: true } });
+  assert.equal(ruler.id, 'gate-ruler');
+  const judged = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116 } });
+  assert.equal(judged.id, 'i0-judge');
+  const ticket = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116, judged: 'half' } });
+  assert.equal(ticket.id, 'gate-turnstile');
+  const sign = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116, judged: 'half', ticket: '10' } });
+  assert.equal(sign.id, 'gate-sign');
+  assert.equal(sign.hint, '看告示，和闸机出的票比一比。');
+  const idea = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116, judged: 'half', ticket: '10', sawSign: true } });
+  assert.equal(idea.step, '6');
+  assert.equal(idea.hint, '回运维主管处，回答一个问题。');
+  const portal = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116, judged: 'half', ticket: '10', sawSign: true, idea: '看情况收费' } });
+  assert.equal(portal.id, 'gate-portal');
+  assert.equal(portal.hint, '从北边园区通道去温室。');
+});
+
+test('脚印沿两条腿走，大约每 32 像素一点，不落在终点上', () => {
+  const east = currentFocus({
+    levelId: 'cross',
+    scene: { phase: 'executed', measured: true, facility: true, ticket: { output: 'bridge' }, actions: [], signal: 'green' },
+    level: { valid: false }
+  });
+  const west = currentFocus({
+    levelId: 'cross',
+    scene: { phase: 'executed', measured: true, facility: false, ticket: { output: 'crossing' }, actions: [] },
+    level: { valid: false }
+  });
+  for (const focus of [east, west]) {
+    assert.equal(focus.dots.length > 3, true);
+    assert.equal(focus.dots.some(dot => dot.x === focus.target.x && dot.y === focus.target.y), false);
+    for (let i = 1; i < focus.dots.length; i += 1) {
+      const gap = Math.hypot(focus.dots[i].x - focus.dots[i - 1].x, focus.dots[i].y - focus.dots[i - 1].y);
+      assert.equal(gap <= 48, true);
+    }
+  }
+  assert.notDeepEqual(east.dots, west.dots);
 });
 
 test('考核页焦点框住整题或提交按钮，思考步骤用 40 秒', () => {

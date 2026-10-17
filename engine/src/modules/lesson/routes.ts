@@ -1,6 +1,6 @@
 import layout from '../../tiled/layout.json';
 import { EventMode, type EventDefinition, type RpgPlayer } from '@rpgjs/server';
-import { advanceRoute } from './route-progress.mjs';
+import { advanceRoute, closedBridgeSelected } from './route-progress.mjs';
 import {
   apply, clearPending, configure, ctx, event, input, patchScene, predict,
   record, review, rpc, say, scene
@@ -112,7 +112,7 @@ async function bridgeEntrance(player: RpgPlayer) {
   const current = scene();
   if (!current.ticket) return say(player, '天桥入口', '请先观察现场，在指路牌上作出预测并执行程序。');
   if (current.ticket.output !== 'bridge') return say(player, '天桥入口', '本次程序选中了人行横道。只能沿当前选中的一个出口验证。');
-  if (!current.facility) {
+  if (closedBridgeSelected(current.ticket.output, current.facility)) {
     await patchScene(player, { actions: [...current.actions, 'route'], phase: 'blocked' });
     await record(player, 'blocked', 'blocked');
     return say(player, '天桥入口', '这里没有天桥，通道受阻，角色留在安全侧。这说明程序的出口与现场条件不相符。请回指路牌修订后重新观察、预测、验证。');

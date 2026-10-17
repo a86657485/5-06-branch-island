@@ -113,7 +113,7 @@ function stationFocus(levelId, scene, level, draft) {
   }
   if (!scene.measured) {
     const place = levelId === 'cross' ? 'observe' : levelId === 'minimum' ? 'batteryA' : 'sensor';
-    const hint = levelId === 'cross' ? '到观察点看看路口附近。' : levelId === 'minimum' ? '去读两组电池的电量。' : '到温度探头，选一个温度。';
+    const hint = levelId === 'repair' ? '选 30℃，先运行原程序看看。' : levelId === 'cross' ? '到观察点看看路口附近。' : levelId === 'minimum' ? '去读两组电池的电量。' : '到温度探头，选一个温度。';
     return pack({ id: place, step: '2', kind: 'map', thinking: false, goto: true, hint, strong: '走到发光的圆圈上按 E。', target: at(mapId, place) });
   }
   if (!flow.locked) {
@@ -133,10 +133,14 @@ function stationFocus(levelId, scene, level, draft) {
 }
 
 function gateFocus(intro) {
-  if (!intro?.heightCase) return pack({ id: 'gate-ruler', step: '2', kind: 'map', thinking: false, goto: false, hint: '到量高立柱按 E，量一位测试者。', strong: '点立柱旁的测试者。', target: { place: 'gate-ruler' } });
-  if (!intro.judged) return pack({ id: 'i0-judge', step: '3', kind: 'panel', thinking: true, goto: false, hint: '先判一判：这位该买哪种票？', strong: '点半价或全价这一整块。', target: {} });
-  if (!intro.ticket) return pack({ id: 'gate-turnstile', step: '4', kind: 'map', thinking: false, goto: false, hint: '到闸机按 E，让它出票。', strong: '点闸机出票。', target: { place: 'gate-turnstile' } });
-  if (!intro.done) return pack({ id: 'gate-portal', step: '7', kind: 'map', thinking: false, goto: false, hint: '从北边园区通道去温室。', strong: '点通道进入温室。', target: { place: 'gate-portal' } });
+  const blank = intro || {};
+  if (!blank.accepted && !blank.heightCase && !blank.skipped) return pack({ id: 'gate-lead', step: '1', kind: 'map', thinking: false, goto: false, hint: opening('gate'), strong: '走到发光标记，按 E 交谈。', target: { place: 'gate-lead' } });
+  if (!blank.heightCase) return pack({ id: 'gate-ruler', step: '2', kind: 'map', thinking: false, goto: false, hint: '到量高立柱按 E，量一位测试者。', strong: '点立柱旁的测试者。', target: { place: 'gate-ruler' } });
+  if (!blank.judged) return pack({ id: 'i0-judge', step: '3', kind: 'panel', thinking: true, goto: false, hint: '先判一判：这位该买哪种票？', strong: '点半价或全价这一整块。', target: {} });
+  if (!blank.ticket) return pack({ id: 'gate-turnstile', step: '4', kind: 'map', thinking: false, goto: false, hint: '到闸机按 E，让它出票。', strong: '点闸机出票。', target: { place: 'gate-turnstile' } });
+  if (!blank.sawSign) return pack({ id: 'gate-sign', step: '5', kind: 'map', thinking: false, goto: false, hint: '看告示，和闸机出的票比一比。', strong: '点告示，对照闸机的票。', target: { place: 'gate-sign' } });
+  if (!blank.idea) return pack({ id: 'gate-lead', step: '6', kind: 'map', thinking: false, goto: false, hint: '回运维主管处，回答一个问题。', strong: '点一个你的想法。', target: { place: 'gate-lead' } });
+  if (!blank.done) return pack({ id: 'gate-portal', step: '7', kind: 'map', thinking: false, goto: false, hint: '从北边园区通道去温室。', strong: '点通道进入温室。', target: { place: 'gate-portal' } });
   return pack({ id: 'guide', step: '1', kind: 'map', thinking: false, goto: true, hint: opening('sale'), strong: '走到发光的圆圈上按 E。', target: {} });
 }
 
