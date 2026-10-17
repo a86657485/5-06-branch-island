@@ -6,6 +6,7 @@ import { Direction } from '@rpgjs/common';
 import startServer from "./server";
 import configClient from "./config/config.client";
 import { dispose, getContext, ready, request, subscribeContext } from './classroom-bridge';
+import { createIdleTimer } from '../../public/idle-timer.mjs';
 
 let engine: RpgClientEngine | undefined;
 let heldDirection: Direction | undefined;
@@ -92,14 +93,37 @@ for (const method of ['help', 'flow'] as const) {
   });
 }
 
+const idle = createIdleTimer({
+  onStrength(detail) {
+    const context = getContext();
+    void request('navHelp', { levelId: context?.levelId, mapId: context?.draft?.rpg?.mapId || '', step: detail.stepKey, focusId: detail.stepKey, trigger: 'idle', strength: detail.strength, idleMs: detail.idleMs }).catch(() => undefined);
+  }
+});
+function syncIdle(paused = dialogOpen || auxiliaryBusy || document.hidden) {
+  const context = getContext();
+  const scene = context?.draft?.scene;
+  idle.configure({ key: scene ? `${context?.levelId}:${scene.phase || 'start'}` : '', thinking: false });
+  idle.setPaused(paused);
+  const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
+  if (goto) goto.disabled = !!(context?.levelId === 'cross' && scene?.actions?.includes('route'));
+}
 window.addEventListener('lesson-dialog-state', event => {
   dialogOpen = !!(event as CustomEvent<{ open: boolean }>).detail.open;
   if (dialogOpen) stopMovement();
   if (controls) controls.inert = dialogOpen;
+  syncIdle();
+});
+window.addEventListener('lesson-map-changed', () => { stopMovement(); syncIdle(true); window.setTimeout(() => syncIdle(), 800); });
+window.setInterval(() => idle.tick(), 1000);
+document.getElementById('engine-goto')?.addEventListener('click', () => {
+  const context = getContext();
+  if (!canControl() || (context?.levelId === 'cross' && context.draft.scene?.actions?.includes('route'))) return;
+  idle.reset();
+  void request('navHelp', { levelId: context?.levelId, step: context?.draft?.scene?.phase || '', trigger: 'goto', strength: 0, idleMs: 0 }).catch(() => undefined);
 });
 window.addEventListener('lesson-bridge-error', event => showStatus((event as CustomEvent<string>).detail));
 window.addEventListener('blur', stopMovement);
-document.addEventListener('visibilitychange', () => { if (document.hidden) stopMovement(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopMovement(); syncIdle(); });
 reloadButton?.addEventListener('click', () => window.location.reload());
 dismissButton?.addEventListener('click', () => { if (status) status.hidden = true; });
 
@@ -127,5 +151,5 @@ subscribeContext(context=>{
  if(s.measured)text='走近控制台，设置条件和两个分支，先预测再执行。';
  if(s.ticket)text=id==='cross'?(s.actions.includes('route')?'已走过选中路线，去东岸通行核验台比较结果。':'沿程序选中的路线实际通行；走斑马线前须等绿灯。'):id==='minimum'?(s.actions.includes('route')?'已接入选中支路，走近充电核验台比较结果。':'亲自走到程序选中的电池支路接入。'):'本次程序已执行，走近现场核验仪比较结果。';
  if(context.level?.valid)text=`本项委托已验收。找${guide}领取下一站任务。`;
- taskHint.textContent=text;taskHint.hidden=false;
+ taskHint.textContent=text;taskHint.hidden=false;syncIdle();
 });

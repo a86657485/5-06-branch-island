@@ -42,7 +42,7 @@ test('离开场景仍按捕获的关卡保存，身高旧稿迁移保留历史�
 
 test('旧检测未交稿独立归档，不套用新版题库答案索引',()=>{
  const h=appHarness(),s=state();s.drafts.quiz={answers:[0,...Array(19).fill(null)],index:1};h.app.setState(s);h.app.setQuizVersion('park-v2');
- const next=h.app.quizDraft();assert.equal(next.quizVersion,'park-v2');assert.equal(next.answers.every(a=>a===null),true);
+ const next=h.app.quizDraft();assert.equal(next.quizVersion,'park-v2');assert.equal(JSON.stringify(next.answers),'{}');
  const archive=[...h.storage.entries()].find(([key])=>key.startsWith('branch-island-quiz-archive:'));
  assert.equal(JSON.parse(archive[1]).draft.answers[0],0);
 });

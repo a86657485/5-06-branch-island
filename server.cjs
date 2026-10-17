@@ -7,7 +7,8 @@ const { isIP } = require('node:net');
 const { DatabaseSync } = require('node:sqlite');
 const rules = require('./public/rules.js');
 const adventure = require('./public/adventure-rules.js');
-const { questions, version:quizVersion } = require('./quiz.cjs');
+const quizApi = require('./quiz.cjs');
+const { questions, version:quizVersion } = quizApi;
 const BASE = __dirname;
 const CLASSES = ['501', '502', '503', '504'];
 const ROUND = 1;
@@ -25,7 +26,21 @@ function isPrivateAddress(address) {
   return parts[0] === 127 || parts[0] === 10 || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) || (parts[0] === 192 && parts[1] === 168) || (parts[0] === 169 && parts[1] === 254);
 }
 function initialState() {
-  return { drafts: {}, levels: Object.fromEntries(rules.levels.map(level => [level.id, { completed: false, valid: false, points: 0, completedAt: null, reason: null, evidenceStart: 0 }])), runs: Object.fromEntries(rules.levels.map(level => [level.id, []])), predictions: Object.fromEntries(rules.levels.map(level => [level.id, []])), attempts: [], points: 0 };
+  return { drafts: {}, levels: Object.fromEntries(rules.levels.map(level => [level.id, { completed: false, valid: false, points: 0, completedAt: null, reason: null, evidenceStart: 0 }])), runs: Object.fromEntries(rules.levels.map(level => [level.id, []])), predictions: Object.fromEntries(rules.levels.map(level => [level.id, []])), attempts: [], points: 0, quizOpenedAt: null, exam: { openedAt: null }, quiz: { base: { first: null, latest: null, attempts: [], firstSubmittedAt: null, firstScore: null, passed: false }, challenge: { unlockedAt: null, closed: false, first: null, latest: null, attempts: [], firstSubmittedAt: null } }, awards: {}, navHelp: [] };
+}
+function ensureState(state) {
+  state.exam ||= { openedAt: null };
+  state.quizOpenedAt ??= state.exam.openedAt || null;
+  if (state.quizOpenedAt && !state.exam.openedAt) state.exam.openedAt = state.quizOpenedAt;
+  state.quiz ||= {};
+  state.quiz.base ||= { first: null, latest: null, attempts: [], firstSubmittedAt: null, firstScore: null, passed: false };
+  state.quiz.base.attempts ||= [];
+  state.quiz.challenge ||= { unlockedAt: null, closed: false, first: null, latest: null, attempts: [], firstSubmittedAt: null };
+  state.quiz.challenge.attempts ||= [];
+  state.awards ||= {};
+  state.navHelp ||= [];
+  state.attempts ||= [];
+  return state;
 }
 function createService(options = {}) {
   const dataDir = options.dataDir || process.env.DATA_DIR || path.join(BASE, 'runtime');
@@ -37,7 +52,9 @@ function createService(options = {}) {
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=3000;
     CREATE TABLE IF NOT EXISTS students(id TEXT PRIMARY KEY, classId TEXT NOT NULL, name TEXT NOT NULL, manual INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS states(studentId TEXT NOT NULL, round INTEGER NOT NULL, json TEXT NOT NULL, meta TEXT NOT NULL, lastSync TEXT NOT NULL, PRIMARY KEY(studentId,round));
-    CREATE TABLE IF NOT EXISTS events(studentId TEXT NOT NULL, round INTEGER NOT NULL, eventId TEXT NOT NULL, result TEXT NOT NULL, PRIMARY KEY(studentId,round,eventId));`);
+    CREATE TABLE IF NOT EXISTS events(studentId TEXT NOT NULL, round INTEGER NOT NULL, eventId TEXT NOT NULL, result TEXT NOT NULL, PRIMARY KEY(studentId,round,eventId));
+    CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, studentId TEXT NOT NULL, created TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS class_flags(classId TEXT PRIMARY KEY, examClosedAt TEXT);`);
   const rosterIds = new Set();
   const insertStudent = db.prepare('INSERT INTO students VALUES(?,?,?,0) ON CONFLICT(id) DO UPDATE SET classId=excluded.classId,name=excluded.name,manual=0');
   for (const student of roster) {
@@ -45,12 +62,135 @@ function createService(options = {}) {
     rosterIds.add(String(student.id));
     insertStudent.run(String(student.id), String(student.classId), student.name.trim());
   }
-  if (!Array.isArray(questions) || questions.length !== 20) throw new Error('本课考核必须包含20题');
+  if (!Array.isArray(questions) || !questions.length) throw new Error('题库没有可作答的题目');
   const now = () => new Date().toISOString();
+  const requiredLevels = () => rules.levels.filter(level => level.required !== false);
+  function classClosedAt(classId) { return db.prepare('SELECT examClosedAt FROM class_flags WHERE classId=?').get(classId)?.examClosedAt || null; }
+  function missingStations(state) { return requiredLevels().filter(level => !state.levels[level.id]?.valid).map(level => level.id); }
+  function issueSession(studentId) {
+    const token = crypto.randomBytes(24).toString('hex');
+    db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(token, studentId, now());
+    return token;
+  }
+  function requireSession(req, studentId) {
+    const token = req.headers['x-student-session'];
+    if (typeof token !== 'string' || !/^[a-f0-9]{48}$/.test(token)) fail(403, '请从自己的学生入口进入');
+    const row = db.prepare('SELECT studentId FROM sessions WHERE token=?').get(token);
+    if (!row || row.studentId !== String(studentId)) fail(403, '请从自己的学生入口进入');
+  }
+  function syncExam(studentId, record) {
+    ensureState(record.state);
+    const student = studentById(studentId);
+    if (!record.state.quizOpenedAt && !missingStations(record.state).length && student && !classClosedAt(student.classId)) {
+      const at = now();
+      record.state.quizOpenedAt = at;
+      record.state.exam.openedAt = at;
+      save(studentId, record);
+    }
+  }
+  function examGateFor(studentId, record) {
+    ensureState(record.state);
+    const student = studentById(studentId);
+    const closedAt = student ? classClosedAt(student.classId) : null;
+    const opened = !!record.state.quizOpenedAt;
+    return { open: opened && !closedAt, closed: !!closedAt, openedAt: record.state.quizOpenedAt, missing: opened ? [] : missingStations(record.state) };
+  }
+  function envelope(studentId, record, result) {
+    ensureState(record.state);
+    return { state: record.state, result, examGate: examGateFor(studentId, record), rewardUnlocked: rewardFor(record.state), challengeUnlocked: !!record.state.quiz.challenge.unlockedAt };
+  }
+  function quizTier(payload) {
+    if (payload.tier !== 'base' && payload.tier !== 'challenge') fail(400, '请选择基础层或挑战层');
+    return payload.tier;
+  }
+  function rememberQuiz(bucket, attempt) {
+    bucket.attempts.push(attempt);
+    bucket.latest = structuredClone(attempt);
+    if (!bucket.first) bucket.first = structuredClone(attempt);
+  }
+  function visibleDetail(question, detail) {
+    const row = { id: detail.id, correct: detail.correct, answered: detail.answered, status: detail.answered ? (detail.correct ? 'correct' : 'incorrect') : 'unanswered' };
+    if (detail.answered && !detail.correct) {
+      row.explanation = question.explanation || '';
+      row.review = question.review || '';
+      row.correctAnswer = question.answer;
+    }
+    return row;
+  }
+  function acceptQuizDraft(state, payload) {
+    const tier = quizTier(payload);
+    if (tier === 'challenge' && !state.quiz.challenge.unlockedAt) fail(409, '先提交基础层，再做挑战层');
+    if (tier === 'challenge' && state.quiz.challenge.closed) fail(409, '挑战层已经提交，不能补做');
+    if (payload.answers != null && (typeof payload.answers !== 'object' || Array.isArray(payload.answers))) fail(400, '考核草稿格式不正确');
+    if (payload.index != null && (!Number.isInteger(payload.index) || payload.index < 0)) fail(400, '考核草稿格式不正确');
+    const list = quizApi.byTier(tier);
+    for (const [qid, value] of Object.entries(payload.answers || {})) {
+      const question = list.find(item => item.id === qid);
+      if (!question || !quizApi.valueAllowed(question, value)) fail(400, '考核草稿格式不正确');
+    }
+  }
+  function submitQuiz(state, body) {
+    const payload = body.payload;
+    if ('quizVersion' in payload && payload.quizVersion !== quizVersion) fail(409, '检测题库版本已更新，旧作答已保留，请重新打开检测后再提交', 'QUIZ_VERSION_MISMATCH');
+    const tier = quizTier(payload);
+    if (!payload.answers || typeof payload.answers !== 'object' || Array.isArray(payload.answers)) fail(400, '作答请按题目提交');
+    if (tier === 'challenge' && !state.quiz.challenge.unlockedAt) fail(409, '先提交基础层，再做挑战层');
+    if (tier === 'challenge' && state.quiz.challenge.closed) fail(409, '挑战层已经提交，不能补做');
+    const list = quizApi.byTier(tier);
+    if (list.some(question => !quizApi.isFilled(question, payload.answers[question.id]))) fail(400, '这一层全部作答后才能提交');
+    const graded = quizApi.grade(tier, payload.answers);
+    const details = graded.details.map(detail => visibleDetail(list.find(question => question.id === detail.id), detail));
+    const at = now();
+    if (tier === 'base') {
+      const meets = quizApi.basePassed(graded);
+      const attempt = { id: body.eventId, tier, quizVersion, score: graded.score, total: graded.total, at, passed: meets, objectives: graded.objectives, details };
+      const bucket = state.quiz.base;
+      rememberQuiz(bucket, attempt);
+      state.attempts.push(attempt);
+      if (!bucket.firstSubmittedAt) {
+        bucket.firstSubmittedAt = at;
+        bucket.firstScore = graded.score;
+        bucket.passed = meets;
+        state.quiz.challenge.unlockedAt = at;
+      }
+      if (meets && !state.awards['quiz-base']) {
+        const label = bucket.attempts.length === 1 ? '达标' : '重考达标';
+        state.awards['quiz-base'] = { points: quizApi.basePoints(), label, at };
+        state.points += quizApi.basePoints();
+      }
+      state.drafts.quiz = { tier: 'challenge', answers: {}, index: 0, quizVersion };
+      return { score: graded.score, total: graded.total, passed: bucket.passed, rewardUnlocked: quizApi.rewardUnlocked(bucket.firstScore), challengeUnlocked: true, details };
+    }
+    const meets = quizApi.challengeAwarded(graded.score);
+    const attempt = { id: body.eventId, tier, quizVersion, score: graded.score, total: graded.total, at, awarded: meets, details };
+    const bucket = state.quiz.challenge;
+    rememberQuiz(bucket, attempt);
+    bucket.closed = true;
+    bucket.firstSubmittedAt = at;
+    state.attempts.push(attempt);
+    if (meets && !state.awards['quiz-challenge']) {
+      state.awards['quiz-challenge'] = { points: quizApi.challengePoints(), label: '挑战加分', at };
+      state.points += quizApi.challengePoints();
+    }
+    state.drafts.quiz = { tier: 'challenge', answers: {}, index: 0, quizVersion, closed: true };
+    return { score: graded.score, total: graded.total, awarded: !!state.awards['quiz-challenge'], details };
+  }
+  function rewardFor(state) {
+    ensureState(state);
+    const first = state.quiz.base.first;
+    return !!(first && quizApi.rewardUnlocked(first.score));
+  }
+  function rememberAttempt(bucket, attempt) {
+    bucket.history.push(attempt);
+    bucket.latest = structuredClone(attempt);
+    if (!bucket.first) bucket.first = structuredClone(attempt);
+  }
   function studentById(id) { return db.prepare('SELECT id,classId,name FROM students WHERE id=?').get(String(id || '')); }
   function recordFor(id) {
     const row = db.prepare('SELECT * FROM states WHERE studentId=? AND round=?').get(id, ROUND);
-    return row ? { state: JSON.parse(row.json), meta: JSON.parse(row.meta), lastSync: row.lastSync, entered: true } : { state: initialState(), meta: { draftTimes: {}, currentConfigs: {}, validatedConfigs: {} }, lastSync: null, entered: false };
+    const record = row ? { state: JSON.parse(row.json), meta: JSON.parse(row.meta), lastSync: row.lastSync, entered: true } : { state: initialState(), meta: { draftTimes: {}, currentConfigs: {}, validatedConfigs: {} }, lastSync: null, entered: false };
+    ensureState(record.state);
+    return record;
   }
   function save(id, record) {
     record.lastSync = now();
@@ -90,19 +230,33 @@ function createService(options = {}) {
     if (!student) fail(400, '请先选择班级与姓名');
     if (body.round !== ROUND) fail(409, '记录属于其他轮次，请刷新课堂');
     if (typeof body.eventId !== 'string' || !body.eventId || body.eventId.length > 120) fail(400, '记录标识不完整');
-    if (!['draft','run','prediction','complete','quiz'].includes(body.type)) fail(400, '记录类型不正确');
+    if (!['draft','run','prediction','complete','quiz','nav_help'].includes(body.type)) fail(400, '记录类型不正确');
     if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) fail(400, '记录内容不正确');
     const previous = db.prepare('SELECT result FROM events WHERE studentId=? AND round=? AND eventId=?').get(student.id,ROUND,body.eventId);
-    if (previous) return { state: recordFor(student.id).state, result: JSON.parse(previous.result) };
+    if (previous) { const kept = recordFor(student.id); return envelope(student.id, kept, JSON.parse(previous.result)); }
     const record = recordFor(student.id);
     const { state, meta } = record;
     const id = body.levelId;
     const payload = body.payload;
     let result;
-    if (body.type === 'quiz' || (body.type === 'draft' && id === 'quiz')) {
-      if (rules.levels.some(level => !state.levels[level.id].completed)) fail(409, '完成四个主线任务后再进入考核');
+    ensureState(state);
+    syncExam(student.id, record);
+    if (body.type === 'nav_help') {
+      const trigger = payload.trigger;
+      if (!['idle','button','onboard','goto','gate_info'].includes(trigger)) fail(400, '导航帮助类型不正确');
+      if (payload.strength != null && ![0,1,2].includes(payload.strength)) fail(400, '导航帮助强度不正确');
+      const entry = { levelId: typeof payload.levelId === 'string' ? payload.levelId.slice(0, 40) : (id || ''), mapId: typeof payload.mapId === 'string' ? payload.mapId.slice(0, 40) : '', step: typeof payload.step === 'string' ? payload.step.slice(0, 40) : '', focusId: typeof payload.focusId === 'string' ? payload.focusId.slice(0, 80) : '', trigger, strength: payload.strength ?? 0, idleMs: Number.isFinite(payload.idleMs) ? payload.idleMs : 0, at: now() };
+      state.navHelp.push(entry);
+      if (state.navHelp.length > 300) state.navHelp.splice(0, state.navHelp.length - 300);
+      result = { saved: true };
+    } else if (body.type === 'quiz' || (body.type === 'draft' && id === 'quiz')) {
+      const gate = examGateFor(student.id, record);
+      if (!state.quizOpenedAt) fail(409, '完成温室、返修和路口三站的当前验证后再进入考核');
+      if (gate.closed) fail(409, '本班考核已由教师关闭');
     } else requireOpen(state,id);
-    if (body.type === 'draft') {
+    if (result) {
+      /* nav_help 已写好结果 */
+    } else if (body.type === 'draft') {
       const editedAt = body.editedAt;
       if (!Number.isFinite(editedAt) || editedAt < 0) fail(400, '草稿缺少编辑时间');
       if ('hint' in payload && (!Number.isInteger(payload.hint) || payload.hint < 0 || payload.hint > 3)) fail(400, '草稿思路帮助请选择0到3之间的整数等级');
@@ -114,9 +268,8 @@ function createService(options = {}) {
       }
       if ('scene' in payload) payload.scene = checkedRule(() => adventure.validateSceneDraft(payload.scene));
       if ('rpg' in payload) payload.rpg = checkedRule(() => adventure.validateRpgDraft(payload.rpg,id));
-      if (id === 'quiz') {
-        if (!Array.isArray(payload.answers) || payload.answers.length !== 20 || payload.answers.some(answer => answer !== null && (!Number.isInteger(answer) || answer < 0 || answer > 3)) || !Number.isInteger(payload.index) || payload.index < 0 || payload.index > 19) fail(400, '考核草稿格式不正确');
-      } else if ('config' in payload) checkedRule(() => rules.normalizeConfig(id,payload.config,true));
+      if (id === 'quiz') acceptQuizDraft(state, payload);
+      else if ('config' in payload) checkedRule(() => rules.normalizeConfig(id,payload.config,true));
       if (editedAt >= (meta.draftTimes[id] ?? -1)) {
         if (id !== 'quiz' && payload.scene?.version === 1) {
           meta.sceneVersions ||= {};
@@ -160,18 +313,12 @@ function createService(options = {}) {
           level.reason = payload.reason;
           meta.validatedConfigs[id] = rules.configKey(id,config);
           if (!level.completed) { level.completed = true; level.points = rules.levels.find(level => level.id === id).points; level.completedAt = now(); state.points += level.points; }
+          syncExam(student.id, record);
         }
       }
     } else {
-      if ('quizVersion' in payload && payload.quizVersion !== quizVersion) fail(409, '检测题库版本已更新，旧作答已保留，请重新打开检测后再提交', 'QUIZ_VERSION_MISMATCH');
-      if (!Array.isArray(payload.answers) || payload.answers.length !== 20 || payload.answers.some(answer => !Number.isInteger(answer) || answer < 0 || answer > 3)) fail(400, '20题全部作答后才能提交');
-      const details = questions.map((question,index) => ({ id: question.id, answer: payload.answers[index], correctAnswer: question.answer, correct: payload.answers[index] === question.answer, explanation: question.explanation }));
-      const score = details.filter(detail => detail.correct).length;
-      const attempt = { id: body.eventId, quizVersion, score, total: 20, at: now(), details };
-      state.attempts.push(attempt);
-      state.drafts.quiz = { answers: Array(20).fill(null), index: 0, quizVersion };
+      result = submitQuiz(state, body);
       meta.draftTimes.quiz = Math.max(meta.draftTimes.quiz || 0, Number.isFinite(body.editedAt) ? body.editedAt : Date.now());
-      result = { score, total: 20, details };
     }
     db.exec('BEGIN IMMEDIATE');
     try {
@@ -179,7 +326,7 @@ function createService(options = {}) {
       db.prepare('INSERT INTO events VALUES(?,?,?,?)').run(student.id,ROUND,body.eventId,JSON.stringify(result));
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
-    return { state, result };
+    return envelope(student.id, record, result);
   }
   function teacherData(classId) {
     if (classId && !CLASSES.includes(classId)) fail(400,'请选择五年级班级');
@@ -195,7 +342,19 @@ function createService(options = {}) {
       return { id: question.id, prompt: question.prompt, incorrect: records.filter(detail => !detail.correct).length, total: records.length };
     }).filter(item => item.incorrect).sort((a,b) => b.incorrect-a.incorrect).slice(0,5);
     const summary = { total: students.length, entered, notEntered: students.length-entered, completed: students.filter(student => rules.levels.every(level => student.state.levels[level.id].completed)).length, points: students.reduce((sum,student) => sum+student.state.points,0), quizFirstAverage: mean(attempts => attempts[0]), quizLatestAverage: mean(attempts => attempts.at(-1)), quizAttempts: students.reduce((sum,student) => sum+student.state.attempts.length,0), levels: Object.fromEntries(rules.levels.map(level => [level.id,{ completed: students.filter(student => student.state.levels[level.id].completed).length, valid: students.filter(student => student.state.levels[level.id].valid).length }])), misconceptions };
-    return { round: ROUND, quizVersion, updatedAt: now(), classes: classes(), students, summary };
+    return { round: ROUND, quizVersion, updatedAt: now(), classes: classes(), students, summary, examClosedAt: classId ? classClosedAt(classId) : null };
+  }
+  function closeExam(classId) {
+    if (!CLASSES.includes(classId)) fail(400, '请选择五年级班级');
+    const at = now();
+    db.prepare('INSERT INTO class_flags(classId, examClosedAt) VALUES(?,?) ON CONFLICT(classId) DO UPDATE SET examClosedAt=excluded.examClosedAt').run(classId, at);
+    for (const student of allStudents().filter(item => item.classId === classId)) {
+      const record = recordFor(student.id);
+      ensureState(record.state);
+      record.state.quiz.challenge.closed = true;
+      save(student.id, record);
+    }
+    return { classId, examClosedAt: at };
   }
   const mime = { '.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.mjs':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2','.woff':'font/woff','.json':'application/json; charset=utf-8','.tmx':'application/xml; charset=utf-8','.tsx':'application/xml; charset=utf-8','.mp3':'audio/mpeg','.wav':'audio/wav' };
   function json(res,status,data) { res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data)); }
@@ -214,13 +373,25 @@ function createService(options = {}) {
       if (req.method === 'POST') checkOrigin(req);
       if (req.method === 'GET' && route === '/api/config') return json(res,200,{appId:APP_ID,round:ROUND,levels:rules.levels});
       if (req.method === 'GET' && route === '/api/roster') return json(res,200,{classes:classes()});
-      if (req.method === 'GET' && route === '/api/quiz') return json(res,200,{quizVersion,questions:questions.map(({answer,explanation,...question})=>question)});
+      if (req.method === 'GET' && route === '/api/quiz') {
+        const studentId = url.searchParams.get('studentId');
+        const student = studentId ? studentById(studentId) : null;
+        if (studentId && !student) fail(404, '学生身份不存在');
+        const record = student ? recordFor(student.id) : null;
+        if (record) syncExam(student.id, record);
+        const gate = record ? examGateFor(student.id, record) : { open: false, closed: false, openedAt: null, missing: rules.levels.filter(level => level.required !== false).map(level => level.id) };
+        const unlocked = !!(record && record.state.quiz.challenge.unlockedAt);
+        const tiers = gate.open && unlocked ? ['base', 'challenge'] : ['base'];
+        return json(res, 200, { quizVersion, questions: gate.open ? quizApi.publicQuestions(tiers) : [], examGate: gate, challengeUnlocked: unlocked, rewardUnlocked: record ? rewardFor(record.state) : false });
+      }
       if (req.method === 'GET' && route === '/api/state') {
         const student=studentById(url.searchParams.get('studentId'));if(!student) fail(404,'学生身份不存在');
-        return json(res,200,{student,round:ROUND,state:recordFor(student.id).state});
+        const record=recordFor(student.id); syncExam(student.id, record);
+        return json(res,200,{student,round:ROUND,...envelope(student.id, record, null)});
       }
       if (req.method === 'GET' && route === '/api/teacher') return json(res,200,teacherData(url.searchParams.get('classId')));
-      if (req.method === 'GET' && route === '/api/teacher/solutions') return json(res,200,{levels:rules.solutions,questions});
+      if (req.method === 'POST' && route === '/api/teacher/exam-close') { const body=await readBody(req); return json(res,200,closeExam(String(body.classId||''))); }
+      if (req.method === 'GET' && route === '/api/teacher/solutions') return json(res,200,{levels:rules.solutions,questions,quizVersion,tiers:quizApi.bank.tiers});
       if (req.method === 'POST' && route === '/api/login') {
         const body=await readBody(req);const classId=String(body.classId || '');if(!CLASSES.includes(classId)) fail(400,'请选择五年级班级');
         let student;

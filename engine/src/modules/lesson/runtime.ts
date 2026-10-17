@@ -33,7 +33,7 @@ export async function configure(player:RpgPlayer){
  if(!value)break;
  if(value==='predict'){await predict(player);continue;}
  if(value==='apply'){await apply(player);break;}
- const options=value==='operator'?(id==='minimum'?[{id:'<',label:'a < b'},{id:'>',label:'a > b'}]:[{id:'<',label:'温度 < 30°C'},{id:'>=',label:'温度 ≥ 30°C'}]):outputChoices();
+ const options=value==='operator'?(id==='minimum'?[{id:'<',label:'a < b'},{id:'>',label:'a > b'}]:id==='repair'?[{id:'<',label:'温度 < 30°C'},{id:'>=',label:'温度 ≥ 30°C'}]:[{id:'>=',label:'温度 ≥ 30°C'},{id:'>',label:'温度 ＞ 30°C'},{id:'<',label:'温度 < 30°C'},{id:'<=',label:'温度 ≤ 30°C'}]):outputChoices();
  const chosen=await say(player,'修改规则',value==='operator'?'请选择判断条件。':`当条件${value==='yes'?'成立':'不成立'}时执行什么？`,options);if(!chosen)continue;
  const next={...c,[value]:chosen};if(JSON.stringify(next)!==JSON.stringify(c)){
  const s:Record<string,any>={...scene(),actions:[id==='cross'?'observe':id==='minimum'?'collect':id==='repair'?'inspect':'measure'],phase:'measured'};delete s.ticket;

@@ -32,6 +32,7 @@ export const player:RpgPlayerHooks={
  },
  onJoinMap(player,map){
  const runtime=sessions.get(player.id);if(!runtime)return;clearTimeout(runtime.checkpointTimer);runtime.active=player;runtime.map=map.id;registerActivePlayer(player,map.id);
+ window.dispatchEvent(new CustomEvent('lesson-map-changed'));
  map.setAutoTick(true);
  player.setHitbox(24,24);
  const saved=ctx().draft.rpg;if(saved?.mapId===map.id){const direction={up:Direction.Up,down:Direction.Down,left:Direction.Left,right:Direction.Right}[saved.direction];if(direction)player.changeDirection(direction);}
@@ -39,7 +40,6 @@ export const player:RpgPlayerHooks={
  if(mapFor(ctx())!==map.id)void runtime.enter(ctx());
  },
  async onMove(player){
- console.info('LESSONDEBUG move',player.id,!!sessions.get(player.id),player.x(),player.y());
  const runtime=sessions.get(player.id);if(!runtime||runtime.changing||mapFor(ctx())!==runtime.map||!getContext()?.draft.scene)return;
  await checkRoute(player);
  clearTimeout(runtime.checkpointTimer);runtime.checkpointTimer=setTimeout(()=>{void saveCheckpoint(runtime,player);},250);

@@ -1,0 +1,3556 @@
+{
+  "version": "2026-10-17-branch-v5.1a",
+  "previousVersion": "2026-10-17-branch-v5.1",
+  "lesson": "五年级第6课《判断选择用分支》（501—504）",
+  "codeSource": "/workspace/g5l6/design/01_目标证据与时间表.md（老师2026-10-17已确认：S1/S2/S3必做+E1选做；ND1、ND2为难点；考核10分钟）",
+  "paperRule": "分层固定卷：基础层11题（全体必做，以简单为主，只看是否掌握学习目标）+ 挑战层12题（基础层提交后由服务端解锁，只加分）。各层按数组顺序呈现，不抽题；reserveQuestions不进卷",
+  "tiers": {
+    "base": {
+      "count": 11,
+      "passLine": 8,
+      "passLineNote": "达标总分线8/11：老师定8/11（约73%），本课特定（2026-10-18，备课团队转达）；规则形式“总分线＋每个目标至少一半”为老师已定；各目标最低线＝该目标基础层题数的一半，向上取整；未经课堂校准",
+      "points": 20,
+      "pointsRule": "同学生、同应用、同轮次，基础层第一次达标（首答或重做均可，重做达标标“重考达标”）时记20分，只记一次",
+      "pointsNote": "20分老师已确认（2026-10-17）",
+      "passRule": "达标＝基础层首答对≥8/11（老师定8/11（约73%），本课特定），并且每个目标（G1、G2、K1—K5、ZD1、ZD2、ND1、ND2）在基础层的题至少答对一半（向上取整）",
+      "rewardGame": "奖励小游戏：只看基础层首答，首答对≥8/11即解锁（老师定8/11（约73%），本课特定，不再卡80%）；不设各目标最低线；重做不改变首答（2026-10-18 备课团队转达）",
+      "rewardLine": 8,
+      "objectiveMinimums": [
+        "G1",
+        "G2",
+        "K1",
+        "K2",
+        "K3",
+        "K4",
+        "K5",
+        "ZD1",
+        "ZD2",
+        "ND1",
+        "ND2"
+      ],
+      "objectiveMinimumsNote": "评分只读这个数组。老师已确认含 ZD1、ZD2，为本课最终名单（2026-10-18）。各目标最低线＝该目标基础层题数的一半，向上取整。"
+    },
+    "challenge": {
+      "count": 12,
+      "unlock": "考核开放后，服务端判定本轮基础层已提交（≥1次）才解锁",
+      "points": 5,
+      "pointsRule": "同学生、同应用、同轮次，挑战层第一次提交时对≥8/12记5分，只记一次；5分老师已确认（2026-10-17）；8/12由原暂定4/6按比例（约67%，向上取整）换算，仍为暂定",
+      "affectsPass": false,
+      "passLine": 8
+    }
+  },
+  "quizOpenRule": "学生S1、S2、S3三站同时为服务端当前通过（valid）时自动开放考核，不要求E1；开放后不收回；教师可按班关闭",
+  "questionCountNote": "全卷23题，不少于20道；基础层11题为单课例外（老师要求基础层简单、只看是否掌握目标、10分钟内）",
+  "typeNames": {
+    "single_choice": "单选",
+    "matching": "连线/分类",
+    "ordering": "排序",
+    "flowchart_fill": "流程图补充",
+    "drag_op": "点卡放置",
+    "blocks_assemble": "积木拼接",
+    "python_fill": "Python填空"
+  },
+  "clientFieldsBeforeSubmit": [
+    "id",
+    "goal",
+    "prompt",
+    "options",
+    "tier",
+    "type",
+    "interaction"
+  ],
+  "serverOnlyFields": [
+    "answer",
+    "explanation",
+    "grading",
+    "review",
+    "goalIds",
+    "keyIds",
+    "keyDifficultyIds",
+    "evidenceId",
+    "misconceptionMap",
+    "misconceptionIds",
+    "misconceptionNote",
+    "station",
+    "newContext",
+    "literacy",
+    "antiMemoryNote",
+    "textbookRef",
+    "blueRefs",
+    "revision",
+    "difficulty",
+    "tierNote",
+    "teacherNote",
+    "platform"
+  ],
+  "questions": [
+    {
+      "id": "q35",
+      "goal": "单选",
+      "prompt": "哪张卡不能放进菱形？",
+      "options": [
+        "灯亮着",
+        "温度＞30",
+        "今天是周末",
+        "打开风扇"
+      ],
+      "answer": 3,
+      "explanation": "菱形里放能回答“是/否”的条件；“打开风扇”是要做的动作，应放矩形。条件不一定是数字。",
+      "tier": "base",
+      "type": "single_choice",
+      "interaction": {},
+      "grading": {
+        "mode": "exact",
+        "scoring": "整题对错"
+      },
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K1",
+        "K3"
+      ],
+      "keyDifficultyIds": [
+        "ZD2"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "灯亮着": [
+          "M7"
+        ],
+        "今天是周末": [
+          "M7"
+        ],
+        "温度＞30": [],
+        "（任一错选，说明没认出动作）": [
+          "M8"
+        ]
+      },
+      "misconceptionIds": [
+        "M7",
+        "M8"
+      ],
+      "station": "none",
+      "newContext": true,
+      "literacy": [
+        "概念理解（条件与动作），不标思维类"
+      ],
+      "antiMemoryNote": "新卡片、不出自任何站；三张条件卡有两张不是数字，选错正好暴露M7；不能靠问号或长短判断。",
+      "textbookRef": "教材p37、p38",
+      "blueRefs": [],
+      "review": "读每张卡：能回答“是/否”吗？不能的就是动作。",
+      "difficulty": "易：一步识别，基础概念",
+      "revision": {
+        "v4.1": null,
+        "v5": null
+      }
+    },
+    {
+      "id": "q4",
+      "goal": "单选",
+      "prompt": "房间暗了就开台灯。台灯先要读取？",
+      "options": [
+        "房间的亮度",
+        "窗外的气温",
+        "现在是几点",
+        "房间的人数"
+      ],
+      "answer": 0,
+      "explanation": "规则看的是房间暗不暗，所以先读房间的亮度。",
+      "tier": "base",
+      "type": "single_choice",
+      "interaction": {},
+      "grading": {
+        "mode": "exact",
+        "scoring": "整题对错"
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K1"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "窗外的气温": [],
+        "现在是几点": [],
+        "房间的人数": []
+      },
+      "misconceptionIds": [],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "信息意识（判断规则需要哪项信息）"
+      ],
+      "antiMemoryNote": "新情境，题干写明“房间暗了”，干扰项都是能读到但规则用不上的数据，要看规则比较的是什么。",
+      "textbookRef": "教材p36第1步；蓝栏B6",
+      "blueRefs": [
+        "B6"
+      ],
+      "review": "圈出规则里的条件，看它要用哪项数据。",
+      "difficulty": "易：条件里直接点明数据",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "温室的试运行规则是“温度≥30℃启动风机，否则关闭风机”。设备需要先获取哪项数据？",
+          "options": [
+            "风机的颜色",
+            "温室当前温度",
+            "温室的名字",
+            "今天进园的游客人数"
+          ],
+          "answer": 1
+        },
+        "v5": {
+          "type": "single_choice",
+          "tier": "base",
+          "prompt": "达到26℃就开空调，先要读取？",
+          "options": [
+            "室外温度",
+            "现在时间",
+            "教室温度",
+            "教室人数"
+          ],
+          "answer": 2,
+          "interaction": {}
+        }
+      },
+      "misconceptionNote": "01 的 M1—M8 没有“读错数据”类误解，干扰项如实不标M，作答记录单独统计"
+    },
+    {
+      "id": "q22",
+      "goal": "流程图补充",
+      "prompt": "跳绳满100下得星，不满没星。点卡片补全图。",
+      "options": [
+        "跳绳≥100",
+        "跳绳＞100",
+        "跳绳＜100",
+        "得星",
+        "没星",
+        "输入次数"
+      ],
+      "answer": {
+        "s1": 0,
+        "s2": 3,
+        "s3": 4
+      },
+      "explanation": "“满100下”包含100，条件写“跳绳≥100”，是→得星，否→没星。放“跳绳＜100”也对，但两个出口要交换。",
+      "tier": "base",
+      "type": "flowchart_fill",
+      "interaction": {
+        "figure": {
+          "kind": "flowchart",
+          "nodes": [
+            {
+              "id": "n1",
+              "shape": "terminator",
+              "text": "开始",
+              "slot": null
+            },
+            {
+              "id": "n2",
+              "shape": "io",
+              "text": "输入跳绳次数",
+              "slot": null
+            },
+            {
+              "id": "n3",
+              "shape": "diamond",
+              "text": "",
+              "slot": "s1"
+            },
+            {
+              "id": "n4",
+              "shape": "process",
+              "text": "",
+              "slot": "s2"
+            },
+            {
+              "id": "n5",
+              "shape": "process",
+              "text": "",
+              "slot": "s3"
+            },
+            {
+              "id": "n6",
+              "shape": "terminator",
+              "text": "结束",
+              "slot": null
+            }
+          ],
+          "edges": [
+            {
+              "from": "n1",
+              "to": "n2",
+              "label": ""
+            },
+            {
+              "from": "n2",
+              "to": "n3",
+              "label": ""
+            },
+            {
+              "from": "n3",
+              "to": "n4",
+              "label": "是"
+            },
+            {
+              "from": "n3",
+              "to": "n5",
+              "label": "否"
+            },
+            {
+              "from": "n4",
+              "to": "n6",
+              "label": ""
+            },
+            {
+              "from": "n5",
+              "to": "n6",
+              "label": ""
+            }
+          ]
+        }
+      },
+      "grading": {
+        "mode": "semantic",
+        "scoring": "整题对错",
+        "test": "跳绳次数0—200逐一代入，输出与规则一致即对",
+        "accepts": [
+          "(跳绳≥100,得星,没星)",
+          "(跳绳＜100,没星,得星)"
+        ],
+        "equivalentCards": [
+          2
+        ]
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K2",
+        "K3"
+      ],
+      "keyDifficultyIds": [
+        "ZD2",
+        "ND1",
+        "ND2"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "跳绳＞100": [
+          "M3"
+        ],
+        "输入次数→菱形": [
+          "M8"
+        ],
+        "出口接反": [
+          "M4"
+        ]
+      },
+      "misconceptionIds": [
+        "M3",
+        "M4",
+        "M8"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-算法设计（按给定规则补全）"
+      ],
+      "antiMemoryNote": "新规则（站里没有跳绳）；题干用口头说法“满……不满……”，条件卡写成“跳绳≥100”，与题干不逐字相同，还要在≥和＞之间按“满”字判断；卡片都不带问号。两张出口卡与题干用词相同，这部分可以按字面放。",
+      "textbookRef": "教材p37第4步；蓝栏B9",
+      "blueRefs": [
+        "B9"
+      ],
+      "review": "先想：恰好100下算“满”吗？再放条件，最后看“是”出口。",
+      "difficulty": "中：3个空，含边界",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "闸机流程图：输入身高→菱形【？】→是：半价5元；否：全价10元。规则是“身高小于120厘米买半价票，否则全价”，菱形里填：",
+          "options": [
+            "身高＜120厘米吗？",
+            "输入身高",
+            "半价票5元",
+            "身高≥120厘米吗？"
+          ],
+          "answer": 0
+        },
+        "v5": {
+          "type": "flowchart_fill",
+          "tier": "base",
+          "prompt": "身高＜120半价，否则全价。补全图。",
+          "options": [
+            "身高＜120",
+            "身高≥120",
+            "身高＞120",
+            "半价",
+            "全价",
+            "输入身高"
+          ],
+          "answer": {
+            "s1": 0,
+            "s2": 3,
+            "s3": 4
+          },
+          "interaction": {
+            "figure": {
+              "kind": "flowchart",
+              "nodes": [
+                {
+                  "id": "n1",
+                  "shape": "terminator",
+                  "text": "开始",
+                  "slot": null
+                },
+                {
+                  "id": "n2",
+                  "shape": "io",
+                  "text": "输入身高",
+                  "slot": null
+                },
+                {
+                  "id": "n3",
+                  "shape": "diamond",
+                  "text": "",
+                  "slot": "s1"
+                },
+                {
+                  "id": "n4",
+                  "shape": "process",
+                  "text": "",
+                  "slot": "s2"
+                },
+                {
+                  "id": "n5",
+                  "shape": "process",
+                  "text": "",
+                  "slot": "s3"
+                },
+                {
+                  "id": "n6",
+                  "shape": "terminator",
+                  "text": "结束",
+                  "slot": null
+                }
+              ],
+              "edges": [
+                {
+                  "from": "n1",
+                  "to": "n2",
+                  "label": ""
+                },
+                {
+                  "from": "n2",
+                  "to": "n3",
+                  "label": ""
+                },
+                {
+                  "from": "n3",
+                  "to": "n4",
+                  "label": "是"
+                },
+                {
+                  "from": "n3",
+                  "to": "n5",
+                  "label": "否"
+                },
+                {
+                  "from": "n4",
+                  "to": "n6",
+                  "label": ""
+                },
+                {
+                  "from": "n5",
+                  "to": "n6",
+                  "label": ""
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "q6",
+      "goal": "点卡放置",
+      "prompt": "积分达到50就升级。点一张卡片放进菱形。",
+      "options": [
+        "积分＞50",
+        "积分≥50",
+        "积分≤50",
+        "积分＜50"
+      ],
+      "answer": {
+        "s1": 1
+      },
+      "explanation": "“达到”包含50，用“积分≥50”，50分也走“是”升级。",
+      "tier": "base",
+      "type": "drag_op",
+      "interaction": {
+        "figure": {
+          "kind": "flowchart",
+          "nodes": [
+            {
+              "id": "n1",
+              "shape": "diamond",
+              "text": "",
+              "slot": "s1"
+            },
+            {
+              "id": "n2",
+              "shape": "process",
+              "text": "升级",
+              "slot": null
+            },
+            {
+              "id": "n3",
+              "shape": "process",
+              "text": "不升级",
+              "slot": null
+            }
+          ],
+          "edges": [
+            {
+              "from": "n1",
+              "to": "n2",
+              "label": "是"
+            },
+            {
+              "from": "n1",
+              "to": "n3",
+              "label": "否"
+            }
+          ]
+        }
+      },
+      "grading": {
+        "mode": "semantic",
+        "scoring": "整题对错",
+        "test": "积分0—100逐一代入"
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K2"
+      ],
+      "keyDifficultyIds": [
+        "ZD1",
+        "ND1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "积分＞50": [
+          "M3"
+        ],
+        "积分≤50": [
+          "M3",
+          "M4"
+        ],
+        "积分＜50": [
+          "M1",
+          "M4"
+        ]
+      },
+      "misconceptionIds": [
+        "M1",
+        "M3",
+        "M4"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-抽象（把“达到”写成条件）"
+      ],
+      "antiMemoryNote": "新情境、新数值（积分50），与本卷其他题不共用规则；四张卡只差符号，必须读懂“达到”含等于并对上已画好的出口。",
+      "textbookRef": "蓝栏B10",
+      "blueRefs": [
+        "B10"
+      ],
+      "review": "想一想：恰好50分要升级吗？",
+      "difficulty": "易：1个空",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "S1控制柜出口已接成“是→启动风机，否→关闭风机”。规则要求达到30℃就启动。菱形里应放哪张条件卡？",
+          "options": [
+            "温度＞30℃？",
+            "温度≤30℃？",
+            "温度≥30℃？",
+            "温度＜30℃？"
+          ],
+          "answer": 2
+        },
+        "v5": {
+          "type": "drag_op",
+          "tier": "base",
+          "prompt": "达到26℃开空调，选卡放进菱形。",
+          "options": [
+            "温度＞26",
+            "温度≥26",
+            "温度≤26",
+            "温度＜26"
+          ],
+          "answer": {
+            "s1": 1
+          },
+          "interaction": {
+            "figure": {
+              "kind": "flowchart",
+              "nodes": [
+                {
+                  "id": "n1",
+                  "shape": "diamond",
+                  "text": "",
+                  "slot": "s1"
+                },
+                {
+                  "id": "n2",
+                  "shape": "process",
+                  "text": "开空调",
+                  "slot": null
+                },
+                {
+                  "id": "n3",
+                  "shape": "process",
+                  "text": "关空调",
+                  "slot": null
+                }
+              ],
+              "edges": [
+                {
+                  "from": "n1",
+                  "to": "n2",
+                  "label": "是"
+                },
+                {
+                  "from": "n1",
+                  "to": "n3",
+                  "label": "否"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "q19",
+      "goal": "单选",
+      "prompt": "＜12岁优惠票，否则普通票。恰好12岁？",
+      "options": [
+        "是→优惠票",
+        "否→普通票",
+        "两种都买",
+        "都不买"
+      ],
+      "answer": 1,
+      "explanation": "12＜12不成立，走“否”，买普通票。",
+      "tier": "base",
+      "type": "single_choice",
+      "interaction": {},
+      "grading": {
+        "mode": "exact",
+        "scoring": "整题对错"
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K2",
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1",
+        "ND1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "是→优惠票": [
+          "M3"
+        ],
+        "两种都买": [
+          "M2"
+        ],
+        "都不买": [
+          "M5"
+        ]
+      },
+      "misconceptionIds": [
+        "M2",
+        "M3",
+        "M5"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-模拟验证（按图追踪）"
+      ],
+      "antiMemoryNote": "新规则、数值正好在边界上，要读懂“＜”不含等于。",
+      "textbookRef": "教材p35；蓝栏B4、B16",
+      "blueRefs": [
+        "B4",
+        "B16"
+      ],
+      "review": "写出“12＜12成立吗”，再找出口。",
+      "difficulty": "易：一次判断",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "练习规则“年龄＜12岁买优惠票，否则买普通票”。小禾恰好12岁：",
+          "options": [
+            "条件成立，买优惠票",
+            "两种票都买",
+            "规则无法覆盖12岁",
+            "条件不成立，买普通票"
+          ],
+          "answer": 3
+        },
+        "v5": {
+          "type": "single_choice",
+          "tier": "base",
+          "prompt": "＜12岁优惠票，否则普通票。恰好12岁？",
+          "options": [
+            "是→优惠票",
+            "否→普通票",
+            "两种都买",
+            "都不买"
+          ],
+          "answer": 1,
+          "interaction": {}
+        }
+      }
+    },
+    {
+      "id": "q7",
+      "goal": "单选",
+      "prompt": "天黑时，按图路灯会怎样？",
+      "options": [
+        "是→开灯",
+        "否→关灯",
+        "是→关灯",
+        "否→开灯"
+      ],
+      "answer": 3,
+      "explanation": "天黑时“天亮了吗”不成立，走“否”，开灯。“是”不等于“开”。",
+      "tier": "base",
+      "type": "single_choice",
+      "interaction": {
+        "figure": {
+          "kind": "flowchart",
+          "nodes": [
+            {
+              "id": "n1",
+              "shape": "diamond",
+              "text": "天亮了吗",
+              "slot": null
+            },
+            {
+              "id": "n2",
+              "shape": "process",
+              "text": "关灯",
+              "slot": null
+            },
+            {
+              "id": "n3",
+              "shape": "process",
+              "text": "开灯",
+              "slot": null
+            }
+          ],
+          "edges": [
+            {
+              "from": "n1",
+              "to": "n2",
+              "label": "是"
+            },
+            {
+              "from": "n1",
+              "to": "n3",
+              "label": "否"
+            }
+          ]
+        }
+      },
+      "grading": {
+        "mode": "exact",
+        "scoring": "整题对错"
+      },
+      "goalIds": [
+        "G1",
+        "G2"
+      ],
+      "keyIds": [
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1",
+        "ND1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "是→开灯": [
+          "M1"
+        ],
+        "是→关灯": [
+          "M4"
+        ],
+        "否→关灯": [
+          "M4"
+        ]
+      },
+      "misconceptionIds": [
+        "M1",
+        "M4"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-模拟验证（按图追踪）"
+      ],
+      "antiMemoryNote": "条件反着问（天亮了吗），用“是=开”的习惯会错；要先判断条件成不成立。",
+      "textbookRef": "教材p37",
+      "blueRefs": [],
+      "review": "先答“天黑时，天亮了吗？”，再沿那个出口走。",
+      "difficulty": "易：读图一步",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "等价写法：条件“温度＜30℃吗”，是→关闭风机，否→启动风机。31℃时：",
+          "options": [
+            "走“否”，启动风机",
+            "走“是”，启动风机",
+            "走“是”，关闭风机",
+            "走“否”，关闭风机"
+          ],
+          "answer": 0
+        },
+        "v5": {
+          "type": "single_choice",
+          "tier": "base",
+          "prompt": "天黑时，按图路灯？",
+          "options": [
+            "是→开灯",
+            "是→关灯",
+            "否→关灯",
+            "否→开灯"
+          ],
+          "answer": 3,
+          "interaction": {
+            "figure": {
+              "kind": "flowchart",
+              "nodes": [
+                {
+                  "id": "n1",
+                  "shape": "diamond",
+                  "text": "天亮了吗",
+                  "slot": null
+                },
+                {
+                  "id": "n2",
+                  "shape": "process",
+                  "text": "关灯",
+                  "slot": null
+                },
+                {
+                  "id": "n3",
+                  "shape": "process",
+                  "text": "开灯",
+                  "slot": null
+                }
+              ],
+              "edges": [
+                {
+                  "from": "n1",
+                  "to": "n2",
+                  "label": "是"
+                },
+                {
+                  "from": "n1",
+                  "to": "n3",
+                  "label": "否"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "q29",
+      "goal": "单选",
+      "prompt": "“≥60算及格”，测哪组最能查出错？",
+      "options": [
+        "60、70、80",
+        "61、80、99",
+        "59、60、61",
+        "10、30、59"
+      ],
+      "answer": 2,
+      "explanation": "59测“否”，60测恰好相等，61测“是”；两条路和边界都测到了。",
+      "tier": "base",
+      "type": "single_choice",
+      "interaction": {},
+      "grading": {
+        "mode": "exact",
+        "scoring": "整题对错"
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "60、70、80": [
+          "M6"
+        ],
+        "61、80、99": [
+          "M6"
+        ],
+        "10、30、59": [
+          "M6"
+        ]
+      },
+      "misconceptionIds": [
+        "M6"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-验证（选测试数据）"
+      ],
+      "antiMemoryNote": "新规则新数值，不是S1的29/30/31；要自己想到“边界两侧加边界”。",
+      "textbookRef": "蓝栏B13",
+      "blueRefs": [
+        "B13"
+      ],
+      "review": "每个数各走哪条路？哪组两条路和“恰好60”都有？",
+      "difficulty": "中：要想到边界",
+      "revision": {
+        "v4.1": null,
+        "v5": {
+          "type": "single_choice",
+          "tier": "base",
+          "prompt": "“≥18岁算成年”，哪组最能测出错？",
+          "options": [
+            "18、19、20",
+            "20、25、30",
+            "17、18、19",
+            "10、15、17"
+          ],
+          "answer": 2,
+          "interaction": {}
+        }
+      }
+    },
+    {
+      "id": "q33",
+      "goal": "单选",
+      "prompt": "“气温＜20℃提醒穿外套”。测15℃提醒了，还该测哪个？",
+      "options": [
+        "12℃",
+        "25℃",
+        "10℃",
+        "18℃"
+      ],
+      "answer": 1,
+      "explanation": "15℃走的是“是”；再测25℃才能看到“否”那条路对不对。只测一边，不能说明程序没错。",
+      "tier": "base",
+      "type": "single_choice",
+      "interaction": {},
+      "grading": {
+        "mode": "exact",
+        "scoring": "整题对错"
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "12℃": [
+          "M6"
+        ],
+        "10℃": [
+          "M6"
+        ],
+        "18℃": [
+          "M6"
+        ]
+      },
+      "misconceptionIds": [
+        "M6"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-验证（选测试数据）"
+      ],
+      "antiMemoryNote": "新规则；选项长度相同、都不含题干数字，要想到“另一条路也要测”。",
+      "textbookRef": "蓝栏B13",
+      "blueRefs": [
+        "B13"
+      ],
+      "review": "15℃走了哪条路？哪个数会走另一条？",
+      "difficulty": "易：一步推理",
+      "revision": {
+        "v4.1": null,
+        "v5": null
+      }
+    },
+    {
+      "id": "q30",
+      "goal": "单选",
+      "prompt": "按图，哪句对？",
+      "options": [
+        "如果饿了，就看书；否则吃饭",
+        "如果不饿，就吃饭；否则看书",
+        "如果饿了，就吃饭；否则看书",
+        "如果饿了，就吃饭，然后看书"
+      ],
+      "answer": 2,
+      "explanation": "图中条件是“饿了吗”，是→吃饭，否→看书，写成“如果饿了，就吃饭；否则看书”。",
+      "tier": "base",
+      "type": "single_choice",
+      "interaction": {
+        "figure": {
+          "kind": "flowchart",
+          "nodes": [
+            {
+              "id": "n1",
+              "shape": "diamond",
+              "text": "饿了吗",
+              "slot": null
+            },
+            {
+              "id": "n2",
+              "shape": "process",
+              "text": "吃饭",
+              "slot": null
+            },
+            {
+              "id": "n3",
+              "shape": "process",
+              "text": "看书",
+              "slot": null
+            }
+          ],
+          "edges": [
+            {
+              "from": "n1",
+              "to": "n2",
+              "label": "是"
+            },
+            {
+              "from": "n1",
+              "to": "n3",
+              "label": "否"
+            }
+          ]
+        }
+      },
+      "grading": {
+        "mode": "exact",
+        "scoring": "整题对错"
+      },
+      "goalIds": [
+        "G1",
+        "G2"
+      ],
+      "keyIds": [
+        "K4",
+        "K3"
+      ],
+      "keyDifficultyIds": [
+        "ZD2"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "如果饿了，就看书；否则吃饭": [
+          "M4"
+        ],
+        "如果不饿，就吃饭；否则看书": [
+          "M4"
+        ],
+        "如果饿了，就吃饭，然后看书": [
+          "M2"
+        ]
+      },
+      "misconceptionIds": [
+        "M2",
+        "M4"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-抽象（流程图→规范表达）"
+      ],
+      "antiMemoryNote": "四个选项都是“如果……就……否则……”，记住句式选不出来；要对照图里的条件和两个出口，干扰项分别是出口对调、条件取反未换出口、两件都做。",
+      "textbookRef": "教材p37第3—4步",
+      "blueRefs": [],
+      "review": "用手指沿图走：饿了走哪边？不饿走哪边？",
+      "difficulty": "易：对照图选句",
+      "revision": {
+        "v4.1": null,
+        "v5": {
+          "type": "matching",
+          "tier": "base",
+          "prompt": "图和句子对应连线。",
+          "options": [
+            "否则后",
+            "如果后",
+            "开始后",
+            "就后"
+          ],
+          "answer": [
+            1,
+            3,
+            0
+          ],
+          "interaction": {
+            "left": [
+              "条件",
+              "是出口动作",
+              "否出口动作"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "q21",
+      "goal": "点卡放置",
+      "prompt": "“下雨就在家看书，别的时候去公园。”点卡片补全句子。",
+      "options": [
+        "去公园",
+        "在家看书",
+        "看书再去公园",
+        "都不做"
+      ],
+      "answer": {
+        "s1": 0,
+        "s2": 1
+      },
+      "explanation": "句子的条件是“不下雨”，就是“别的时候”，所以就去公园；否则（下雨）在家看书。",
+      "tier": "base",
+      "type": "drag_op",
+      "interaction": {
+        "frame": "如果不下雨，就{s1}；否则{s2}。"
+      },
+      "grading": {
+        "mode": "exact",
+        "scoring": "两个空都对才算对"
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K4"
+      ],
+      "keyDifficultyIds": [
+        "ZD2",
+        "ND2"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "s1=在家看书,s2=去公园": [
+          "M4"
+        ],
+        "看书再去公园": [
+          "M2"
+        ],
+        "都不做": [
+          "M5"
+        ]
+      },
+      "misconceptionIds": [
+        "M2",
+        "M4",
+        "M5"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-抽象（口头说法→规范表达）"
+      ],
+      "antiMemoryNote": "句子里的条件“不下雨”在原话里没有逐字出现，原话先说“下雨”；照原话顺序把“在家看书”放进第一个空就错，要理解“别的时候＝不下雨”。",
+      "textbookRef": "教材p36第2—3步；蓝栏B8、B16",
+      "blueRefs": [
+        "B8",
+        "B16"
+      ],
+      "review": "先读句子的条件“不下雨”，问：不下雨时做什么？",
+      "difficulty": "中：条件要换说法",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "温室规则：达到或超过30℃启动风机，不到30℃关闭。哪一句描述正确？",
+          "options": [
+            "如果温度≥30℃，就启动风机；然后关闭风机",
+            "如果温度≥30℃，就关闭风机；否则启动风机",
+            "如果温度≥30℃，就启动风机；否则关闭风机",
+            "启动风机，关闭风机，再看温度"
+          ],
+          "answer": 2
+        },
+        "v5": {
+          "type": "drag_op",
+          "tier": "base",
+          "prompt": "“不下雨去公园，下雨在家看书。”拖卡进句子。",
+          "options": [
+            "去公园",
+            "在家看书",
+            "看书再去公园",
+            "都不做"
+          ],
+          "answer": {
+            "s1": 1,
+            "s2": 0
+          },
+          "interaction": {
+            "frame": "如果下雨，就{s1}；否则{s2}。"
+          }
+        }
+      }
+    },
+    {
+      "id": "q34",
+      "goal": "单选",
+      "prompt": "“没满分要订正，满分就去玩。”哪句对？",
+      "options": [
+        "如果满分，就去玩；否则订正",
+        "如果满分，就订正；否则去玩",
+        "如果没满分，就去玩；否则订正",
+        "如果满分，就去玩，然后订正"
+      ],
+      "answer": 0,
+      "explanation": "原话先说“没满分”。写成以“满分”为条件的句子时，满分→去玩，否则→订正。",
+      "tier": "base",
+      "type": "single_choice",
+      "interaction": {},
+      "grading": {
+        "mode": "exact",
+        "scoring": "整题对错"
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K4"
+      ],
+      "keyDifficultyIds": [
+        "ND1",
+        "ND2"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "如果满分，就订正；否则去玩": [
+          "M4"
+        ],
+        "如果没满分，就去玩；否则订正": [
+          "M4"
+        ],
+        "如果满分，就去玩，然后订正": [
+          "M2"
+        ]
+      },
+      "misconceptionIds": [
+        "M2",
+        "M4"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-抽象（口头说法→规范表达）"
+      ],
+      "antiMemoryNote": "原话的顺序与正确句子相反；照原话的条件“没满分”去找，只能找到出口配错的那句；四句都用同一句式，要看条件和动作是否配对。",
+      "textbookRef": "教材p36第2—3步；蓝栏B8",
+      "blueRefs": [
+        "B8"
+      ],
+      "review": "先找句子的条件，再问：满分时原话说做什么？",
+      "difficulty": "中：条件与原话顺序相反",
+      "revision": {
+        "v4.1": null,
+        "v5": null
+      }
+    },
+    {
+      "id": "q27",
+      "goal": "连线",
+      "prompt": "把卡片分到菱形或矩形。",
+      "options": [
+        "天黑了",
+        "门开着",
+        "打开路灯",
+        "关上门"
+      ],
+      "answer": {
+        "0": "diamond",
+        "1": "diamond",
+        "2": "rect",
+        "3": "rect"
+      },
+      "explanation": "能判断成不成立的是条件，放菱形；要做的事是动作，放矩形。条件不一定是数字。",
+      "tier": "challenge",
+      "type": "matching",
+      "interaction": {
+        "targets": [
+          {
+            "id": "diamond",
+            "label": "菱形"
+          },
+          {
+            "id": "rect",
+            "label": "矩形"
+          }
+        ]
+      },
+      "grading": {
+        "mode": "exact",
+        "scoring": "4张都对才算对"
+      },
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K1",
+        "K3"
+      ],
+      "keyDifficultyIds": [
+        "ZD2"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "天黑了/门开着→矩形": [
+          "M7"
+        ],
+        "打开路灯/关上门→菱形": [
+          "M8"
+        ]
+      },
+      "misconceptionIds": [
+        "M7",
+        "M8"
+      ],
+      "station": "none",
+      "newContext": false,
+      "literacy": [
+        "概念理解（条件与动作），不标思维类"
+      ],
+      "antiMemoryNote": "卡片与q6、q35都不重复，不露其他题答案；两张条件卡都不是数字。",
+      "textbookRef": "教材p37、p38",
+      "blueRefs": [],
+      "review": "读每张卡：能回答“是/否”吗？",
+      "difficulty": "易",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "下面哪一项可以写进菱形判断框，作为能用“是/否”回答的判断条件？",
+          "options": [
+            "附近有可用的过街天桥或地下通道吗？",
+            "走天桥过马路",
+            "输入现场情况",
+            "到达马路对面"
+          ],
+          "answer": 0
+        },
+        "v5": {
+          "type": "matching",
+          "tier": "base",
+          "prompt": "把卡片分到菱形或矩形。",
+          "options": [
+            "温度≥26℃",
+            "有可用的桥",
+            "走天桥过街",
+            "打开教室空调"
+          ],
+          "answer": {
+            "0": "diamond",
+            "1": "diamond",
+            "2": "rect",
+            "3": "rect"
+          },
+          "interaction": {
+            "targets": [
+              {
+                "id": "diamond",
+                "label": "菱形"
+              },
+              {
+                "id": "rect",
+                "label": "矩形"
+              }
+            ]
+          }
+        }
+      },
+      "tierNote": "v5.1 从基础层移来：基础层已有 q35 考同一概念，为压用时移出；难度不高，补 M7 证据"
+    },
+    {
+      "id": "q23",
+      "goal": "排序",
+      "prompt": "图书馆门禁：点卡片按顺序放进格子。",
+      "options": [
+        "有效开门，否则提示",
+        "读取借书证",
+        "判断是否有效"
+      ],
+      "answer": [
+        1,
+        2,
+        0
+      ],
+      "explanation": "先读取输入，再判断条件，最后按判断结果走一条路。",
+      "tier": "challenge",
+      "type": "ordering",
+      "interaction": {},
+      "grading": {
+        "mode": "exact",
+        "scoring": "整题对错"
+      },
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K1"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "判断放在读取之前": []
+      },
+      "misconceptionIds": [],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "概念理解（输入—判断—出口顺序），不标思维类"
+      ],
+      "antiMemoryNote": "新情境；只有3张卡，考“先有输入才能判断”。凭生活经验也可能排对，所以只作K1证据，不标思维类素养。",
+      "textbookRef": "教材p36；蓝栏B6",
+      "blueRefs": [
+        "B6"
+      ],
+      "review": "给每步贴“输入／判断／出口”标签再排。",
+      "difficulty": "易",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "闸机出票有4步：①按判断结果给票价 ②读取身高 ③显示票价，结束 ④判断“身高＜120厘米吗？”。正确顺序是：",
+          "options": [
+            "①②④③",
+            "④②①③",
+            "②①④③",
+            "②④①③"
+          ],
+          "answer": 3
+        },
+        "v5": {
+          "type": "ordering",
+          "tier": "base",
+          "prompt": "门禁步骤排序。",
+          "options": [
+            "开门或提示",
+            "读借书证",
+            "等待刷卡",
+            "判断是否有效"
+          ],
+          "answer": [
+            2,
+            1,
+            3,
+            0
+          ],
+          "interaction": {}
+        }
+      },
+      "misconceptionNote": "01 的 M1—M8 没有“步骤顺序”类误解，如实不标M",
+      "tierNote": "v5.1 从基础层移到挑战层：3张卡凭生活经验也能排对，效度低；为把基础层压进10分钟移出。K1 在基础层仍由 q35、q4 覆盖"
+    },
+    {
+      "id": "q31",
+      "goal": "单选",
+      "prompt": "今天没体育课，按图会怎样？",
+      "options": [
+        "穿皮鞋",
+        "穿运动鞋",
+        "先后都穿",
+        "两双都带"
+      ],
+      "answer": 0,
+      "explanation": "条件不成立，只走“否”，穿皮鞋；一次判断只走一条路。",
+      "tier": "challenge",
+      "type": "single_choice",
+      "interaction": {
+        "figure": {
+          "kind": "flowchart",
+          "nodes": [
+            {
+              "id": "n1",
+              "shape": "diamond",
+              "text": "有体育课",
+              "slot": null
+            },
+            {
+              "id": "n2",
+              "shape": "process",
+              "text": "穿运动鞋",
+              "slot": null
+            },
+            {
+              "id": "n3",
+              "shape": "process",
+              "text": "穿皮鞋",
+              "slot": null
+            }
+          ],
+          "edges": [
+            {
+              "from": "n1",
+              "to": "n2",
+              "label": "是"
+            },
+            {
+              "from": "n1",
+              "to": "n3",
+              "label": "否"
+            }
+          ]
+        }
+      },
+      "grading": {
+        "mode": "exact",
+        "scoring": "整题对错"
+      },
+      "goalIds": [
+        "G1",
+        "G2"
+      ],
+      "keyIds": [
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "穿运动鞋": [
+          "M1"
+        ],
+        "先后都穿": [
+          "M2"
+        ],
+        "两双都带": [
+          "M2"
+        ]
+      },
+      "misconceptionIds": [
+        "M1",
+        "M2"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-模拟验证（按图追踪）"
+      ],
+      "antiMemoryNote": "新情境，要读图判断条件再走出口。",
+      "textbookRef": "教材p37",
+      "blueRefs": [],
+      "review": "先答“有体育课吗？”，再顺着出口走。",
+      "difficulty": "易",
+      "revision": {
+        "v4.1": null,
+        "v5": {
+          "type": "single_choice",
+          "tier": "base",
+          "prompt": "今天没体育课，按图？",
+          "options": [
+            "穿皮鞋",
+            "穿运动鞋",
+            "先后都穿",
+            "两双都带"
+          ],
+          "answer": 0,
+          "interaction": {
+            "figure": {
+              "kind": "flowchart",
+              "nodes": [
+                {
+                  "id": "n1",
+                  "shape": "diamond",
+                  "text": "有体育课",
+                  "slot": null
+                },
+                {
+                  "id": "n2",
+                  "shape": "process",
+                  "text": "穿运动鞋",
+                  "slot": null
+                },
+                {
+                  "id": "n3",
+                  "shape": "process",
+                  "text": "穿皮鞋",
+                  "slot": null
+                }
+              ],
+              "edges": [
+                {
+                  "from": "n1",
+                  "to": "n2",
+                  "label": "是"
+                },
+                {
+                  "from": "n1",
+                  "to": "n3",
+                  "label": "否"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "tierNote": "v5.1 从基础层移来：与 q7 同为读图追踪，为压用时移出"
+    },
+    {
+      "id": "q32",
+      "goal": "点卡放置",
+      "prompt": "每天走路超过8000步得小红花。点一张卡片放进菱形。",
+      "options": [
+        "步数≥8000",
+        "步数＞8000",
+        "步数＜8000",
+        "步数≤8000"
+      ],
+      "answer": {
+        "s1": 1
+      },
+      "explanation": "“超过”不含8000本身，写“步数＞8000”。",
+      "tier": "challenge",
+      "type": "drag_op",
+      "interaction": {
+        "figure": {
+          "kind": "flowchart",
+          "nodes": [
+            {
+              "id": "n1",
+              "shape": "diamond",
+              "text": "",
+              "slot": "s1"
+            },
+            {
+              "id": "n2",
+              "shape": "process",
+              "text": "得小红花",
+              "slot": null
+            },
+            {
+              "id": "n3",
+              "shape": "process",
+              "text": "没有小红花",
+              "slot": null
+            }
+          ],
+          "edges": [
+            {
+              "from": "n1",
+              "to": "n2",
+              "label": "是"
+            },
+            {
+              "from": "n1",
+              "to": "n3",
+              "label": "否"
+            }
+          ]
+        }
+      },
+      "grading": {
+        "mode": "semantic",
+        "scoring": "整题对错",
+        "test": "步数0—20000逐一代入"
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K2"
+      ],
+      "keyDifficultyIds": [
+        "ZD1",
+        "ND1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "步数≥8000": [
+          "M3"
+        ],
+        "步数＜8000": [
+          "M4"
+        ],
+        "步数≤8000": [
+          "M3",
+          "M4"
+        ]
+      },
+      "misconceptionIds": [
+        "M3",
+        "M4"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-抽象（把“超过”写成条件）"
+      ],
+      "antiMemoryNote": "步数没有上限，情境合理；四项只差符号，要分清“超过”和“达到”。",
+      "textbookRef": "教材p36—37",
+      "blueRefs": [],
+      "review": "恰好8000步算“超过”吗？",
+      "difficulty": "中：“超过/达到”辨析",
+      "revision": {
+        "v4.1": null,
+        "v5": {
+          "type": "single_choice",
+          "tier": "base",
+          "prompt": "超过100分得奖章（走“是”），菱形写？",
+          "options": [
+            "分数≥100",
+            "分数＞100",
+            "分数＜100",
+            "分数≤100"
+          ],
+          "answer": 1,
+          "interaction": {}
+        }
+      },
+      "tierNote": "v5.1 从基础层移来：“超过”与“达到”的辨析偏择优，基础层保留 q6（达到）"
+    },
+    {
+      "id": "q11",
+      "goal": "点卡放置",
+      "prompt": "水温达到60℃就停止加热。按图的条件，点出口卡放进空框。",
+      "options": [
+        "继续加热",
+        "停止加热",
+        "先加热再停",
+        "不动作"
+      ],
+      "answer": {
+        "s1": 0,
+        "s2": 1
+      },
+      "explanation": "条件是“水温＜60”：成立说明不到60，继续加热；不成立说明达到60，停止加热。",
+      "tier": "challenge",
+      "type": "drag_op",
+      "interaction": {
+        "figure": {
+          "kind": "flowchart",
+          "nodes": [
+            {
+              "id": "n1",
+              "shape": "diamond",
+              "text": "水温＜60",
+              "slot": null
+            },
+            {
+              "id": "n2",
+              "shape": "process",
+              "text": "",
+              "slot": "s1"
+            },
+            {
+              "id": "n3",
+              "shape": "process",
+              "text": "",
+              "slot": "s2"
+            }
+          ],
+          "edges": [
+            {
+              "from": "n1",
+              "to": "n2",
+              "label": "是"
+            },
+            {
+              "from": "n1",
+              "to": "n3",
+              "label": "否"
+            }
+          ]
+        }
+      },
+      "grading": {
+        "mode": "exact",
+        "scoring": "两个出口都对才算对"
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K3",
+        "K2"
+      ],
+      "keyDifficultyIds": [
+        "ZD2",
+        "ND1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "是→停止加热": [
+          "M1",
+          "M4"
+        ],
+        "先加热再停": [
+          "M2"
+        ],
+        "不动作": [
+          "M5"
+        ]
+      },
+      "misconceptionIds": [
+        "M1",
+        "M2",
+        "M4",
+        "M5"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-模拟验证（代入数值检验出口）"
+      ],
+      "antiMemoryNote": "条件是反向写法，照“是→停止”的说法顺序放会错；要代入数值检验。新规则（水温60℃），不与 q4、q6 共用。",
+      "textbookRef": "蓝栏B10",
+      "blueRefs": [
+        "B10"
+      ],
+      "review": "代入60℃和30℃各走一遍。",
+      "difficulty": "中偏难：反向条件配出口",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "条件原为“温度＜30”，是→关闭，否→启动。条件被改成“温度≥30”，出口没改。怎样修复？",
+          "options": [
+            "只交换两个出口的颜色",
+            "改成“是→启动，否→关闭”，再重新测试",
+            "删掉“否”路径",
+            "换一个调试员，规则不动"
+          ],
+          "answer": 1
+        },
+        "v5": {
+          "type": "drag_op",
+          "tier": "base",
+          "prompt": "达到26℃要开空调。拖出口卡。",
+          "options": [
+            "开空调",
+            "关空调",
+            "先开空调再关",
+            "不动作"
+          ],
+          "answer": {
+            "s1": 1,
+            "s2": 0
+          },
+          "interaction": {
+            "figure": {
+              "kind": "flowchart",
+              "nodes": [
+                {
+                  "id": "n1",
+                  "shape": "diamond",
+                  "text": "温度＜26",
+                  "slot": null
+                },
+                {
+                  "id": "n2",
+                  "shape": "process",
+                  "text": "",
+                  "slot": "s1"
+                },
+                {
+                  "id": "n3",
+                  "shape": "process",
+                  "text": "",
+                  "slot": "s2"
+                }
+              ],
+              "edges": [
+                {
+                  "from": "n1",
+                  "to": "n2",
+                  "label": "是"
+                },
+                {
+                  "from": "n1",
+                  "to": "n3",
+                  "label": "否"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "tierNote": "v5.1 从基础层移来：反向条件配出口属较难的迁移"
+    },
+    {
+      "id": "q25",
+      "goal": "点卡放置",
+      "prompt": "按图补全句子：点卡片放进空格。",
+      "options": [
+        "继续巡逻",
+        "回去充电",
+        "先充电再巡逻",
+        "都不做"
+      ],
+      "answer": {
+        "s1": 0,
+        "s2": 1
+      },
+      "explanation": "句子的条件和图相反：电量＞20%时图中走“否”，继续巡逻；否则回去充电。",
+      "tier": "challenge",
+      "type": "drag_op",
+      "interaction": {
+        "figure": {
+          "kind": "flowchart",
+          "nodes": [
+            {
+              "id": "n1",
+              "shape": "diamond",
+              "text": "电量≤20%（≤读作小于或等于）",
+              "slot": null
+            },
+            {
+              "id": "n2",
+              "shape": "process",
+              "text": "回去充电",
+              "slot": null
+            },
+            {
+              "id": "n3",
+              "shape": "process",
+              "text": "继续巡逻",
+              "slot": null
+            }
+          ],
+          "edges": [
+            {
+              "from": "n1",
+              "to": "n2",
+              "label": "是"
+            },
+            {
+              "from": "n1",
+              "to": "n3",
+              "label": "否"
+            }
+          ]
+        },
+        "frame": "如果电量＞20%，就{s1}；否则{s2}。"
+      },
+      "grading": {
+        "mode": "exact",
+        "scoring": "两个空都对才算对"
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K4",
+        "K3"
+      ],
+      "keyDifficultyIds": [
+        "ZD2",
+        "ND2",
+        "ND1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "s1=回去充电,s2=继续巡逻": [
+          "M4"
+        ],
+        "先充电再巡逻": [
+          "M2"
+        ],
+        "都不做": [
+          "M5"
+        ]
+      },
+      "misconceptionIds": [
+        "M2",
+        "M4",
+        "M5"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-抽象（条件取反后的表达）"
+      ],
+      "antiMemoryNote": "句子的条件与图中相反，照图的顺序填就错。",
+      "textbookRef": "蓝栏B8、B10",
+      "blueRefs": [
+        "B8",
+        "B10"
+      ],
+      "review": "先判断“电量＞20%”时图中条件成立吗。",
+      "difficulty": "难：条件取反",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "规则：天气预报有雨就带雨具，没有雨就不带。哪一句完整又正确？",
+          "options": [
+            "如果预报有雨，就带雨具",
+            "如果预报有雨，就带雨具；然后不带",
+            "如果预报有雨，就不带；否则带雨具",
+            "如果预报有雨，就带雨具；否则不带"
+          ],
+          "answer": 3
+        },
+        "v5": {
+          "type": "single_choice",
+          "tier": "base",
+          "prompt": "按图：如果电量＞20%，就＿；否则＿。",
+          "options": [
+            "巡逻；充电",
+            "充电；巡逻",
+            "巡逻；巡逻",
+            "先充后巡"
+          ],
+          "answer": 0,
+          "interaction": {
+            "figure": {
+              "kind": "flowchart",
+              "nodes": [
+                {
+                  "id": "n1",
+                  "shape": "diamond",
+                  "text": "电量≤20%（≤读作小于或等于）",
+                  "slot": null
+                },
+                {
+                  "id": "n2",
+                  "shape": "process",
+                  "text": "充电",
+                  "slot": null
+                },
+                {
+                  "id": "n3",
+                  "shape": "process",
+                  "text": "巡逻",
+                  "slot": null
+                }
+              ],
+              "edges": [
+                {
+                  "from": "n1",
+                  "to": "n2",
+                  "label": "是"
+                },
+                {
+                  "from": "n1",
+                  "to": "n3",
+                  "label": "否"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "tierNote": "v5.1 从基础层移来：条件取反后改写，属择优"
+    },
+    {
+      "id": "q24",
+      "goal": "流程图补充",
+      "prompt": "5人或以上打8折，不到5人原价。点卡片补全流程图。",
+      "options": [
+        "人数≥5",
+        "人数＜5",
+        "人数＞5",
+        "打8折",
+        "原价",
+        "打5折"
+      ],
+      "answer": {
+        "s1": 0,
+        "s2": 3,
+        "s3": 4
+      },
+      "explanation": "“5人或以上”包含5，菱形放“人数≥5”，是→打8折，否→原价；放“人数＜5”也对，出口要交换。",
+      "tier": "challenge",
+      "type": "flowchart_fill",
+      "interaction": {
+        "figure": {
+          "kind": "flowchart",
+          "nodes": [
+            {
+              "id": "n1",
+              "shape": "io",
+              "text": "输入人数",
+              "slot": null
+            },
+            {
+              "id": "n2",
+              "shape": "diamond",
+              "text": "",
+              "slot": "s1"
+            },
+            {
+              "id": "n3",
+              "shape": "process",
+              "text": "",
+              "slot": "s2"
+            },
+            {
+              "id": "n4",
+              "shape": "process",
+              "text": "",
+              "slot": "s3"
+            }
+          ],
+          "edges": [
+            {
+              "from": "n1",
+              "to": "n2",
+              "label": ""
+            },
+            {
+              "from": "n2",
+              "to": "n3",
+              "label": "是"
+            },
+            {
+              "from": "n2",
+              "to": "n4",
+              "label": "否"
+            }
+          ]
+        }
+      },
+      "grading": {
+        "mode": "semantic",
+        "scoring": "整题对错",
+        "test": "人数1—20逐一代入",
+        "accepts": [
+          "(人数≥5,打8折,原价)",
+          "(人数＜5,原价,打8折)"
+        ],
+        "equivalentCards": [
+          1
+        ]
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K3",
+        "K2"
+      ],
+      "keyDifficultyIds": [
+        "ZD2"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "人数＞5": [
+          "M3"
+        ],
+        "打5折": [],
+        "出口接反": [
+          "M4"
+        ]
+      },
+      "misconceptionIds": [
+        "M3",
+        "M4"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-算法设计（按给定规则补全）"
+      ],
+      "antiMemoryNote": "题干用“或以上”口头说法，条件卡写成“人数≥5”，不逐字相同；等价写法都接受。",
+      "textbookRef": "教材p37进一步学习；蓝栏B11",
+      "blueRefs": [
+        "B11"
+      ],
+      "review": "恰好5人打折吗？",
+      "difficulty": "中",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "团体票规则：人数≥5人按原票价打8折。流程图“人数≥5吗？”的“否”出口是“按原票价”，“是”出口应填：",
+          "options": [
+            "按原票价购票",
+            "按原票价的8折购票",
+            "重新输入人数",
+            "人数减去5人"
+          ],
+          "answer": 1
+        },
+        "v5": {
+          "type": "flowchart_fill",
+          "tier": "challenge",
+          "prompt": "团体票：人数≥5打8折，否则原价。补全流程图。",
+          "options": [
+            "人数≥5",
+            "人数＜5",
+            "人数≥8",
+            "打8折",
+            "原价",
+            "打5折"
+          ],
+          "answer": {
+            "s1": 0,
+            "s2": 3,
+            "s3": 4
+          },
+          "interaction": {
+            "figure": {
+              "kind": "flowchart",
+              "nodes": [
+                {
+                  "id": "n1",
+                  "shape": "io",
+                  "text": "输入人数",
+                  "slot": null
+                },
+                {
+                  "id": "n2",
+                  "shape": "diamond",
+                  "text": "",
+                  "slot": "s1"
+                },
+                {
+                  "id": "n3",
+                  "shape": "process",
+                  "text": "",
+                  "slot": "s2"
+                },
+                {
+                  "id": "n4",
+                  "shape": "process",
+                  "text": "",
+                  "slot": "s3"
+                }
+              ],
+              "edges": [
+                {
+                  "from": "n1",
+                  "to": "n2",
+                  "label": ""
+                },
+                {
+                  "from": "n2",
+                  "to": "n3",
+                  "label": "是"
+                },
+                {
+                  "from": "n2",
+                  "to": "n4",
+                  "label": "否"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "q28",
+      "goal": "单选",
+      "prompt": "去斜对面。向东绿灯、向北红灯，按图第一步？",
+      "options": [
+        "先向北过",
+        "先向东过",
+        "斜穿路口",
+        "等两边都绿"
+      ],
+      "answer": 1,
+      "explanation": "“向东是绿灯吗？”成立，走“是”，先向东过；斜穿不在任何出口里。",
+      "tier": "challenge",
+      "type": "single_choice",
+      "interaction": {
+        "figure": {
+          "kind": "flowchart",
+          "nodes": [
+            {
+              "id": "n1",
+              "shape": "diamond",
+              "text": "向东过马路的横道是绿灯吗？",
+              "slot": null
+            },
+            {
+              "id": "n2",
+              "shape": "process",
+              "text": "先向东过",
+              "slot": null
+            },
+            {
+              "id": "n3",
+              "shape": "process",
+              "text": "先向北过",
+              "slot": null
+            }
+          ],
+          "edges": [
+            {
+              "from": "n1",
+              "to": "n2",
+              "label": "是"
+            },
+            {
+              "from": "n1",
+              "to": "n3",
+              "label": "否"
+            }
+          ]
+        }
+      },
+      "grading": {
+        "mode": "exact",
+        "scoring": "整题对错"
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "先向北过": [
+          "M1"
+        ],
+        "斜穿路口": [
+          "M5"
+        ],
+        "等两边都绿": [
+          "M5"
+        ]
+      },
+      "misconceptionIds": [
+        "M1",
+        "M5"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-迁移"
+      ],
+      "antiMemoryNote": "路口斜对面是新问题，要读图判断条件，选项都含方向词，不能靠关键词。",
+      "textbookRef": "教材p38进一步思考；蓝栏B15",
+      "blueRefs": [
+        "B15"
+      ],
+      "review": "先答“向东过马路的横道是绿灯吗？”。",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "要走到十字路口斜对面。东向横道绿灯，北向红灯。规则“东向是绿灯吗？是→先向东过；否→先向北过”，应该：",
+          "options": [
+            "等两个方向都变绿，再斜穿",
+            "直接斜穿路口中间",
+            "一直等北向绿灯，再向东过",
+            "先向东过马路，再等北向绿灯"
+          ],
+          "answer": 3
+        },
+        "v5": {
+          "type": "single_choice",
+          "tier": "challenge",
+          "prompt": "去斜对面。向东绿灯、向北红灯，按图第一步？",
+          "options": [
+            "先向北过",
+            "先向东过",
+            "斜穿路口",
+            "等两边都绿"
+          ],
+          "answer": 1,
+          "interaction": {
+            "figure": {
+              "kind": "flowchart",
+              "nodes": [
+                {
+                  "id": "n1",
+                  "shape": "diamond",
+                  "text": "向东过马路的横道是绿灯吗？",
+                  "slot": null
+                },
+                {
+                  "id": "n2",
+                  "shape": "process",
+                  "text": "先向东过",
+                  "slot": null
+                },
+                {
+                  "id": "n3",
+                  "shape": "process",
+                  "text": "先向北过",
+                  "slot": null
+                }
+              ],
+              "edges": [
+                {
+                  "from": "n1",
+                  "to": "n2",
+                  "label": "是"
+                },
+                {
+                  "from": "n1",
+                  "to": "n3",
+                  "label": "否"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "difficulty": "中：路口斜对面"
+    },
+    {
+      "id": "q17",
+      "goal": "单选",
+      "prompt": "a=15，b=6，按图输出什么？",
+      "options": [
+        "走“是”，输出15",
+        "走“否”，输出15",
+        "15和6都输出",
+        "走“否”，输出6"
+      ],
+      "answer": 3,
+      "explanation": "15＜6不成立，走“否”，输出b，即6。",
+      "tier": "challenge",
+      "type": "single_choice",
+      "interaction": {
+        "figure": {
+          "kind": "flowchart",
+          "nodes": [
+            {
+              "id": "n1",
+              "shape": "diamond",
+              "text": "a＜b？",
+              "slot": null
+            },
+            {
+              "id": "n2",
+              "shape": "io",
+              "text": "输出a",
+              "slot": null
+            },
+            {
+              "id": "n3",
+              "shape": "io",
+              "text": "输出b",
+              "slot": null
+            }
+          ],
+          "edges": [
+            {
+              "from": "n1",
+              "to": "n2",
+              "label": "是"
+            },
+            {
+              "from": "n1",
+              "to": "n3",
+              "label": "否"
+            }
+          ]
+        }
+      },
+      "grading": {
+        "mode": "exact",
+        "scoring": "整题对错"
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "走“是”，输出15": [
+          "M1"
+        ],
+        "走“否”，输出15": [
+          "M4"
+        ],
+        "15和6都输出": [
+          "M2"
+        ]
+      },
+      "misconceptionIds": [
+        "M1",
+        "M2",
+        "M4"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-模拟验证（按图追踪）"
+      ],
+      "antiMemoryNote": "数值不是E1的3/8、9/2，要现场判断；不依赖做过E1。",
+      "textbookRef": "教材p39拓展2；蓝栏B17",
+      "blueRefs": [
+        "B17"
+      ],
+      "review": "写出“15＜6成立吗”，再看“否”出口输出谁。",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "比两数取较小数：条件“a＜b吗”，是→输出a，否→输出b。a=15、b=6时：",
+          "options": [
+            "走“是”，输出15",
+            "走“否”，输出6",
+            "两条都走，输出15和6",
+            "走“否”，输出15"
+          ],
+          "answer": 1
+        },
+        "v5": {
+          "type": "single_choice",
+          "tier": "challenge",
+          "prompt": "a=15，b=6，按图输出什么？",
+          "options": [
+            "走“是”，输出15",
+            "走“否”，输出15",
+            "15和6都输出",
+            "走“否”，输出6"
+          ],
+          "answer": 3,
+          "interaction": {
+            "figure": {
+              "kind": "flowchart",
+              "nodes": [
+                {
+                  "id": "n1",
+                  "shape": "diamond",
+                  "text": "a＜b？",
+                  "slot": null
+                },
+                {
+                  "id": "n2",
+                  "shape": "io",
+                  "text": "输出a",
+                  "slot": null
+                },
+                {
+                  "id": "n3",
+                  "shape": "io",
+                  "text": "输出b",
+                  "slot": null
+                }
+              ],
+              "edges": [
+                {
+                  "from": "n1",
+                  "to": "n2",
+                  "label": "是"
+                },
+                {
+                  "from": "n1",
+                  "to": "n3",
+                  "label": "否"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "difficulty": "中：变量比较"
+    },
+    {
+      "id": "q20",
+      "goal": "点卡放置",
+      "prompt": "电量≤20%（小于或等于）就提醒充电，否则不提醒。点电量卡放进对应的框。",
+      "options": [
+        "15%",
+        "20%",
+        "21%",
+        "35%"
+      ],
+      "answer": {
+        "0": "remind",
+        "1": "remind",
+        "2": "none",
+        "3": "none"
+      },
+      "explanation": "≤包含等于，20%也要提醒；21%和35%不提醒。",
+      "tier": "challenge",
+      "type": "drag_op",
+      "interaction": {
+        "targets": [
+          {
+            "id": "remind",
+            "label": "提醒充电"
+          },
+          {
+            "id": "none",
+            "label": "不提醒"
+          }
+        ]
+      },
+      "grading": {
+        "mode": "exact",
+        "scoring": "4张都对才算对"
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K2",
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1",
+        "ND1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "20%→不提醒": [
+          "M3"
+        ],
+        "21%→提醒": [
+          "M3"
+        ]
+      },
+      "misconceptionIds": [
+        "M3"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-模拟验证（按图追踪）"
+      ],
+      "antiMemoryNote": "新阈值、边界两侧都有卡，要读懂≤含等于。",
+      "textbookRef": "蓝栏B16",
+      "blueRefs": [
+        "B16"
+      ],
+      "review": "把20%代进“20≤20成立吗”。",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "机器人规则“电量≤20%进入充电站，否则继续任务”。电量恰好20%时：",
+          "options": [
+            "条件成立，进入充电站",
+            "条件不成立，继续任务",
+            "两条路径同时执行",
+            "等于20%，规则不能判断"
+          ],
+          "answer": 0
+        },
+        "v5": {
+          "type": "drag_op",
+          "tier": "challenge",
+          "prompt": "电量≤20%（小于或等于）就提醒充电，否则不提醒。把电量卡拖到出口。",
+          "options": [
+            "15%",
+            "20%",
+            "21%",
+            "35%"
+          ],
+          "answer": {
+            "0": "remind",
+            "1": "remind",
+            "2": "none",
+            "3": "none"
+          },
+          "interaction": {
+            "targets": [
+              {
+                "id": "remind",
+                "label": "提醒充电"
+              },
+              {
+                "id": "none",
+                "label": "不提醒"
+              }
+            ]
+          }
+        }
+      },
+      "difficulty": "中：≤含等于"
+    },
+    {
+      "id": "q18",
+      "goal": "Python填空（延伸）",
+      "prompt": "输出a、b中较小的数。点代码片段放进空格。",
+      "options": [
+        "<",
+        ">",
+        "<=",
+        ">=",
+        ":",
+        ";"
+      ],
+      "answer": {
+        "s1": 0,
+        "s2": 4
+      },
+      "explanation": "用a<b判断：成立输出a，否则输出b；if行末尾要冒号。a、b不同时a<=b效果相同，也算对。",
+      "tier": "challenge",
+      "type": "python_fill",
+      "interaction": {
+        "code": "if a {s1} b{s2}\n    print(a)\nelse:\n    print(b)"
+      },
+      "grading": {
+        "mode": "semantic",
+        "scoring": "整题对错",
+        "test": "0—20中a≠b的所有组合代入",
+        "accepts": [
+          "s1∈{<,<=}且s2=:"
+        ],
+        "equivalentCards": [
+          2
+        ]
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K2",
+        "K3"
+      ],
+      "keyDifficultyIds": [
+        "ND1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        ">或>=": [
+          "M4"
+        ],
+        ";": []
+      },
+      "misconceptionIds": [
+        "M4"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-算法设计（按给定规则补全）"
+      ],
+      "antiMemoryNote": "代码里不给数值，要从“输出较小数”推出比较方向。",
+      "textbookRef": "教材p39拓展2（以Python表示，延伸）",
+      "blueRefs": [
+        "B17"
+      ],
+      "review": "用a=15、b=6代进去走一遍。",
+      "difficulty": "难：延伸（教材无Python）",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "两个不同自然数a、b，目标是输出较小数。若条件改成“a＞b吗”，正确的出口是：",
+          "options": [
+            "是→输出a，否→输出b",
+            "是→输出a，否→输出a",
+            "是→输出b，否→输出a",
+            "是→输出b，否→输出b"
+          ],
+          "answer": 2
+        },
+        "v5": {
+          "type": "python_fill",
+          "tier": "challenge",
+          "prompt": "输出a、b中较小的数，把片段拖进空格。",
+          "options": [
+            "<",
+            ">",
+            "<=",
+            ">=",
+            ":",
+            ";"
+          ],
+          "answer": {
+            "s1": 0,
+            "s2": 4
+          },
+          "interaction": {
+            "code": "if a {s1} b{s2}\n    print(a)\nelse:\n    print(b)",
+            "note": "教材本课无Python内容，本题为延伸"
+          }
+        }
+      },
+      "teacherNote": "本课教材没有Python，本题为挑战层延伸；全部用点选片段作答，没有输入框"
+    },
+    {
+      "id": "q26",
+      "goal": "积木拼接",
+      "prompt": "未满18岁的，角色对话“未成年人”；其他人对话“成年人”。点积木补全脚本。",
+      "options": [
+        "年龄 > 17",
+        "年龄 < 18",
+        "年龄 > 18",
+        "对话 成年人",
+        "对话 未成年人",
+        "对话 未满18岁"
+      ],
+      "answer": {
+        "s1": 0,
+        "s2": 3,
+        "s3": 4
+      },
+      "explanation": "“年龄>17”就是满18岁（年龄按整数岁），成立→对话“成年人”，否则→“未成年人”；用“年龄<18”时两者交换，也对。",
+      "tier": "challenge",
+      "type": "blocks_assemble",
+      "interaction": {
+        "platform": "编程猫Kitten",
+        "frame": "当开始被点击 → 如果〈{s1}〉 {s2} 否则 {s3}",
+        "fixedBlocks": {
+          "hat": {
+            "text": "当开始被点击",
+            "category": "事件",
+            "shape": "帽子积木",
+            "colorInDocScreenshot": "蓝色",
+            "verified": "名称已核实；颜色仅见官方图鉴截图"
+          },
+          "ifelse": {
+            "text": "如果〈 〉 / 否则",
+            "category": "控制",
+            "shape": "C形（两格）",
+            "colorInDocScreenshot": "浅蓝（青）色",
+            "verified": "名称已核实（官方名“如果<条件>否则”，没有“那么”）；颜色仅见官方图鉴截图"
+          }
+        },
+        "blockMeta": [
+          {
+            "category": "运算",
+            "shape": "布尔（六边形）",
+            "color": "未核实",
+            "verified": "“判断—比较大小”积木已核实；“>”“<”选项已核实；颜色未核实",
+            "contains": "变量积木“年龄”（数据类，官方截图为橙色）"
+          },
+          {
+            "category": "运算",
+            "shape": "布尔（六边形）",
+            "color": "未核实",
+            "verified": "“判断—比较大小”积木已核实；“>”“<”选项已核实；颜色未核实",
+            "contains": "变量积木“年龄”（数据类，官方截图为橙色）"
+          },
+          {
+            "category": "运算",
+            "shape": "布尔（六边形）",
+            "color": "未核实",
+            "verified": "“判断—比较大小”积木已核实；“>”“<”选项已核实；颜色未核实",
+            "contains": "变量积木“年龄”（数据类，官方截图为橙色）"
+          },
+          {
+            "category": "外观",
+            "shape": "堆叠积木",
+            "colorInDocScreenshot": "粉紫色",
+            "verified": "“对话/思考（Hi）”积木已核实；颜色仅见官方图鉴截图"
+          },
+          {
+            "category": "外观",
+            "shape": "堆叠积木",
+            "colorInDocScreenshot": "粉紫色",
+            "verified": "“对话/思考（Hi）”积木已核实；颜色仅见官方图鉴截图"
+          },
+          {
+            "category": "外观",
+            "shape": "堆叠积木",
+            "colorInDocScreenshot": "粉紫色",
+            "verified": "“对话/思考（Hi）”积木已核实；颜色仅见官方图鉴截图"
+          }
+        ]
+      },
+      "grading": {
+        "mode": "semantic",
+        "scoring": "整题对错",
+        "test": "年龄0—30（整数）逐一代入",
+        "accepts": [
+          "(年龄>17,成年人,未成年人)",
+          "(年龄<18,未成年人,成年人)"
+        ],
+        "equivalentCards": [
+          1
+        ]
+      },
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K4",
+        "K3"
+      ],
+      "keyDifficultyIds": [
+        "ZD2",
+        "ND2",
+        "ND1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "年龄 > 18": [
+          "M3"
+        ],
+        "对话 未满18岁": [],
+        "条件与动作不配": [
+          "M4"
+        ]
+      },
+      "misconceptionIds": [
+        "M3",
+        "M4"
+      ],
+      "station": "new",
+      "newContext": true,
+      "literacy": [
+        "计算思维-算法设计（按给定规则补全）"
+      ],
+      "antiMemoryNote": "编程猫的比较积木没有核实到“≥”，条件要用“>17”或“<18”表达“满18”，不能照题干抄；干扰积木“对话 未满18岁”照抄了题干。",
+      "textbookRef": "教参p39拓展举例（年龄≥18）；蓝栏B16",
+      "blueRefs": [
+        "B16"
+      ],
+      "review": "放好条件后问：成立时是几岁的人？",
+      "difficulty": "难：积木平台＋条件改写",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "流程图：输入年龄→“年龄≥18吗？”→是：显示成年人；否：显示未成年人。意思相同的描述是：",
+          "options": [
+            "如果年龄＜18，显示成年人；否则显示未成年人",
+            "如果年龄≥18，显示成年人；否则显示未成年人",
+            "如果年龄≥18，显示成年人；再显示未成年人",
+            "显示成年人和未成年人，再输入年龄"
+          ],
+          "answer": 1
+        },
+        "v5": {
+          "type": "blocks_assemble",
+          "tier": "challenge",
+          "prompt": "未满18岁显示“未成年人”，其他显示“成年人”。拼积木。",
+          "options": [
+            "年龄≥18",
+            "年龄＞18",
+            "年龄＜18",
+            "说“成年人”",
+            "说“未成年人”",
+            "说“未满18岁”"
+          ],
+          "answer": {
+            "s1": 0,
+            "s2": 3,
+            "s3": 4
+          },
+          "interaction": {
+            "frame": "如果〈{s1}〉那么 {s2} 否则 {s3}",
+            "note": "积木名称“如果…那么…否则”按老师示例；本课教材无图形化平台内容"
+          }
+        }
+      },
+      "teacherNote": "积木按编程猫Kitten官方《源码图鉴》写法；本课教材没有图形化编程内容。外观颜色以学校所用Kitten版本为准，见md第2节",
+      "platform": "编程猫Kitten"
+    }
+  ],
+  "reserveQuestions": [
+    {
+      "id": "q3",
+      "goal": "执行路径",
+      "prompt": "一次判断已经得到“否”。接下来应该怎样执行这个分支？",
+      "options": [
+        "先走“是”，再走“否”",
+        "先走“否”，再走“是”",
+        "同时走“是”和“否”",
+        "只走与“否”对应的那条路径"
+      ],
+      "answer": 3,
+      "explanation": "一次分支判断选择与结果匹配的一条路径，两条路径不会在这次判断中全部执行。",
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionByOption": [
+        [
+          "M2"
+        ],
+        [
+          "M2"
+        ],
+        [
+          "M2"
+        ],
+        []
+      ],
+      "misconceptionIds": [
+        "M2"
+      ],
+      "itemType": "状态推演",
+      "station": "S3",
+      "newContext": false,
+      "textbookRef": "教材p37—38；措辞按02_情境与关卡 S3（“可用的”天桥或地下通道）",
+      "review": "回到S3路口：同一次判断只走一条路线到对岸；切换设施状态再走另一条。"
+    },
+    {
+      "id": "q5",
+      "goal": "条件与执行",
+      "prompt": "温室条件是“温度≥30℃吗”，是→启动风机，否→关闭风机。读取29℃时会怎样？",
+      "options": [
+        "走“是”，关闭风机",
+        "走“否”，关闭风机",
+        "走“是”，启动风机",
+        "走“否”，启动风机"
+      ],
+      "answer": 1,
+      "explanation": "29≥30不成立，沿“否”路径关闭风机。判断结果是“否”不代表操作错误。",
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionByOption": [
+        [
+          "M1"
+        ],
+        [],
+        [
+          "M1"
+        ],
+        [
+          "M4"
+        ]
+      ],
+      "misconceptionIds": [
+        "M1",
+        "M4"
+      ],
+      "itemType": "状态推演",
+      "station": "S1",
+      "newContext": false,
+      "textbookRef": "教材p36—37",
+      "review": "回到S1输入29℃，先说“29≥30成立吗”，再预测风机。"
+    },
+    {
+      "id": "q8",
+      "goal": "边界调试",
+      "prompt": "原温室规则是“温度≥30℃启动风机，否则关闭”。如果只把≥改成＞，哪次测试的结果会与原规则不同？",
+      "options": [
+        "29℃",
+        "31℃",
+        "30℃",
+        "35℃"
+      ],
+      "answer": 2,
+      "explanation": "＞不包含相等。改动后30℃会进入关闭路径，而原规则要求启动；其余列出的温度结果不变。",
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K2"
+      ],
+      "keyDifficultyIds": [
+        "ZD1",
+        "ND1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionByOption": [
+        [
+          "M3"
+        ],
+        [
+          "M3"
+        ],
+        [],
+        [
+          "M3"
+        ]
+      ],
+      "misconceptionIds": [
+        "M3"
+      ],
+      "itemType": "状态推演",
+      "station": "S1",
+      "newContext": false,
+      "textbookRef": "教材p36—37",
+      "review": "回到S1，用≥30和＞30各测一次30℃对比。"
+    },
+    {
+      "id": "q10",
+      "goal": "是与否含义",
+      "prompt": "条件是“温度＜30℃吗”。流程图上的“是”究竟表示什么？",
+      "options": [
+        "表示风机一定启动",
+        "表示调试员做了正确的事情",
+        "表示这条路径一定是左边那条",
+        "表示当前温度满足小于30℃这个条件"
+      ],
+      "answer": 3,
+      "explanation": "“是”只表示当前条件成立。它不表示好坏、一定启动或固定的左右位置。",
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K3"
+      ],
+      "keyDifficultyIds": [
+        "ZD2"
+      ],
+      "evidenceId": "D6",
+      "misconceptionByOption": [
+        [
+          "M1"
+        ],
+        [
+          "M1"
+        ],
+        [
+          "M1"
+        ],
+        []
+      ],
+      "misconceptionIds": [
+        "M1"
+      ],
+      "itemType": "情境判断",
+      "station": "S1",
+      "newContext": false,
+      "textbookRef": "教材p37",
+      "review": "把“是”读成“条件成立”，用29℃读一遍“29＜30成立吗”。"
+    },
+    {
+      "id": "q12",
+      "goal": "测试证据",
+      "prompt": "某温室方案只测试29℃，风机关闭，就宣布“所有情况都正确”。你认为怎样判断更合理？",
+      "options": [
+        "可以宣布正确，因为出现过一次正确结果",
+        "证据还不足，需要再测试边界和另一侧输入",
+        "可以宣布正确，因为29是自然数",
+        "只要动画好看，就不必检查其他输入"
+      ],
+      "answer": 1,
+      "explanation": "一个正确样例不能说明所有路径都正确。还需用30、31℃等输入检查边界和另一侧路径。",
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionByOption": [
+        [
+          "M6"
+        ],
+        [],
+        [
+          "M6"
+        ],
+        [
+          "M6"
+        ]
+      ],
+      "misconceptionIds": [
+        "M6"
+      ],
+      "itemType": "情境判断",
+      "station": "S1",
+      "newContext": false,
+      "textbookRef": "蓝栏p38（B13）",
+      "review": "数一数你的测试走过“是”和“否”两条路没有，再补测30℃。"
+    },
+    {
+      "id": "q14",
+      "goal": "修订重验",
+      "prompt": "温室风机流程图曾经验证通过，后来你又修改了判断条件。接下来最合适的做法是什么？",
+      "options": [
+        "保留旧测试记录，并重新验证修改后的方案",
+        "直接沿用旧的通过状态，不再测试",
+        "把所有旧记录删除，假装没改过",
+        "只看累计积分，积分够就算新方案正确"
+      ],
+      "answer": 0,
+      "explanation": "旧记录说明旧方案的表现。修改后的方案需要重新验证；保留历史便于比较改了什么、为何改善。",
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ND1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionByOption": [
+        [],
+        [
+          "M6"
+        ],
+        [
+          "M6"
+        ],
+        [
+          "M6"
+        ]
+      ],
+      "misconceptionIds": [
+        "M6"
+      ],
+      "itemType": "情境判断",
+      "station": "S2",
+      "newContext": false,
+      "textbookRef": "蓝栏p38（B13）",
+      "review": "回到S2，看“当前待重验”，用修改后的方案重跑测试。"
+    },
+    {
+      "id": "q1",
+      "goal": "分支概念",
+      "prompt": "先判断一个条件，再决定走哪条路径。这种算法结构是：",
+      "options": [
+        "顺序结构：按固定顺序执行",
+        "循环结构：同一步骤不断重复",
+        "分支结构：按条件选择路径",
+        "随机结构：不看条件随意行动"
+      ],
+      "answer": 2,
+      "explanation": "分支结构依据条件是否成立选择对应路径。判断结果决定执行哪一条路径。",
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionByOption": [
+        [
+          "M2"
+        ],
+        [],
+        [],
+        []
+      ],
+      "misconceptionIds": [
+        "M2"
+      ],
+      "itemType": "情境判断",
+      "station": "none",
+      "newContext": false,
+      "textbookRef": "教材p37“分支结构是一种选择结构”；蓝栏p38（B12）",
+      "review": "回看S1温室流程图：先找菱形里的条件，再说“成立走哪条、不成立走哪条”，体会它和“一步接一步”的顺序结构有什么不同。",
+      "retiredIn": "2026-10-17-branch-v5"
+    },
+    {
+      "id": "q9",
+      "goal": "等价规则",
+      "prompt": "规则仍是“≥30℃启动，否则关闭”，但条件改用“温度＜30℃吗”。出口应设为：",
+      "options": [
+        "是→关闭，否→启动",
+        "是→启动，否→关闭",
+        "是→启动，否→启动",
+        "是→关闭，否→关闭"
+      ],
+      "answer": 0,
+      "explanation": "改用＜30后，同一温度的判断结果与原来的≥30相反。两条出口同步交换，才能保持风机执行规则不变。",
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K2",
+        "K3"
+      ],
+      "keyDifficultyIds": [
+        "ZD2",
+        "ND1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionByOption": [
+        [],
+        [
+          "M1",
+          "M4"
+        ],
+        [
+          "M2"
+        ],
+        [
+          "M2"
+        ]
+      ],
+      "misconceptionIds": [
+        "M1",
+        "M2",
+        "M4"
+      ],
+      "itemType": "一步操作",
+      "station": "S1",
+      "newContext": false,
+      "textbookRef": "蓝栏p37（B10）",
+      "review": "回到S1，把条件改成＜30后只改出口，再测29、30、31℃（SC6）。",
+      "retiredIn": "2026-10-17-branch-v5"
+    },
+    {
+      "id": "q13",
+      "goal": "测试覆盖",
+      "prompt": "要检查“温度≥30℃启动，否则关闭”的两条路径和边界，哪组测试最好？",
+      "options": [
+        "20、25、28℃",
+        "35、40、45℃",
+        "31、32、33℃",
+        "29、30、31℃"
+      ],
+      "answer": 3,
+      "explanation": "29检查小于30的情况，30检查恰好相等的边界，31检查大于30的情况。三者一起覆盖关键差异；一侧或只测一个不够。",
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K5",
+        "K2"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionByOption": [
+        [
+          "M6"
+        ],
+        [
+          "M6"
+        ],
+        [
+          "M6",
+          "M3"
+        ],
+        []
+      ],
+      "misconceptionIds": [
+        "M3",
+        "M6"
+      ],
+      "itemType": "情境判断",
+      "station": "S1",
+      "newContext": false,
+      "textbookRef": "蓝栏p38“为之后学习算法验证与实现奠定基础”（B13）",
+      "review": "回到S1，给每个测试温度标上走“是”还是“否”，看哪组两条路和“正好相等”都有（SC5）。",
+      "retiredIn": "2026-10-17-branch-v5"
+    },
+    {
+      "id": "q15",
+      "goal": "道路分支",
+      "prompt": "条件“附近有可用的过街天桥或地下通道吗？”。观察到天桥开放可用，应走：",
+      "options": [
+        "走“否”，直接穿过车道",
+        "走“是”，走天桥或地下通道过马路",
+        "同时走两条路径",
+        "走“否”，认为到不了对面"
+      ],
+      "answer": 1,
+      "explanation": "天桥开放可用，条件成立，走“是”路径，走天桥或地下通道过马路。条件不一定是数字比较。",
+      "goalIds": [
+        "G2"
+      ],
+      "keyIds": [
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionByOption": [
+        [
+          "M7"
+        ],
+        [],
+        [
+          "M2"
+        ],
+        [
+          "M7"
+        ]
+      ],
+      "misconceptionIds": [
+        "M2",
+        "M7"
+      ],
+      "itemType": "状态推演",
+      "station": "S3",
+      "newContext": false,
+      "textbookRef": "教材p38学习活动2；措辞按02_情境与关卡 S3（“可用的”天桥或地下通道）",
+      "review": "回到S3，设为“有设施”：先说条件成立吗，再走对应路线到对岸。",
+      "retiredIn": "2026-10-17-branch-v5"
+    },
+    {
+      "id": "q2",
+      "goal": "连线",
+      "prompt": "图形和用途连线。",
+      "options": [
+        "判断条件",
+        "开始或结束",
+        "处理步骤",
+        "输入或输出"
+      ],
+      "answer": [
+        1,
+        3,
+        0,
+        2
+      ],
+      "explanation": "圆角框是开始或结束，平行四边形是输入或输出，菱形放判断条件，矩形放处理步骤。",
+      "tier": null,
+      "type": "matching",
+      "interaction": {
+        "left": [
+          "圆角矩形",
+          "平行四边形",
+          "菱形",
+          "矩形"
+        ],
+        "leftAreImages": true
+      },
+      "grading": {
+        "mode": "exact",
+        "scoring": "4对全对才算对；部分正确只在详情中显示"
+      },
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K3"
+      ],
+      "keyDifficultyIds": [
+        "ZD2"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "菱形→处理步骤或矩形→判断条件": [
+          "M8"
+        ]
+      },
+      "misconceptionIds": [
+        "M8"
+      ],
+      "station": "none",
+      "newContext": false,
+      "literacy": [
+        "计算思维-抽象"
+      ],
+      "antiMemoryNote": "考的是符号知识，记住符号含义就能答对；本题只作K3基础知识证据，不作理解或迁移证据。",
+      "textbookRef": "教材p37",
+      "blueRefs": [],
+      "review": "对照教材p37流程图，说出每种框装什么。",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "流程图里，哪个图框用来放“温度≥30℃吗”这样的判断条件？",
+          "options": [
+            "菱形框",
+            "表示开始或结束的圆角矩形框",
+            "表示输入或输出的平行四边形框",
+            "表示一般处理步骤的矩形框"
+          ],
+          "answer": 0
+        }
+      },
+      "retiredIn": "2026-10-17-branch-v5.1"
+    },
+    {
+      "id": "q16",
+      "goal": "单选",
+      "prompt": "天桥封闭，也无地下通道。导行屏指？",
+      "options": [
+        "走天桥",
+        "原地一直等",
+        "先走天桥再说",
+        "按信号过路口"
+      ],
+      "answer": 3,
+      "explanation": "没有可用设施，条件不成立，走“否”：从红绿灯路口按信号过马路。",
+      "tier": null,
+      "type": "single_choice",
+      "interaction": {},
+      "grading": {
+        "mode": "exact",
+        "scoring": "整题对错"
+      },
+      "goalIds": [
+        "G1"
+      ],
+      "keyIds": [
+        "K5"
+      ],
+      "keyDifficultyIds": [
+        "ZD1"
+      ],
+      "evidenceId": "D6",
+      "misconceptionMap": {
+        "走天桥": [
+          "M1"
+        ],
+        "原地一直等": [
+          "M5"
+        ],
+        "先走天桥再说": [
+          "M2"
+        ]
+      },
+      "misconceptionIds": [
+        "M1",
+        "M2",
+        "M5"
+      ],
+      "station": "S3",
+      "newContext": false,
+      "literacy": [
+        "计算思维-算法设计"
+      ],
+      "antiMemoryNote": "S3练过的情境，只计G1，不计G2迁移；选项长短相近，不能靠长短猜。",
+      "textbookRef": "教材p38学习活动2",
+      "blueRefs": [],
+      "review": "回到S3：天桥封闭时条件成立吗？“否则”那条路是什么？",
+      "revision": {
+        "v4.1": {
+          "type": "single_choice",
+          "prompt": "条件“附近有可用的过街天桥或地下通道吗？”。天桥维修封闭，附近也没有地下通道，应怎样做？",
+          "options": [
+            "走“是”，仍从封闭的天桥过",
+            "直接横穿车道",
+            "走“否”，从红绿灯路口按信号过马路",
+            "没有可用设施，就不用遵守规则"
+          ],
+          "answer": 2
+        }
+      },
+      "retiredIn": "2026-10-17-branch-v5.1"
+    }
+  ],
+  "interactionRule": "单选：点一个选项。其余题型统一为“先点卡片，再点空格（也可拖）”；当前空格高亮，填好自动高亮下一个空；全部空格填好后点“确认本题”才前进，不自动跳题；未填满时“确认本题”不可点",
+  "thresholdNote": "达标总分、奖励线和挑战加分线只读 tiers.base.passLine、tiers.base.rewardLine、tiers.challenge.passLine。目标最低线名单只读 tiers.base.objectiveMinimums。"
+}

@@ -28,6 +28,7 @@ function finish(value: string | null) {
 }
 
 function levelChanged() {
+  submitted.value = false;
   finish(null);
 }
 
@@ -56,12 +57,14 @@ onMounted(async () => {
   window.dispatchEvent(new CustomEvent('lesson-dialog-state', { detail: { open: true } }));
   window.addEventListener('keydown', keyboard, true);
   window.addEventListener('lesson-level-changed', levelChanged);
+  window.addEventListener('lesson-map-changed', levelChanged);
   await nextTick();
   panel.value?.focus();
 });
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', keyboard, true);
   window.removeEventListener('lesson-level-changed', levelChanged);
+  window.removeEventListener('lesson-map-changed', levelChanged);
   window.dispatchEvent(new CustomEvent('lesson-dialog-state', { detail: { open: false } }));
 });
 </script>
