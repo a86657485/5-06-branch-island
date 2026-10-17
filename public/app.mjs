@@ -1,5 +1,6 @@
 import { SyncQueue, reconcileState } from './sync.mjs';
 import { createParkScene } from './scene.mjs';
+import { createRpgScene } from './rpg-scene.mjs';
 const R = window.BranchRules;
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -8,8 +9,9 @@ const eventId = () => globalThis.crypto?.randomUUID?.() || Array.from(crypto.get
 const ids = ['sale','repair','cross','minimum'];
 const titles = ['温室通风','设备维修','安全通行','节能配电'];
 const demo = new URLSearchParams(location.search).has('demo');
+const legacy = new URLSearchParams(location.search).get('engine') === 'legacy';
 const emptyState = () => ({drafts:{},levels:{},runs:{},predictions:{},attempts:[],points:0});
-let activeScene = null, quizVersion = '', user = null, round = 1, state = emptyState(), current = 'sale', roster = null, questions = [], answerKey = [], quizIndex = 0, quizReview = false, notice = '', lastRun = null, loginClass = '501', loginSearch = '', manual = '', selectedStudent = '';
+let activeScene = null, sceneGeneration = 0, quizVersion = '', user = null, round = 1, state = emptyState(), current = 'sale', roster = null, questions = [], answerKey = [], quizIndex = 0, quizReview = false, notice = '', lastRun = null, loginClass = '501', loginSearch = '', manual = '', selectedStudent = '';
 const defaults = {
  sale:{config:{model:'ventilation',operator:'>=',yes:'',no:''},input:{temperature:30},prediction:'',reason:'',hint:0},
  repair:{config:{model:'ventilation',operator:'>=',yes:'off',no:'on'},input:{temperature:30},prediction:'',reason:'',hint:0},
@@ -34,7 +36,7 @@ const queue = new SyncQueue(localStorage,e => api('/api/events',e),(event,data)=
  if(user && event.studentId===user.id && event.round===round && !queue.pending(user.id)) {
   state=reconcileState(state,data.state,event.type!=='quiz');
   saveLocal();
-  if(event.type==='complete' && !data.result.passed) {notice=data.result.feedback;render();}
+  if(event.type==='complete' && !data.result.passed) {notice=data.result.feedback;if(activeScene?.engine==='rpgjs'){setNotice(notice);activeScene.refresh();}else render();}
   if(event.type==='quiz') {quizReview=true; notice='检测已提交。看看错题，再回到对应任务试一试。';render();}
   updateHeader();
  }
@@ -42,7 +44,15 @@ const queue = new SyncQueue(localStorage,e => api('/api/events',e),(event,data)=
  if(user&&event.studentId===user.id){state.drafts.quiz={answers:Array(20).fill(null),index:0,quizVersion};questions=[];quizReview=false;notice='旧版待提交答卷已完整保留在本机未评分存档，请按新版重新作答。';saveLocal();if(current==='quiz')renderQuiz();updateHeader();}
 });
 function syncStatus(){if(demo)return '独立演示 · 不计入班级';const n=queue.pending(user?.id);return n?`${n}条待同步 · ${queue.error?'连接未完成，记录已保留':'正在保存'}`:'已同步保存';}
-function updateHeader(){if($('#save-status'))$('#save-status').textContent=syncStatus();if($('#points'))$('#points').textContent=`${state.points || 0} 积分`;}
+function updateHeader(){if($('#save-status'))$('#save-status').textContent=syncStatus();if($('#points'))$('#points').textContent=`${state.points || 0} 积分`;updateRoutes();}
+function canEnter(id){return demo || (id==='quiz'?ids.every(key=>state.levels[key]?.completed):ids.includes(id)&&(ids.indexOf(id)===0||state.levels[ids[ids.indexOf(id)-1]]?.completed));}
+function updateRoutes(){document.querySelectorAll('[data-route]').forEach(button=>{const id=button.dataset.route;button.disabled=!canEnter(id);button.classList.toggle('selected',current===id);if(id!=='quiz'){const level=state.levels[id],stop=button.querySelector('.stop'),small=button.querySelector('small');if(stop)stop.textContent=level?.completed?'✓':ids.indexOf(id)+1;if(small)small.textContent=level?.completed?(level.valid?'已完成 · 当前已验证':'曾完成 · 当前待重验'):(canEnter(id)?'可开始探索':'完成上一站解锁');}});}
+function goToTask(id){
+ if(!canEnter(id))throw new Error('请先完成前面的主线任务。');
+ current=id;lastRun=null;notice='';quizReview=false;
+ if(activeScene?.engine==='rpgjs'&&id!=='quiz'){prepareSceneDraft(id);saveLocal();activeScene.navigate(id);updateRoutes();return {levelId:id};}
+ saveLocal();render();return {levelId:id};
+}
 function send(type,levelId,payload){
  if(!user)return;
  saveLocal();
@@ -51,7 +61,7 @@ function send(type,levelId,payload){
  updateHeader();queue.flush().then(updateHeader);
 }
 function draft(id=current){if(!state.drafts[id])state.drafts[id]=clone(defaults[id]);return state.drafts[id];}
-function destroyScene(){const scene=activeScene;activeScene=null;scene?.destroy();}
+function destroyScene(){const scene=activeScene;activeScene=null;scene?.destroy();sceneGeneration++;}
 function prepareSceneDraft(id){
  const d=draft(id),oldModel=['sale','repair'].includes(id)&&d.config?.model!=='ventilation';
  if(oldModel){localStorage.setItem(`branch-island-task-archive:${user.id}:${round}:${id}:${Date.now()}`,JSON.stringify(d));state.drafts[id]=clone(defaults[id]);}
@@ -83,42 +93,56 @@ function render(){
  if(!user)return login();
  const idx=ids.indexOf(current);const unlocked=id=>demo || ids.indexOf(id)===0 || state.levels[ids[ids.indexOf(id)-1]]?.completed;
  $('#app').innerHTML=`${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar"><a class="brand" href="#">分支冒险岛<span>判断选择用分支</span></a><div class="identity"><span>${demo?'演示调试员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${state.points||0} 积分</strong><button id="switch-user" class="quiet">切换身份</button></div></header><div class="app-shell"><aside class="map"><p class="eyebrow">园区巡检路线</p><h2>让判断驱动行动</h2><nav aria-label="任务路线">${ids.map((id,i)=>`<button data-route="${id}" class="route-item ${current===id?'selected':''}" ${unlocked(id)?'':'disabled'}><span class="stop">${state.levels[id]?.completed?'✓':i+1}</span><span><b>${titles[i]}</b><small>${state.levels[id]?.completed?(state.levels[id].valid?'已完成 · 当前已验证':'曾完成 · 当前待重验'):(unlocked(id)?'可开始探索':'完成上一站解锁')}</small></span></button>`).join('')}<button data-route="quiz" class="route-item ${current==='quiz'?'selected':''}" ${demo||ids.every(id=>state.levels[id]?.completed)?'':'disabled'}><span class="stop">20</span><span><b>独立检测</b><small>${state.attempts.length?`已检测${state.attempts.length}次`:'完成四站后开始'}</small></span></button></nav><div class="map-note">每站25积分，合理试错不扣分。<br>检测成绩与通关积分分开记录。</div><div id="save-status" class="save-status" role="status">${syncStatus()}</div></aside><main id="workbench" class="workbench"></main></div>`;
- $('[data-route]') && document.querySelectorAll('[data-route]').forEach(btn=>btn.onclick=()=>{current=btn.dataset.route;lastRun=null;notice='';quizReview=false;saveLocal();render();});
- $('.brand').onclick=e=>{e.preventDefault();current='sale';render();};
+ $('[data-route]') && document.querySelectorAll('[data-route]').forEach(btn=>btn.onclick=()=>goToTask(btn.dataset.route));
+ $('.brand').onclick=e=>{e.preventDefault();goToTask('sale');};
  $('#switch-user').onclick=()=>{destroyScene();saveLocal();localStorage.removeItem('branch-island-identity');user=null;selectedStudent='';manual='';notice='';lastRun=null;if(demo){location.href='/teacher.html';return;}login();};
  if(current==='quiz')renderQuiz();else renderTask(idx);
 }
 function renderTask(idx){
  destroyScene();
- const id=ids[idx],ownerId=user.id,ownerRound=round;
- prepareSceneDraft(id);
- const sameOwner=()=>user?.id===ownerId&&round===ownerRound;
+ const initialId=ids[idx],ownerId=user.id,ownerRound=round,generation=sceneGeneration;
+ prepareSceneDraft(initialId);
  $('#workbench').classList.add('game-workbench');
- const save=()=>{if(sameOwner())send('draft',id,draft(id));};
- activeScene=createParkScene({
-  root:$('#workbench'),levelId:id,getDraft:()=>draft(id),getRuns:()=>state.runs[id]||[],getLevel:()=>state.levels[id],getEvidenceStart:()=>state.levels[id]?.evidenceStart||0,reasons:reasonOptions[id],
+ const makeHost=id=>{
+  if(!ids.includes(id))throw new Error('找不到这个任务场景。');
+  const idx=ids.indexOf(id),sameOwner=()=>user?.id===ownerId&&round===ownerRound&&sceneGeneration===generation&&(legacy||current===id);
+  const save=()=>{if(sameOwner())send('draft',id,draft(id));};
+  return {
+  root:$('#workbench'),levelId:id,demo,forLevel:makeHost,getDraft:()=>draft(id),getRuns:()=>state.runs[id]||[],getLevel:()=>state.levels[id],getEvidenceStart:()=>state.levels[id]?.evidenceStart||0,reasons:reasonOptions[id],
   onChange(patch){
    if(!sameOwner())return;
+   if('rpg' in patch){patch={...patch,rpg:window.AdventureRules.validateRpgDraft(patch.rpg)};const maps={sale:['greenhouse'],repair:['workshop'],cross:['crossing','crossing-east'],minimum:['energy']};if(!maps[id].includes(patch.rpg.mapId))throw new Error('当前位置与任务场景不一致。');}
    const d=draft(id);
    if(patch.config&&JSON.stringify(R.normalizeConfig(id,d.config,true))!==JSON.stringify(R.normalizeConfig(id,patch.config,true))){state.levels[id]||={completed:false,points:0};state.levels[id].evidenceStart=(state.runs[id]||[]).length;state.levels[id].valid=false;lastRun=null;}
    if(patch.input&&JSON.stringify(patch.input)!==JSON.stringify(d.input))lastRun=null;
    for(const key of ['config','input'])if(patch[key])d[key]={...d[key],...patch[key]};
-   for(const key of ['prediction','scene','reason'])if(key in patch)d[key]=clone(patch[key]);
-   save();updateHeader();
+   for(const key of ['prediction','scene','reason','rpg'])if(key in patch)d[key]=clone(patch[key]);
+   save();updateHeader();return {saved:true};
+  },
+  onEvaluate({input,config}){if(!sameOwner())throw new Error('当前任务已切换。');return R.evaluate(id,config||draft(id).config,input||draft(id).input);},
+  onPrediction({value,input,config}){
+   if(!sameOwner())return null;
+   const d=draft(id),normalized=R.normalizeConfig(id,config||d.config),reading=clone(input||d.input);
+   R.evaluate(id,normalized,reading);
+   const choices=id==='cross'?['bridge','crossing']:id==='minimum'?['a','b']:['on','off'];
+   if(!choices.includes(value))throw new Error('请选择当前任务的输出预测。');
+   d.prediction=value;const at=new Date().toISOString();state.predictions[id]||=[];state.predictions[id].push({value,input:reading,config:normalized,at});
+   save();send('prediction',id,{value,input:reading,config:normalized});return {saved:true};
   },
   onExperiment({input,prediction,sceneEvidence}){
    if(!sameOwner())return null;
    try{
     const d=draft(id),config=clone(d.config),result=R.evaluate(id,config,input),at=new Date().toISOString();
+    window.AdventureRules.validateEvidence(id,sceneEvidence,input,result);
     lastRun={...result,input:clone(input),config,scene:clone(sceneEvidence),prediction,at};
     state.runs[id]||=[];state.runs[id].push(clone(lastRun));
-    state.predictions[id]||=[];state.predictions[id].push({value:prediction,input:clone(input),config:clone(config),at});
-    send('prediction',id,{value:prediction,input,config});send('run',id,{config,input,prediction,sceneEvidence});
+    if(legacy){state.predictions[id]||=[];state.predictions[id].push({value:prediction,input:clone(input),config:clone(config),at});send('prediction',id,{value:prediction,input,config});}
+    send('run',id,{config,input,prediction,sceneEvidence});
     notice='';activeScene?.refresh();return result;
    }catch(error){setNotice(error.message);return null;}
   },
   onReason(value){if(!sameOwner())return;draft(id).reason=value;save();},
-  onComplete(){
+  onComplete({deferRender=false}={}){
    if(!sameOwner())return {passed:false,feedback:'身份已切换，请在当前身份下继续。'};
    try{
     const d=draft(id),result=R.validateComplete(id,d.config,state.runs[id]||[],d.reason,state.levels[id]?.evidenceStart||0);
@@ -127,14 +151,17 @@ function renderTask(idx){
     state.levels[id]={...state.levels[id],completed:true,valid:true,points:25,reason:d.reason};state.points=ids.reduce((n,key)=>n+(state.levels[key]?.completed?25:0),0);
     send('complete',id,{config:d.config,reason:d.reason});
     notice=earned?'现场验收通过，获得25积分！向NPC领取下一项委托。':'当前方案已重新验证，历史积分保留。';
-    render();return {...result,feedback:notice};
+    if(deferRender){updateHeader();activeScene?.refresh();}else render();return {...result,feedback:notice};
    }catch(error){return {passed:false,feedback:error.message};}
   },
-  onNext(){if(!sameOwner())return;current=ids[idx+1]||'quiz';lastRun=null;notice='';quizReview=false;saveLocal();render();},
+  onNext(){if(!sameOwner())return;const next=ids[idx+1]||'quiz';if(!legacy&&next==='quiz'){setTimeout(()=>{if(sameOwner())goToTask('quiz');},0);return {levelId:'quiz'};}return goToTask(next);},
   onFlow(){showHelp(`<h2>${titles[idx]} · 当前执行过程</h2><div class="scene-flow-preview">${flow()}</div><p>根据条件是否成立，一次只执行“是”或“否”对应的一条路径。</p>`);},
-  onHelp(){showHelp(`<h2>智慧园区 · 怎么操作</h2><ol><li>点击NPC或设备的名称，角色会沿步道走近，抵达后交谈或操作。</li><li>也可用方向键或WASD移动，走近后按E互动。</li><li>先领取委托、读取现场输入，在设备旁设置规则并预测。</li><li>亲自执行、到核验点观察结果，再向NPC汇报。不同情况都要验证。</li></ol><p>对话右上角的×可随时关闭，进度会保留。帮助不扣积分。</p><p class="muted">场景参考深圳智慧园林；地图、人物和30℃规则均为教学仿真。</p>`);}
- });
- save();
+  onHelp(){showHelp(`<h2>智慧园区 · 怎么操作</h2><ol><li>${legacy?'点击NPC或设备的名称，角色会沿步道走近，抵达后交谈或操作。':'使用方向键、WASD或屏幕方向按钮行走，走近并面向NPC或设备。'}</li><li>按E、空格或屏幕交互按钮，与面前的对象交谈。</li><li>先领取委托、读取现场输入，在设备旁设置规则并预测。</li><li>亲自执行、到核验点观察结果，再向NPC汇报。不同情况都要验证。</li></ol><p>对话右上角的×可随时关闭，进度会保留。帮助不扣积分。</p><p class="muted">场景参考深圳智慧园林；地图、人物和30℃规则均为教学仿真。</p>`);}
+  };
+ };
+ const host=makeHost(initialId);
+ activeScene=(legacy?createParkScene:createRpgScene)(host);
+ send('draft',initialId,draft(initialId));
 }
 function showHelp(html){$('#help-content').innerHTML=html;$('#help').showModal();}
 $('#close-help').onclick=()=>$('#help').close();$('#help').addEventListener('click',e=>{if(e.target===$('#help'))$('#help').close();});

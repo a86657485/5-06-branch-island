@@ -113,6 +113,7 @@ function createService(options = {}) {
         if (fields.some(field => field in payload.input && (id === 'cross' ? typeof payload.input[field] !== 'boolean' : !Number.isFinite(payload.input[field])))) fail(400, '草稿输入请使用页面中的数字或现场情况选择');
       }
       if ('scene' in payload) payload.scene = checkedRule(() => adventure.validateSceneDraft(payload.scene));
+      if ('rpg' in payload) payload.rpg = checkedRule(() => adventure.validateRpgDraft(payload.rpg,id));
       if (id === 'quiz') {
         if (!Array.isArray(payload.answers) || payload.answers.length !== 20 || payload.answers.some(answer => answer !== null && (!Number.isInteger(answer) || answer < 0 || answer > 3)) || !Number.isInteger(payload.index) || payload.index < 0 || payload.index > 19) fail(400, '考核草稿格式不正确');
       } else if ('config' in payload) checkedRule(() => rules.normalizeConfig(id,payload.config,true));
@@ -196,7 +197,7 @@ function createService(options = {}) {
     const summary = { total: students.length, entered, notEntered: students.length-entered, completed: students.filter(student => rules.levels.every(level => student.state.levels[level.id].completed)).length, points: students.reduce((sum,student) => sum+student.state.points,0), quizFirstAverage: mean(attempts => attempts[0]), quizLatestAverage: mean(attempts => attempts.at(-1)), quizAttempts: students.reduce((sum,student) => sum+student.state.attempts.length,0), levels: Object.fromEntries(rules.levels.map(level => [level.id,{ completed: students.filter(student => student.state.levels[level.id].completed).length, valid: students.filter(student => student.state.levels[level.id].valid).length }])), misconceptions };
     return { round: ROUND, quizVersion, updatedAt: now(), classes: classes(), students, summary };
   }
-  const mime = { '.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.mjs':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2','.mp3':'audio/mpeg','.wav':'audio/wav' };
+  const mime = { '.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.mjs':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp','.ico':'image/x-icon','.woff2':'font/woff2','.woff':'font/woff','.json':'application/json; charset=utf-8','.tmx':'application/xml; charset=utf-8','.tsx':'application/xml; charset=utf-8','.mp3':'audio/mpeg','.wav':'audio/wav' };
   function json(res,status,data) { res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data)); }
   async function readBody(req) {
     const chunks=[];let length=0;
@@ -238,11 +239,12 @@ function createService(options = {}) {
       if (req.method === 'POST' && route === '/api/events') return json(res,200,handleEvent(await readBody(req)));
       if (route.startsWith('/api/')) fail(404,'接口不存在');
       if (!['GET','HEAD'].includes(req.method)) fail(405,'请求方法不支持');
-      const name = route === '/' ? 'index.html' : route.slice(1);
+      const name = route === '/' ? 'index.html' : ['/rpgjs','/rpgjs/'].includes(route) ? 'rpgjs/index.html' : route.slice(1);
       if (!name || name.split('/').some(part=>part.startsWith('.') || !part) || !mime[path.extname(name)]) fail(404,'文件不存在');
       const publicDir=path.join(BASE,'public');const file=path.join(publicDir,name);
       if (!fs.existsSync(file) || !fs.statSync(file).isFile() || !fs.realpathSync(file).startsWith(fs.realpathSync(publicDir)+path.sep)) fail(404,'文件不存在');
-      res.writeHead(200,{'Content-Type':mime[path.extname(name)],'Cache-Control':name.startsWith('assets/')?'public, max-age=86400':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"});
+      const engineResource = name.startsWith('rpgjs/');
+      res.writeHead(200,{'Content-Type':mime[path.extname(name)],'Cache-Control':name.startsWith('assets/')?'public, max-age=86400':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Content-Security-Policy':`default-src 'self'; script-src 'self'${engineResource?" 'wasm-unsafe-eval'":''}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'${engineResource?' data:':''}; object-src 'none'; base-uri 'self'; frame-ancestors '${engineResource?'self':'none'}'${engineResource?"; worker-src 'self' blob:":''}`});
       if (req.method==='HEAD') return res.end();
       fs.createReadStream(file).pipe(res);
     } catch(error) { if (!res.headersSent) json(res,error.status || (error instanceof URIError ? 400 : 500),{error:error.status || error instanceof URIError ? error.message : '课堂服务暂时无法处理请求，请重试',...(error.code?{code:error.code}:{})});if(!error.status && !(error instanceof URIError)) console.error(error); }

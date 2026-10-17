@@ -1,0 +1,206 @@
+{
+  "greenhouse": {
+    "width": 1536,
+    "height": 1024,
+    "tileSize": 32,
+    "positions": {
+      "start": [
+        560,
+        505
+      ],
+      "guide": [
+        460,
+        445
+      ],
+      "sensor": [
+        375,
+        425
+      ],
+      "control": [
+        330,
+        490
+      ],
+      "fan": [
+        270,
+        470
+      ],
+      "verify": [
+        465,
+        500
+      ],
+      "portal": [
+        605,
+        535
+      ]
+    },
+    "blockedTiles": 1100
+  },
+  "workshop": {
+    "width": 1536,
+    "height": 1024,
+    "tileSize": 32,
+    "positions": {
+      "start": [
+        945,
+        280
+      ],
+      "guide": [
+        1035,
+        245
+      ],
+      "sensor": [
+        970,
+        225
+      ],
+      "control": [
+        1120,
+        225
+      ],
+      "fan": [
+        1245,
+        225
+      ],
+      "verify": [
+        1180,
+        235
+      ],
+      "portal": [
+        955,
+        330
+      ]
+    },
+    "blockedTiles": 1104
+  },
+  "energy": {
+    "width": 1536,
+    "height": 1024,
+    "tileSize": 32,
+    "positions": {
+      "start": [
+        575,
+        275
+      ],
+      "guide": [
+        540,
+        270
+      ],
+      "batteryA": [
+        300,
+        155
+      ],
+      "batteryB": [
+        440,
+        180
+      ],
+      "control": [
+        365,
+        190
+      ],
+      "monitor": [
+        435,
+        245
+      ],
+      "portal": [
+        610,
+        300
+      ]
+    },
+    "blockedTiles": 1101
+  },
+  "crossing": {
+    "width": 1536,
+    "height": 1024,
+    "tileSize": 32,
+    "positions": {
+      "start": [
+        350,
+        810
+      ],
+      "guide": [
+        350,
+        600
+      ],
+      "observe": [
+        430,
+        515
+      ],
+      "control": [
+        410,
+        595
+      ],
+      "bridgeWest": [
+        470,
+        326
+      ],
+      "bridgeEast": [
+        1080,
+        326
+      ],
+      "crossingWest": [
+        470,
+        681
+      ],
+      "crossingEast": [
+        1080,
+        681
+      ],
+      "verify": [
+        1135,
+        535
+      ],
+      "portal": [
+        1190,
+        590
+      ]
+    },
+    "blockedTiles": 976
+  },
+  "crossing-east": {
+    "width": 1536,
+    "height": 1024,
+    "tileSize": 32,
+    "positions": {
+      "start": [
+        350,
+        810
+      ],
+      "guide": [
+        350,
+        600
+      ],
+      "observe": [
+        430,
+        515
+      ],
+      "control": [
+        410,
+        595
+      ],
+      "bridgeWest": [
+        470,
+        326
+      ],
+      "bridgeEast": [
+        1080,
+        326
+      ],
+      "crossingWest": [
+        470,
+        681
+      ],
+      "crossingEast": [
+        1080,
+        681
+      ],
+      "verify": [
+        1135,
+        535
+      ],
+      "portal": [
+        1190,
+        590
+      ]
+    },
+    "blockedTiles": 912
+  }
+}

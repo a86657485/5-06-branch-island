@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>智慧园区 · 判断选择用分支</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <style>
+      * { box-sizing: border-box; }
+      html, body, #rpg { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+      body { background: #173b31; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+      #rpg { position: relative; }
+      #rpg canvas { display: block; }
+      #vue-gui-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 100; }
+      button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+      button:focus-visible { outline: 3px solid #ffc968; outline-offset: 3px; }
+      [hidden] { display: none !important; }
+      #engine-controls { position: absolute; inset: 0; pointer-events: none; z-index: 50; }
+      #engine-controls button { pointer-events: auto; min-height: 46px; border: 2px solid #dce8ce; border-radius: 12px; background: #fff9ecf2; color: #193d32; box-shadow: 0 3px 0 #173b3160; font-weight: 750; touch-action: none; user-select: none; -webkit-user-select: none; }
+      .engine-tools { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); display: flex; gap: 8px; }
+      .engine-tools button { padding: 8px 14px; font-size: 13px; }
+      .engine-pad { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); left: max(16px, env(safe-area-inset-left)); display: grid; grid-template-columns: repeat(3, 50px); grid-template-rows: repeat(3, 46px); gap: 5px; }
+      .engine-pad button { padding: 0; font-size: 24px; }
+      .engine-pad button[aria-pressed=true] { background: #d0e7c7; transform: translateY(2px); box-shadow: none; }
+      .engine-pad [data-direction=up] { grid-column: 2; grid-row: 1; }
+      .engine-pad [data-direction=left] { grid-column: 1; grid-row: 2; }
+      .engine-pad [data-direction=right] { grid-column: 3; grid-row: 2; }
+      .engine-pad [data-direction=down] { grid-column: 2; grid-row: 3; }
+      #engine-controls #engine-action { position: absolute; bottom: max(24px, env(safe-area-inset-bottom)); right: max(20px, env(safe-area-inset-right)); width: 86px; height: 70px; background: #1c624d; color: white; font-size: 19px; }
+      #engine-action small { display: block; font-size: 10px; margin-top: 4px; font-weight: 500; }
+      .engine-pad-caption { position: absolute; bottom: 0; left: 175px; color: white; text-shadow: 0 1px 3px #0e302d; font-size: 11px; white-space: nowrap; }
+      #engine-task-hint { position:absolute;left:14px;top:10px;max-width:min(580px,calc(100% - 215px));padding:10px 14px;margin:0;border:2px solid #93ad7e;border-radius:12px;background:#fffaf0ef;color:#1b4434;z-index:80;font-size:16px;line-height:1.5;pointer-events:none;}
+      @media(max-width:600px){#engine-task-hint{max-width:calc(100% - 20px);top:62px;left:10px;font-size:14px;padding:7px 10px;}}
+      #engine-status { position: absolute; inset: 22% 8% auto; padding: 22px; background: #fff9e9; color: #19392d; border: 3px solid #d6bd79; box-shadow: 0 15px 45px #092b2a66; border-radius: 18px; text-align: center; z-index: 1200; }
+      #engine-status p { margin: 0 0 15px; line-height: 1.7; }
+      #engine-status button { min-height: 44px; padding: 8px 20px; border: 0; border-radius: 9px; color: white; background: #1c624d; }
+      @media (max-width: 600px) { .engine-pad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 44px); gap: 3px; left: 10px; bottom: 10px; } .engine-pad-caption { display: none; } .engine-tools { top: 8px; right: 8px; gap: 5px; } .engine-tools button { font-size: 12px; padding: 6px 10px; } #engine-controls #engine-action { right: 12px; bottom: 20px; width: 72px; height: 62px; font-size: 17px; } }
+    </style>
+  </head>
+  <body>
+    <div id="rpg"><div id="vue-gui-overlay"></div></div>
+    <p id="engine-task-hint" role="status" hidden></p>
+    <div id="engine-controls" aria-label="园区操作" hidden>
+      <nav class="engine-tools" aria-label="探究帮助">
+        <button id="engine-flow" type="button">查看流程</button>
+        <button id="engine-help" type="button">操作帮助</button>
+      </nav>
+      <div class="engine-pad" aria-label="按住方向按钮行走">
+        <button type="button" data-direction="up" aria-label="向上行走" aria-pressed="false">↑</button>
+        <button type="button" data-direction="left" aria-label="向左行走" aria-pressed="false">←</button>
+        <button type="button" data-direction="right" aria-label="向右行走" aria-pressed="false">→</button>
+        <button type="button" data-direction="down" aria-label="向下行走" aria-pressed="false">↓</button>
+        <span class="engine-pad-caption">按住行走 · 面向人物或设备后交互</span>
+      </div>
+      <button id="engine-action" type="button">交互<small>E / 空格</small></button>
+    </div>
+    <aside id="engine-status" role="alert" hidden>
+      <p id="engine-status-text"></p>
+      <button id="engine-reload" type="button" hidden>重新加载园区</button>
+      <button id="engine-dismiss" type="button">返回现场</button>
+    </aside>
+  </body>
+</html>

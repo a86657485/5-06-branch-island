@@ -1,0 +1,34 @@
+{
+  "name": "branch-island-rpgjs-engine",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "description": "RPGJS 5 lesson world for grade 5 branching algorithms",
+  "devDependencies": {
+    "@canvasengine/compiler": "2.4.0",
+    "@vitejs/plugin-vue": "6.0.10",
+    "vite": "8.3.4"
+  },
+  "private": true,
+  "dependencies": {
+    "@canvasengine/presets": "2.4.0",
+    "@rpgjs/client": "5.0.0",
+    "@rpgjs/common": "5.0.0",
+    "@rpgjs/server": "5.0.0",
+    "@rpgjs/tiledmap": "5.0.0",
+    "@rpgjs/ui-css": "5.0.0",
+    "@rpgjs/vite": "5.0.0",
+    "@rpgjs/vue": "5.0.0",
+    "@signe/di": "3.1.0",
+    "canvasengine": "2.4.0",
+    "pixi.js": "8.22.0",
+    "vue": "3.5.44"
+  },
+  "type": "module"
+}

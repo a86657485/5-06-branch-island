@@ -62,6 +62,15 @@
     if ('lastFeedback' in scene) { check(shortText(scene.lastFeedback,500),'场景反馈摘要过长或格式不正确'); clean.lastFeedback = scene.lastFeedback; }
     return clean;
   }
+  function validateRpgDraft(rpg,id) {
+    check(object(rpg) && rpg.version === 1 && rpg.engine === 'rpgjs','场景引擎版本不正确');
+    check(['greenhouse','workshop','crossing','crossing-east','energy'].includes(rpg.mapId),'场景地图不正确');
+    const maps={sale:['greenhouse'],repair:['workshop'],cross:['crossing','crossing-east'],minimum:['energy']};
+    if(id) check(maps[id]?.includes(rpg.mapId),'当前位置与任务地图不一致');
+    check(object(rpg.position) && Number.isFinite(rpg.position.x) && rpg.position.x >= 0 && rpg.position.x <= 1600 && Number.isFinite(rpg.position.y) && rpg.position.y >= 0 && rpg.position.y <= 1100,'场景坐标超出地图范围');
+    check(['up','down','left','right'].includes(rpg.direction),'场景角色方向不正确');
+    return {version:1,engine:'rpgjs',mapId:rpg.mapId,position:{x:rpg.position.x,y:rpg.position.y},direction:rpg.direction};
+  }
   function evidenceSummary(id,run) {
     const scene = run.scene;
     if (!scene) return '规则实验（旧版）';
@@ -74,5 +83,5 @@
     const actions = scene.actions.map(action => action === 'predict' ? `预测${predictionLabel}` : labels[action] || (action === 'ticket' ? `出票${outputLabel(run.output)}` : action === 'route' ? `走向${outputLabel(run.output)}` : actionLabels[action] || action)).join('→');
     return `${actor?.label || '场景体验'}：${actions}；实际条件${run.condition ? '成立' : '不成立'}；先预测与实际输出${predictionOutput === run.output ? '相符' : '不相符'}。`;
   }
-  return { ACTORS, validateEvidence, validateSceneDraft, actionLabels, evidenceSummary };
+  return { ACTORS, validateEvidence, validateSceneDraft, validateRpgDraft, actionLabels, evidenceSummary };
 }));

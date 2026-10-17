@@ -77,3 +77,15 @@ test('错误指引走向不存在的天桥记录受阻，摘要保留安全侧�
  assert.throws(()=>a.validateEvidence('cross',{...scene,outcome:'teleport'},input,evaluated),/通行结果/);
  const arrived={...scene,actions:['observe','predict','route','verify'],outcome:'arrived',destination:'crossing'};assert.equal(a.validateEvidence('cross',arrived,input,rules.evaluate('cross',{yes:'bridge',no:'crossing'},input)).outcome,'arrived');
 });
+
+test('RPGJS 位置草稿单独校验，保留有限坐标并拒绝越界地图与方向',()=>{
+ const a=adventure();
+ assert.equal(typeof a.validateRpgDraft,'function','需要校验引擎位置草稿');
+ const rpg={version:1,engine:'rpgjs',mapId:'greenhouse',position:{x:256,y:384},direction:'up'};
+ assert.deepEqual(a.validateRpgDraft({...rpg,unknown:'不保存'}),rpg);
+ assert.equal(a.validateRpgDraft({...rpg,mapId:'crossing-east'},'cross').mapId,'crossing-east');
+ assert.throws(()=>a.validateRpgDraft({...rpg,mapId:'energy'},'sale'),/任务|地图/);
+ for(const change of [{version:2},{engine:'canvas'},{mapId:'other'},{position:{x:Infinity,y:1}},{position:{x:1601,y:1}},{position:{x:1,y:-1}},{position:{x:1,y:1101}},{direction:'north'}]){
+  assert.throws(()=>a.validateRpgDraft({...rpg,...change}),/场景|地图|坐标|方向|引擎/);
+ }
+});

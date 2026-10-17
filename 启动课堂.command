@@ -25,8 +25,10 @@ fi
 "$NODE_BIN" - "$PWD" "$NODE_BIN" "$PLIST" <<'JS'
 const fs=require('node:fs');
 const [base,node,plist]=process.argv.slice(2);
+const logDir=require('node:path').join(process.env.HOME,'Library','Logs','branch-island-5-06');
+fs.mkdirSync(logDir,{recursive:true});
 const esc=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
-fs.writeFileSync(plist,`<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>Label</key><string>cn.jun.branch-island-5-06</string><key>ProgramArguments</key><array><string>${esc(node)}</string><string>${esc(base+'/server.cjs')}</string></array><key>WorkingDirectory</key><string>${esc(base)}</string><key>RunAtLoad</key><true/><key>KeepAlive</key><true/><key>StandardOutPath</key><string>${esc(base+'/runtime/service.log')}</string><key>StandardErrorPath</key><string>${esc(base+'/runtime/service-error.log')}</string><key>EnvironmentVariables</key><dict><key>PORT</key><string>8766</string><key>HOST</key><string>0.0.0.0</string></dict></dict></plist>`);
+fs.writeFileSync(plist,`<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>Label</key><string>cn.jun.branch-island-5-06</string><key>ProgramArguments</key><array><string>${esc(node)}</string><string>${esc(base+'/server.cjs')}</string></array><key>WorkingDirectory</key><string>${esc(base)}</string><key>RunAtLoad</key><true/><key>KeepAlive</key><true/><key>StandardOutPath</key><string>${esc(logDir+'/service.log')}</string><key>StandardErrorPath</key><string>${esc(logDir+'/service-error.log')}</string><key>EnvironmentVariables</key><dict><key>PORT</key><string>8766</string><key>HOST</key><string>0.0.0.0</string></dict></dict></plist>`);
 JS
 launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
@@ -41,5 +43,5 @@ for i in 1 2 3 4 5; do
   fi
   sleep 1
 done
-echo '启动未完成。请查看runtime/service-error.log，并检查Node版本和端口。'
+echo '启动未完成。请查看 ~/Library/Logs/branch-island-5-06/service-error.log，并检查Node版本和端口。'
 exit 1

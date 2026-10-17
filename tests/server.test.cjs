@@ -28,6 +28,25 @@ async function setup(t) {
   t.after(async()=>{await service.close();fs.rmSync(dir,{recursive:true,force:true});});
   return {api,event,complete,url:()=>`http://127.0.0.1:${service.server.address().port}`,restart:async()=>{await service.close();await start();}};
 }
+test('引擎checkpoint保存与重启恢复不重置已有学习证据',async t=>{
+ const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
+ const config={model:'ventilation',operator:'>=',yes:'on',no:'off'};
+ await c.complete('sale',config,[29,30,31].map(temperature=>({temperature})),'boundary');
+ const rpg={version:1,engine:'rpgjs',mapId:'greenhouse',position:{x:256,y:384},direction:'up'};
+ const saved=await c.event('draft','sale',{config,rpg:{...rpg,unknown:'不保存'}});
+ assert.equal(saved.status,200);assert.deepEqual(saved.state.drafts.sale.rpg,rpg);assert.equal(saved.state.points,25);assert.equal(saved.state.runs.sale.length,3);
+ for(const change of [{position:{x:Infinity,y:2}},{mapId:'outside'},{direction:'bad'}])assert.equal((await c.event('draft','sale',{config,rpg:{...rpg,...change}})).status,400);
+ await c.restart();const restored=await c.api('/api/state?studentId=s1');assert.deepEqual(restored.state.drafts.sale.rpg,rpg);assert.equal(restored.state.points,25);
+});
+
+test('RPGJS 子目录入口允许同源嵌入，其他课堂页面保持禁止嵌入',async t=>{
+ const c=await setup(t);
+ const response=await fetch(`${c.url()}/rpgjs/`);
+ assert.notEqual(response.status,404,'引擎子目录应解析到已构建的 index.html');
+ assert.match(response.headers.get('content-security-policy'),/frame-ancestors 'self'/);
+ const main=await fetch(`${c.url()}/`);
+ assert.match(main.headers.get('content-security-policy'),/frame-ancestors 'none'/);
+});
 test('服务端拒绝无证据和跨关通关，真实运行后积分按事件与关卡去重',async t=>{
   const c=await setup(t); await c.api('/api/login',{classId:'501',studentId:'s1'});
   assert.equal((await c.event('complete','sale',{config:sale,reason:'boundary'})).result.passed,false);

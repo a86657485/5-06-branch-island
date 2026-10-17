@@ -6,3 +6,13 @@ node_modules/
 tmp/
 test-results/
 *.log
+
+# 补充：密钥、其他数据库与私有名单、QA 追踪包
+.env
+.env.*
+*.db
+*.db-*
+roster.private.json
+roster.*.private.json
+*.zip
+playwright-report/

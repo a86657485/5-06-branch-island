@@ -3,14 +3,16 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import rules from '../public/rules.js';
+import adventure from '../public/adventure-rules.js';
 
-function appHarness() {
+function appHarness(rpg = false) {
  const nodes = new Map();
  const node = key => { if (!nodes.has(key)) nodes.set(key, { innerHTML:'', textContent:'', hidden:false, classList:{add(){},remove(){}}, addEventListener(){}, showModal(){},close(){} }); return nodes.get(key); };
  const storage = new Map(), scenes = [], events = [];
- const context = vm.createContext({ window:{BranchRules:rules,addEventListener(){}}, location:{search:''},document:{querySelector:node,querySelectorAll:()=>[]},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},URLSearchParams,AbortSignal,Date,JSON,crypto:{randomUUID:()=>`event-${events.length}`},setInterval(){},console,
+ const context = vm.createContext({ window:{BranchRules:rules,AdventureRules:adventure,addEventListener(){}}, location:{search:rpg?'':'?engine=legacy'},document:{querySelector:node,querySelectorAll:()=>[]},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},URLSearchParams,AbortSignal,Date,JSON,crypto:{randomUUID:()=>`event-${events.length}`},setInterval(){},setTimeout(){},console,
   SyncQueue:class {constructor(){this.events=[];}pending(){return 0;}add(e){events.push(e);}async flush(){}},reconcileState:(_local,remote)=>remote,
-  createParkScene:host=>{ const scene={host,destroy(){host.onChange({scene:{version:1,x:20,y:30}});},refresh(){}};scenes.push(scene);return scene; }
+  createParkScene:host=>{ const scene={host,destroy(){host.onChange({scene:{version:1,x:20,y:30}});},refresh(){}};scenes.push(scene);return scene; },
+  createRpgScene:host=>{const scene={engine:'rpgjs',host,destroy(){},refresh(){},navigate(id){this.host=host.forLevel(id);}};scenes.push(scene);return scene;}
  });
  let source = fs.readFileSync(new URL('../public/app.mjs',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace(/boot\(\)\.catch[\s\S]*$/,'');
  source += `\nglobalThis.testApp={renderTask,destroyScene,draft,quizDraft,setState(s){state=s;user={id:'student-a',classId:'501',name:'同学甲'};},setCurrent(id){current=id;},getState(){return state;},setQuizVersion(v){quizVersion=v;},setUser(u){user=u;}};`;
@@ -56,4 +58,26 @@ test('旧路口与配电成绩保留，进入现场后只采用新一轮核验�
 test('温度模型遗留游客场景重置，避免角色与温度输入不符',()=>{
  const h=appHarness(),s=state();s.drafts.sale={config:{model:'ventilation',operator:'>=',yes:'on',no:'off'},input:{temperature:30},scene:{version:1,actorId:'visitor120'}};s.runs.sale=[{}];s.levels.sale={completed:true,valid:true};
  h.app.setState(s);h.app.renderTask(0);assert.equal(h.scenes[0].host.getDraft().scene,undefined);assert.equal(s.levels.sale.valid,false);assert.equal(s.levels.sale.evidenceStart,1);
+});
+
+test('RPGJS 在选择时保存首预测，核验不重复记预测，验收后同实例进入下一地图',()=>{
+ const h=appHarness(true),s=state();h.app.setState(s);h.app.renderTask(0);
+ const host=h.scenes[0].host;
+ assert.equal(typeof host.onPrediction,'function','需要场景实时预测接口');
+ const config={model:'ventilation',operator:'>=',yes:'on',no:'off'};host.onChange({config});
+ host.onPrediction({value:'off',input:{temperature:30},config});
+ host.onPrediction({value:'on',input:{temperature:30},config});
+ assert.equal(s.predictions.sale[0].value,'off');
+ host.onExperiment({input:{temperature:30},prediction:'on',sceneEvidence:{version:1,station:'sale',actorId:'sensor30',actions:['measure','predict','ticket','gate'],destination:'on',prediction:'on'}});
+ assert.equal(h.events.filter(event=>event.type==='prediction').length,2);
+ for(const temperature of [29,31])host.onExperiment({input:{temperature},prediction:temperature<30?'off':'on',sceneEvidence:{version:1,station:'sale',actorId:`sensor${temperature}`,actions:['measure','predict','ticket','gate'],destination:temperature<30?'off':'on',prediction:temperature<30?'off':'on'}});
+ host.onReason('boundary');assert.equal(host.onComplete({deferRender:true}).passed,true);
+ host.onNext();assert.equal(h.scenes.length,1);assert.equal(h.scenes[0].host.levelId,'repair');assert.equal(s.points,25);
+});
+
+test('同一身份重新挂载后，旧引擎回调不再写入新场景',()=>{
+ const h=appHarness(true),s=state();h.app.setState(s);h.app.renderTask(0);const old=h.scenes[0].host;
+ h.app.renderTask(0);const before=h.events.length;
+ old.onChange({prediction:'off'});
+ assert.equal(h.events.length,before);assert.notEqual(s.drafts.sale.prediction,'off');
 });
