@@ -70,7 +70,8 @@ function stationFocus(levelId, scene, level, draft, panelOpen) {
   const sentence = draft?.sentence || {};
   const predictions = draft?.predictionsLocked || {};
   const panel = panelOpen === false ? '' : (draft?.panel || scene?.panel || '');
-  const walked = (scene.actions || []).includes('route') || (scene.visited || []).includes('verified');
+  // 上一次核验会留下 visited，不能当成这一趟已经走过。
+  const walked = (scene.actions || []).includes('route');
   const crossingWalk = levelId === 'cross' && scene.ticket && !walked && !level?.valid;
   if (crossingWalk) {
     const useCrossing = scene.ticket.output === 'crossing' || scene.deviceOutput === 'crossing';
@@ -115,7 +116,7 @@ function stationFocus(levelId, scene, level, draft, panelOpen) {
     const drawHint = levelId === 'repair' ? '先运行原程序，看 30℃。' : levelId === 'cross' ? '到导行屏，按 E 打开画图。' : '到规则控制柜，按 E 打开。';
     return pack({ id: 'control', step: '3', kind: 'map', thinking: false, goto: true, hint: drawHint, strong: '走到发光的圆圈上按 E。', target: at(mapId, 'control') });
   }
-  if (!sentence.locked) {
+  if (!sentence.locked && !(levelId === 'cross' && scene.ticket)) {
     return pack({ id: 'control', step: '6', kind: 'map', thinking: false, goto: true, hint: '回控制柜，用词块拼一句。', strong: '按 E 打开拼句。', target: at(mapId, 'control') });
   }
   if ((levelId === 'sale' || levelId === 'repair') && !predictions.locked) {

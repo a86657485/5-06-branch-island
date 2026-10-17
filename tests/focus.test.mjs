@@ -123,6 +123,33 @@ test('脚印沿两条腿走，大约每 32 像素一点，不落在终点上', (
     }
   }
   assert.notDeepEqual(east.dots, west.dots);
+
+  const zebraAfterBridge = currentFocus({
+    levelId: 'cross',
+    scene: {
+      phase: 'executed', measured: true, facility: false, signal: 'green',
+      ticket: { output: 'crossing' }, actions: ['observe', 'predict'], visited: ['verified']
+    },
+    level: { valid: false },
+    draft: { panel: 'sentence', flow: { locked: true }, sentence: { locked: false, slots: [] } },
+    panelOpen: false
+  });
+  assert.equal(zebraAfterBridge.step, '10');
+  assert.equal(zebraAfterBridge.hint, '沿导行屏指的路，亲自走过去。');
+  assert.equal(zebraAfterBridge.goto, false);
+  assert.equal(zebraAfterBridge.target.place, 'crossingWest');
+  assert.equal(zebraAfterBridge.dots.length > 3, true);
+  assert.equal(zebraAfterBridge.dots.every(dot => dot.y >= 608 && dot.y <= 744), true);
+
+  const arrived = currentFocus({
+    levelId: 'cross',
+    scene: { phase: 'arrived', measured: true, facility: true, ticket: { output: 'bridge' }, actions: ['observe', 'predict', 'route'], signal: 'green' },
+    level: { valid: false },
+    draft: { panel: 'sentence', flow: { locked: true }, sentence: { locked: false, slots: [] } },
+    panelOpen: false
+  });
+  assert.equal(arrived.hint, '到核验处保存这次结果。');
+  assert.equal(arrived.step, '9');
 });
 
 test('考核页焦点框住整题或提交按钮，思考步骤用 40 秒', () => {
