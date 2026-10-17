@@ -18,8 +18,11 @@ function baseAnswers(wrongIds = []) {
   return answers;
 }
 
-test('v5.1b 题库按层读取，学生端看不到答案和教师字段', () => {
-  assert.equal(quiz.version, '2026-10-17-branch-v5.1b');
+test('v5.1c 题库按层读取，学生端看不到答案和教师字段', () => {
+  assert.equal(quiz.version, '2026-10-17-branch-v5.1c');
+  assert.equal(quiz.bank.previousVersion, '2026-10-17-branch-v5.1b');
+  assert.match(quiz.bank.tiers.base.pointsRule, /首次作答/);
+  assert.match(quiz.bank.tiers.base.pointsRule, /不加分/);
   assert.equal(quiz.byTier('base').length, 11);
   assert.equal(quiz.byTier('challenge').length, 12);
   assert.equal(quiz.questions.length, 23);
@@ -63,6 +66,22 @@ test('7/11 不奖励；8/11 奖励但目标未过半时记为未达标', () => {
   assert.equal(short.score, 7);
   assert.equal(quiz.rewardUnlocked(short.score), false);
   assert.equal(quiz.basePassed(short), false);
+});
+
+test('q22 的空 goalIds 不让目标最低线和大屏答案行报错', async () => {
+  const question = quiz.questions.find(item => item.id === 'q22');
+  assert.deepEqual(question.goalIds, []);
+  const graded = quiz.grade('base', baseAnswers());
+  assert.equal(quiz.basePassed(graded), true);
+  assert.equal(graded.objectives.every(item => typeof item.met === 'boolean' && item.total > 0), true);
+  assert.equal(graded.objectives.some(item => item.code === 'G2' && item.total > 0), true);
+  const { formatAnswer } = await import('../public/teacher-format.mjs');
+  for (const item of quiz.questions) assert.equal(typeof formatAnswer(item), 'string');
+  assert.match(formatAnswer(question), /＝/);
+  const copy = structuredClone(quiz.bank);
+  copy.tiers.base.pointsRule = '这段说明不参与计分';
+  const reread = create(copy);
+  assert.equal(reread.basePassed(reread.grade('base', baseAnswers())), true);
 });
 
 test('q22 的 goalIds 为空数组仍然有效，只计入 K2、K3、ND1', () => {

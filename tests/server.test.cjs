@@ -98,6 +98,11 @@ test('分层考核三站当前通过后开放，首答与奖励分开，挑战�
   assert.equal((await c.event('quiz','quiz',{tier:'base',answers:baseAnswers,quizVersion:'outdated'})).status,409);
   const first=await c.event('quiz','quiz',{tier:'base',answers:baseAnswers,quizVersion:opened.quizVersion},{eventId:'exam-one'});
   assert.equal(first.result.score,10);assert.equal(first.result.passed,true);assert.equal(first.result.rewardUnlocked,true);assert.equal(first.result.challengeUnlocked,true);
+  const board=await c.api('/api/teacher?classId=501');
+  assert.equal(board.status,200);
+  const objectives=board.students.find(student=>student.id==='s1').state.quiz.base.first.objectives;
+  assert.equal(objectives.find(item=>item.code==='K2').total>0,true);
+  assert.equal(objectives.every(item=>item.total>0&&typeof item.met==='boolean'),true);
   assert.equal(first.state.quiz.base.firstScore,10);assert.equal(first.state.quiz.base.attempts.length,1);assert.equal(first.state.points,95);
   const wrongDetail=first.result.details.find(detail=>detail.id==='q35');
   assert.equal(wrongDetail.correct,false);assert.equal('correctAnswer' in wrongDetail,false);assert.ok(wrongDetail.explanation);assert.equal('correctAnswer' in first.result.details.find(detail=>detail.correct),false);
