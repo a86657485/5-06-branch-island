@@ -1,13 +1,28 @@
 import { SyncQueue, reconcileState } from './sync.mjs';
 import { createParkScene } from './scene.mjs';
 import { createRpgScene } from './rpg-scene.mjs';
+import { createIdleTimer } from './idle-timer.mjs';
+import { currentFocus } from './focus.mjs';
+import { createIntro, introAct, TESTERS } from './intro.mjs';
 const R = window.BranchRules;
+let quizStrength = 0;
+let gateInfoSent = false;
+const quizIdle = createIdleTimer({
+  onStrength(detail) {
+    quizStrength = detail.strength;
+    if (!demo && user) send('nav_help', 'quiz', { trigger: 'idle', strength: detail.strength, idleMs: detail.idleMs, step: detail.stepKey, focusId: detail.stepKey, levelId: 'quiz' });
+    if (current === 'quiz') renderQuiz();
+  }
+});
+setInterval(() => { if (current === 'quiz') quizIdle.tick(); }, 1000);
 const $ = s => document.querySelector(s);
+let gateTicketOpen = false;
+let gateSignTimer = 0;
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clone = v => JSON.parse(JSON.stringify(v));
 const eventId = () => globalThis.crypto?.randomUUID?.() || Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2,'0')).join('');
 const ids = ['sale','repair','cross','minimum'];
-const titles = ['温室通风','设备维修','安全通行','节能配电'];
+const titles = ['温室风机调试','温室控制器返修','路口导行屏调试','储能柜配电'];
 const demo = new URLSearchParams(location.search).has('demo');
 const legacy = new URLSearchParams(location.search).get('engine') === 'legacy';
 const emptyState = () => ({drafts:{},levels:{},runs:{},predictions:{},attempts:[],points:0});
@@ -37,15 +52,19 @@ const queue = new SyncQueue(localStorage,e => api('/api/events',e),(event,data)=
   state=reconcileState(state,data.state,event.type!=='quiz');
   saveLocal();
   if(event.type==='complete' && !data.result.passed) {notice=data.result.feedback;if(activeScene?.engine==='rpgjs'){setNotice(notice);activeScene.refresh();}else render();}
-  if(event.type==='quiz') {quizReview=true; notice='检测已提交。看看错题，再回到对应任务试一试。';render();}
+  if(data.rewardUnlocked!=null){const cached=JSON.parse(localStorage.getItem('branch-island-questions')||'{}');cached.reward=!!data.rewardUnlocked;localStorage.setItem('branch-island-questions',JSON.stringify(cached));}
+  if(event.type==='quiz') {quizReview=true; questions=[]; notice='检测已提交。看看错题，再决定要不要做挑战层。';render();}
   updateHeader();
  }
 },(event,error)=>{
- if(user&&event.studentId===user.id){state.drafts.quiz={answers:Array(20).fill(null),index:0,quizVersion};questions=[];quizReview=false;notice='旧版待提交答卷已完整保留在本机未评分存档，请按新版重新作答。';saveLocal();if(current==='quiz')renderQuiz();updateHeader();}
+ if(user&&event.studentId===user.id){state.drafts.quiz={tier:'base',answers:{},index:0,confirmed:{},quizVersion};questions=[];quizReview=false;notice='旧版待提交答卷已完整保留在本机未评分存档，请按新版重新作答。';saveLocal();if(current==='quiz')renderQuiz();updateHeader();}
+},(event,error)=>{
+ if(user&&event.studentId===user.id){const reason=error?.message||'请按提示修改';queue.error=`这条记录没有保存：${reason}。请按提示修改后继续，后面的操作仍会保存。`;setNotice(queue.error);updateHeader();}
 });
-function syncStatus(){if(demo)return '独立演示 · 不计入班级';const n=queue.pending(user?.id);return n?`${n}条待同步 · ${queue.error?'连接未完成，记录已保留':'正在保存'}`:'已同步保存';}
+function syncStatus(){if(demo)return '独立演示 · 不计入班级';const n=queue.pending(user?.id);if(n)return `${n}条待同步 · ${queue.error?'连接未完成，记录已保留':'正在保存'}`;if(queue.error)return queue.error;return '已同步保存';}
 function updateHeader(){if($('#save-status'))$('#save-status').textContent=syncStatus();if($('#points'))$('#points').textContent=`${state.points || 0} 积分`;updateRoutes();}
-function canEnter(id){return demo || (id==='quiz'?ids.every(key=>state.levels[key]?.completed):ids.includes(id)&&(ids.indexOf(id)===0||state.levels[ids[ids.indexOf(id)-1]]?.completed));}
+function examOpened(){return !!(state.quizOpenedAt||state.exam?.openedAt);}
+function canEnter(id){return demo || (id==='quiz'?true:ids.includes(id)&&(ids.indexOf(id)===0||state.levels[ids[ids.indexOf(id)-1]]?.completed));}
 function updateRoutes(){document.querySelectorAll('[data-route]').forEach(button=>{const id=button.dataset.route;button.disabled=!canEnter(id);button.classList.toggle('selected',current===id);if(id!=='quiz'){const level=state.levels[id],stop=button.querySelector('.stop'),small=button.querySelector('small');if(stop)stop.textContent=level?.completed?'✓':ids.indexOf(id)+1;if(small)small.textContent=level?.completed?(level.valid?'已完成 · 当前已验证':'曾完成 · 当前待重验'):(canEnter(id)?'可开始探索':'完成上一站解锁');}});}
 function goToTask(id){
  if(!canEnter(id))throw new Error('请先完成前面的主线任务。');
@@ -63,13 +82,15 @@ function send(type,levelId,payload){
 function draft(id=current){if(!state.drafts[id])state.drafts[id]=clone(defaults[id]);return state.drafts[id];}
 function destroyScene(){const scene=activeScene;activeScene=null;scene?.destroy();sceneGeneration++;}
 function prepareSceneDraft(id){
- const d=draft(id),oldModel=['sale','repair'].includes(id)&&d.config?.model!=='ventilation';
+ const d=state.drafts[id];
+ if(!d) return null;
+ const oldModel=['sale','repair'].includes(id)&&d.config?.model!=='ventilation';
  if(oldModel){localStorage.setItem(`branch-island-task-archive:${user.id}:${round}:${id}:${Date.now()}`,JSON.stringify(d));state.drafts[id]=clone(defaults[id]);}
- if(['sale','repair'].includes(id)&&draft(id).scene?.version===1&&!Number.isFinite(draft(id).scene.temperatureCase)){delete draft(id).scene;}
- if(oldModel||draft(id).scene?.version!==1){state.levels[id]||={completed:false,points:0};state.levels[id].evidenceStart=(state.runs[id]||[]).length;state.levels[id].valid=false;}
- return draft(id);
+ if(['sale','repair'].includes(id)&&state.drafts[id]?.scene?.version===1&&!Number.isFinite(state.drafts[id].scene.temperatureCase)){delete state.drafts[id].scene;}
+ if(oldModel){state.levels[id]||={completed:false,points:0};state.levels[id].evidenceStart=(state.runs[id]||[]).length;state.levels[id].valid=false;}
+ return state.drafts[id];
 }
-function setNotice(text){notice=text;const target=$('#notice')||$('#scene-toast');if(target){target.textContent=text;target.hidden=!text;}}
+function setNotice(text){notice=text;const target=$('#notice')||$('#scene-toast')||$('#sync-notice');if(target){target.textContent=text;target.hidden=!text;}}
 function option(value,label,selected){return `<option value="${esc(value)}" ${value===selected?'selected':''}>${esc(label)}</option>`;}
 function outputLabel(value){return ({on:'启动风机',off:'停止风机',bridge:'走天桥',crossing:'到斑马线按信号通行',a:'电池A优先充电',b:'电池B优先充电'})[value] || '选择执行的动作';}
 function conditionLabel(id=current){const d=draft(id);if(id==='cross')return '附近有可用天桥吗？';if(id==='minimum')return d.config.operator?`电量 a ${d.config.operator} b 吗？`:'两组电量怎样比较？';return `温度 ${d.config.operator==='>='?'≥':'＜'} 30℃？`;}
@@ -80,19 +101,20 @@ function flow(){
 function login(){
  const cls=roster.classes.find(c=>c.id===loginClass) || roster.classes[0];loginClass=cls.id;
  const names=cls.students.filter(s=>s.name.includes(loginSearch));
- $('#app').innerHTML=`<main class="landing"><section class="welcome"><p class="eyebrow">五年级 · 身边的算法 · 第6课</p><h1>分支<span>冒险岛</span></h1><p class="welcome-copy">走进智慧园区，亲自调试设备。<br>让判断有依据，让每条指令执行正确。</p><div class="landing-world" aria-hidden="true"><div class="landing-role">智慧园区设备调试员</div></div><p class="landing-note">读取传感器 · 修复设备 · 核验通行 · 节能配电</p></section><section class="login-card"><p class="eyebrow">调试员报到</p><h2>选择你的身份</h2><p class="muted">进度会自动保存，下次可以接着探索。</p><label>班级<select id="class-select">${roster.classes.map(c=>option(c.id,`${c.id}班`,loginClass)).join('')}</select></label><label>搜索姓名<input id="name-search" value="${esc(loginSearch)}" placeholder="输入姓名中的字" autocomplete="off"></label><label>名单姓名<select id="student-select">${option('','请选择自己的姓名',selectedStudent)}${names.map(s=>option(s.id,s.name,selectedStudent)).join('')}</select></label><details><summary>名单中没有我</summary><label>补充姓名<input id="manual-name" maxlength="30" value="${esc(manual)}" placeholder="输入姓名，归入当前班级"></label></details><div class="identity-confirm">请确认：<strong id="chosen-identity">${esc(loginClass)}班 · ${esc(manual || cls.students.find(s=>s.id===selectedStudent)?.name || '尚未选择姓名')}</strong></div><button id="login" class="primary wide">确认身份，进入园区 →</button><p id="login-error" class="error" role="alert"></p><p class="small muted">请用自己的姓名进入。课堂选名用于记录学习进度。</p></section></main>`;
+ $('#app').innerHTML=`<main class="landing"><section class="welcome"><p class="eyebrow">五年级 · 身边的算法 · 第6课</p><h1>分支<span>冒险岛</span></h1><p class="welcome-copy">走进智慧园区，亲自调试设备。<br>让判断有依据，让每条指令执行正确。</p><div class="landing-world" aria-hidden="true"><div class="landing-role">智慧园区设备调试员</div></div><p class="landing-note">读取传感器 · 修复设备 · 核验通行 · 节能配电</p></section><section class="login-card"><p class="eyebrow">调试员报到</p><h2>选择你的身份</h2><p class="muted">本课次的进度会保存。老师开始新课次后，要从头做。</p><label>班级<select id="class-select">${roster.classes.map(c=>option(c.id,`${c.id}班`,loginClass)).join('')}</select></label><label>搜索姓名<input id="name-search" value="${esc(loginSearch)}" placeholder="输入姓名中的字" autocomplete="off"></label><label>名单姓名<select id="student-select">${option('','请选择自己的姓名',selectedStudent)}${names.map(s=>option(s.id,s.name,selectedStudent)).join('')}</select></label><details><summary>名单中没有我</summary><label>补充姓名<input id="manual-name" maxlength="30" value="${esc(manual)}" placeholder="输入姓名，归入当前班级"></label></details><div class="identity-confirm">请确认：<strong id="chosen-identity">${esc(loginClass)}班 · ${esc(manual || cls.students.find(s=>s.id===selectedStudent)?.name || '尚未选择姓名')}</strong></div><button id="login" class="primary wide">确认身份，进入园区 →</button><p id="login-error" class="error" role="alert"></p><p class="small muted">请用自己的姓名进入。课堂选名用于记录学习进度。</p></section></main>`;
  $('#class-select').onchange=e=>{loginClass=e.target.value;selectedStudent='';manual='';login();};
  $('#name-search').oninput=e=>{loginSearch=e.target.value;const sel=$('#student-select');sel.innerHTML=option('','请选择自己的姓名','')+cls.students.filter(s=>s.name.includes(loginSearch)).map(s=>option(s.id,s.name,selectedStudent)).join('');};
  $('#student-select').onchange=e=>{selectedStudent=e.target.value;manual='';$('#manual-name').value='';$('#chosen-identity').textContent=`${loginClass}班 · ${cls.students.find(s=>s.id===selectedStudent)?.name || '尚未选择姓名'}`;};
  $('#manual-name').oninput=e=>{manual=e.target.value;selectedStudent='';$('#student-select').value='';$('#chosen-identity').textContent=`${loginClass}班 · ${manual || '尚未填写姓名'}`;};
  $('#login').onclick=async()=>{try{if(!selectedStudent&&!manual.trim())throw new Error('先选择自己的姓名，或在“名单中没有我”填写。');const data=await api('/api/login',{classId:loginClass,...(manual.trim()?{name:manual.trim()}:{studentId:selectedStudent})});attach(data);}catch(e){$('#login-error').textContent=e.message;}};
 }
-function attach(data){destroyScene();user=data.student;round=data.round;state=data.state;const local=JSON.parse(localStorage.getItem(cacheKey())||'null');if(queue.pending(user.id)&&local)state=local.state;current=local?.current || ids.find(id=>!state.levels[id]?.completed) || 'quiz';if(!demo)localStorage.setItem('branch-island-identity',JSON.stringify({user,round}));saveLocal();render();queue.flush().then(updateHeader);}
+function attach(data){destroyScene();user=data.student;if(data.round!==round)queue.retire(user.id,data.round);round=data.round;state=data.state;const local=JSON.parse(localStorage.getItem(cacheKey())||'null');const pendingThisRound=queue.events.some(event=>event.studentId===user.id&&event.round===round);if(pendingThisRound&&local)state=local.state;current=pendingThisRound&&local?.current?local.current:(ids.find(id=>!state.levels[id]?.completed)||'quiz');if(new URLSearchParams(location.search).get('task')==='quiz')current='quiz';if(!demo)localStorage.setItem('branch-island-identity',JSON.stringify({user,round}));saveLocal();render();queue.flush().then(updateHeader);}
 function render(){
  destroyScene();
  if(!user)return login();
+ if(!legacy && state.intro && state.intro.done!==true && state.intro.skipped!==true)return renderIntro();
  const idx=ids.indexOf(current);const unlocked=id=>demo || ids.indexOf(id)===0 || state.levels[ids[ids.indexOf(id)-1]]?.completed;
- $('#app').innerHTML=`${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar"><a class="brand" href="#">分支冒险岛<span>判断选择用分支</span></a><div class="identity"><span>${demo?'演示调试员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${state.points||0} 积分</strong><button id="switch-user" class="quiet">切换身份</button></div></header><div class="app-shell"><aside class="map"><p class="eyebrow">园区巡检路线</p><h2>让判断驱动行动</h2><nav aria-label="任务路线">${ids.map((id,i)=>`<button data-route="${id}" class="route-item ${current===id?'selected':''}" ${unlocked(id)?'':'disabled'}><span class="stop">${state.levels[id]?.completed?'✓':i+1}</span><span><b>${titles[i]}</b><small>${state.levels[id]?.completed?(state.levels[id].valid?'已完成 · 当前已验证':'曾完成 · 当前待重验'):(unlocked(id)?'可开始探索':'完成上一站解锁')}</small></span></button>`).join('')}<button data-route="quiz" class="route-item ${current==='quiz'?'selected':''}" ${demo||ids.every(id=>state.levels[id]?.completed)?'':'disabled'}><span class="stop">20</span><span><b>独立检测</b><small>${state.attempts.length?`已检测${state.attempts.length}次`:'完成四站后开始'}</small></span></button></nav><div class="map-note">每站25积分，合理试错不扣分。<br>检测成绩与通关积分分开记录。</div><div id="save-status" class="save-status" role="status">${syncStatus()}</div></aside><main id="workbench" class="workbench"></main></div>`;
+ $('#app').innerHTML=`${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar"><a class="brand" href="#">分支冒险岛<span>判断选择用分支</span></a><div class="identity"><span>${demo?'演示调试员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${state.points||0} 积分</strong><button id="switch-user" class="quiet">切换身份</button></div></header><div class="app-shell"><aside class="map"><p class="eyebrow">园区巡检路线</p><h2>让判断驱动行动</h2><nav aria-label="任务路线">${ids.map((id,i)=>`<button data-route="${id}" class="route-item ${current===id?'selected':''}" ${unlocked(id)?'':'disabled'}><span class="stop">${state.levels[id]?.completed?'✓':i+1}</span><span><b>${titles[i]}</b><small>${state.levels[id]?.completed?(state.levels[id].valid?'已完成 · 当前已验证':'曾完成 · 当前待重验'):(unlocked(id)?'可开始探索':'完成上一站解锁')}</small></span></button>`).join('')}<button data-route="quiz" class="route-item ${current==='quiz'?'selected':''}" ${canEnter('quiz')?'':'disabled'}><span class="stop">Q</span><span><b>独立检测</b><small>${state.quiz?.base?.first?`基础层 ${state.quiz.base.firstScore}/${state.quiz.base.first.total}`:(examOpened()?'可以开始':'还差哪一站')}</small></span></button></nav><div class="map-note">每站25积分，合理试错不扣分。<br>检测成绩与通关积分分开记录。</div><div id="save-status" class="save-status" role="status">${syncStatus()}</div><p id="sync-notice" class="save-status" role="status" ${notice?'':'hidden'}>${esc(notice)}</p></aside><main id="workbench" class="workbench"></main></div>`;
  $('[data-route]') && document.querySelectorAll('[data-route]').forEach(btn=>btn.onclick=()=>goToTask(btn.dataset.route));
  $('.brand').onclick=e=>{e.preventDefault();goToTask('sale');};
  $('#switch-user').onclick=()=>{destroyScene();saveLocal();localStorage.removeItem('branch-island-identity');user=null;selectedStudent='';manual='';notice='';lastRun=null;if(demo){location.href='/teacher.html';return;}login();};
@@ -108,15 +130,18 @@ function renderTask(idx){
   const idx=ids.indexOf(id),sameOwner=()=>user?.id===ownerId&&round===ownerRound&&sceneGeneration===generation&&(legacy||current===id);
   const save=()=>{if(sameOwner())send('draft',id,draft(id));};
   return {
-  root:$('#workbench'),levelId:id,demo,forLevel:makeHost,getDraft:()=>draft(id),getRuns:()=>state.runs[id]||[],getLevel:()=>state.levels[id],getEvidenceStart:()=>state.levels[id]?.evidenceStart||0,reasons:reasonOptions[id],
+  root:$('#workbench'),levelId:id,demo,forLevel:makeHost,getDraft:()=>state.drafts[id]||clone(defaults[id]),getRuns:()=>state.runs[id]||[],getLevel:()=>state.levels[id],getEvidenceStart:()=>state.levels[id]?.evidenceStart||0,reasons:reasonOptions[id],
   onChange(patch){
    if(!sameOwner())return;
-   if('rpg' in patch){patch={...patch,rpg:window.AdventureRules.validateRpgDraft(patch.rpg)};const maps={sale:['greenhouse'],repair:['workshop'],cross:['crossing','crossing-east'],minimum:['energy']};if(!maps[id].includes(patch.rpg.mapId))throw new Error('当前位置与任务场景不一致。');}
-   const d=draft(id);
-   if(patch.config&&JSON.stringify(R.normalizeConfig(id,d.config,true))!==JSON.stringify(R.normalizeConfig(id,patch.config,true))){state.levels[id]||={completed:false,points:0};state.levels[id].evidenceStart=(state.runs[id]||[]).length;state.levels[id].valid=false;lastRun=null;}
+   if('rpg' in patch){patch={...patch,rpg:window.AdventureRules.validateRpgDraft(patch.rpg)};const maps={sale:['greenhouse'],repair:['workshop'],cross:['crossing','crossing-east'],minimum:['energy'],gate:['greenhouse']};if(!maps[id].includes(patch.rpg.mapId))throw new Error('当前位置与任务场景不一致。');}
+   const editing=['config','flow','sentence','predictionsLocked','input','prediction','reason'].some(key=>key in patch);
+   if(!state.drafts[id] && !editing){state.drafts[id]=clone(defaults[id]);for(const key of ['scene','rpg','panel'])if(key in patch)state.drafts[id][key]=clone(patch[key]);updateHeader();save();updateHeader();return {saved:true};}
+   const d=state.drafts[id]||(state.drafts[id]={});
+   if(patch.config&&d.config&&JSON.stringify(R.normalizeConfig(id,d.config,true))!==JSON.stringify(R.normalizeConfig(id,{...d.config,...patch.config},true))){state.levels[id]||={completed:false,points:0};state.levels[id].evidenceStart=(state.runs[id]||[]).length;state.levels[id].valid=false;lastRun=null;}
    if(patch.input&&JSON.stringify(patch.input)!==JSON.stringify(d.input))lastRun=null;
-   for(const key of ['config','input'])if(patch[key])d[key]={...d[key],...patch[key]};
-   for(const key of ['prediction','scene','reason','rpg'])if(key in patch)d[key]=clone(patch[key]);
+   for(const key of ['config','input'])if(patch[key])d[key]={...(d[key]||{}),...patch[key]};
+   for(const key of ['prediction','scene','reason','rpg','flow','sentence','predictionsLocked','diagnoseAnswer','panel'])if(key in patch)d[key]=clone(patch[key]);
+   if('scene' in patch)d.sceneRev=(d.sceneRev||0)+1;
    save();updateHeader();return {saved:true};
   },
   onEvaluate({input,config}){if(!sameOwner())throw new Error('当前任务已切换。');return R.evaluate(id,config||draft(id).config,input||draft(id).input);},
@@ -146,7 +171,7 @@ function renderTask(idx){
    if(!sameOwner())return {passed:false,feedback:'身份已切换，请在当前身份下继续。'};
    try{
     const d=draft(id),result=R.validateComplete(id,d.config,state.runs[id]||[],d.reason,state.levels[id]?.evidenceStart||0);
-    if(!result.passed)return result;
+    if(!result.passed){send('complete',id,{config:d.config,reason:d.reason});return result;}
     const earned=!state.levels[id]?.completed;
     state.levels[id]={...state.levels[id],completed:true,valid:true,points:25,reason:d.reason};state.points=ids.reduce((n,key)=>n+(state.levels[key]?.completed?25:0),0);
     send('complete',id,{config:d.config,reason:d.reason});
@@ -156,37 +181,88 @@ function renderTask(idx){
   },
   onNext(){if(!sameOwner())return;const next=ids[idx+1]||'quiz';if(!legacy&&next==='quiz'){setTimeout(()=>{if(sameOwner())goToTask('quiz');},0);return {levelId:'quiz'};}return goToTask(next);},
   onFlow(){showHelp(`<h2>${titles[idx]} · 当前执行过程</h2><div class="scene-flow-preview">${flow()}</div><p>根据条件是否成立，一次只执行“是”或“否”对应的一条路径。</p>`);},
-  onHelp(){showHelp(`<h2>智慧园区 · 怎么操作</h2><ol><li>${legacy?'点击NPC或设备的名称，角色会沿步道走近，抵达后交谈或操作。':'使用方向键、WASD或屏幕方向按钮行走，走近并面向NPC或设备。'}</li><li>按E、空格或屏幕交互按钮，与面前的对象交谈。</li><li>先领取委托、读取现场输入，在设备旁设置规则并预测。</li><li>亲自执行、到核验点观察结果，再向NPC汇报。不同情况都要验证。</li></ol><p>对话右上角的×可随时关闭，进度会保留。帮助不扣积分。</p><p class="muted">场景参考深圳智慧园林；地图、人物和30℃规则均为教学仿真。</p>`);}
+  onHelp(){showHelp(`<h2>智慧园区 · 怎么操作</h2><ol><li>${legacy?'点击NPC或设备的名称，角色会沿步道走近，抵达后交谈或操作。':'使用方向键、WASD或屏幕方向按钮行走，走近并面向NPC或设备。'}</li><li>按E、空格或屏幕交互按钮，与面前的对象交谈。</li><li>先领取委托、读取现场输入，在设备旁设置规则并预测。</li><li>亲自执行、到核验点观察结果，再向NPC汇报。不同情况都要验证。</li></ol><p>对话右上角的×可随时关闭，进度会保留。帮助不扣积分。</p><p class="muted">场景参考深圳智慧园林；地图、人物和30℃规则均为教学仿真。</p>`);},
+  onNavHelp(data){if(!sameOwner())return null;send('nav_help',id,{trigger:data.trigger||'button',strength:data.strength??0,idleMs:data.idleMs||0,step:data.step||'',focusId:data.focusId||'',mapId:data.mapId||'',levelId:id});return {saved:true};},
+  onConceptHint(){
+   if(!sameOwner())return null;
+   const level=state.levels[id]||{};
+   const focus=currentFocus({levelId:id,scene:draft(id).scene,level,draft:draft(id)});
+   if(!level.submissions){showHelp('<h2>怎么操作</h2><p>走到发光标记前，按 E 打开面前的人或设备。第一次提交前，求助只说明操作，不会记成概念提示。</p>');send('nav_help',id,{trigger:'button',strength:0,idleMs:0,step:focus.step,focusId:focus.id,mapId:focus.target?.mapId||'',levelId:id});return {kind:'operation'};}
+   showHelp('<h2>概念提示</h2><p>第一次提交已经做过。同意之后，这一站再完成会记为在提示下完成。操作帮助不会这样记。</p><button type="button" id="accept-concept">我同意看概念提示</button>');
+   const accept=$('#accept-concept');
+   if(accept)accept.onclick=()=>{send('concept_hint',id,{level:1,evidenceKind:'station'});state.levels[id].hinted=true;const note=document.createElement('p');note.textContent='概念提示：菱形里要放能用“是”或“否”回答的问题。成立只走一边，不成立走另一边。';$('#help-content').append(note);accept.disabled=true;};
+   return {kind:'offer'};
+  }
   };
  };
  const host=makeHost(initialId);
  activeScene=(legacy?createParkScene:createRpgScene)(host);
- send('draft',initialId,draft(initialId));
+}
+function renderIntro(){
+ const intro=state.intro||createIntro();
+ const focus=currentFocus({levelId:'gate',intro});
+ const judgedLabel=intro.judged==='half'?'半价':intro.judged==='full'?'全价':'还没判';
+ const compare=intro.ticket?`<p class="gate-compare" data-focus="gate-sign">你判：${esc(judgedLabel)}｜闸机：全价 ${esc(intro.ticket)} 元</p>`:'';
+ const ticketView=gateTicketOpen?`<section id="gate-readonly" class="gate-readonly" role="dialog" aria-label="故障单"><h2>故障单（只读）</h2><p>运维主管：半价票判错了。告示写身高不足 120 厘米收半价，否则全价 10 元。闸机现在每次都出全价 10 元。</p><p>这张单只供再看，不会改身高、判定或已经出的票。</p><button type="button" id="gate-ticket-close">回到现场</button></section>`:'';
+ const hot=(id,step)=>focus.id===id&&focus.step===step?' focus-target':'';
+ const statusText=intro.blocked?esc(intro.blocked):intro.ticket?`闸机出票：全价 ${esc(intro.ticket)} 元。请和告示比一比。`:'测试者已经站在量高立柱旁，不会跟着你走。';
+ $('#app').innerHTML=`<header class="topbar"><a class="brand" href="#">分支冒险岛<span>判断选择用分支</span></a><div class="identity"><span>${esc(user.classId)}班 · ${esc(user.name)}</span><strong id="points">${state.points||0} 积分</strong></div></header><main class="gate-page"><p id="gate-hint" class="focus-hint">${esc(focus.hint)}</p><h1>闸机故障单</h1><p id="gate-status">${statusText}</p><svg class="gate-map" viewBox="0 0 640 360" role="img" aria-label="入口闸机示意"><rect width="640" height="360" fill="#e7f2ea"/><rect x="40" y="250" width="560" height="36" fill="#d7c4a2"/><rect x="300" y="40" width="70" height="150" fill="#c9d7c2"/><text x="312" y="120">通道</text><rect x="150" y="168" width="120" height="70" fill="#fff" stroke="#184c3b"/><text x="168" y="208">量高立柱</text>${TESTERS.map(tester=>`<g transform="translate(${tester.x} ${tester.y})"><circle r="16" fill="${tester.height===116?'#f2c14e':'#7eb6d9'}"/><text y="36" text-anchor="middle">${tester.height}</text></g>`).join('')}<rect x="430" y="150" width="90" height="80" fill="#173b31"/><text x="446" y="195" fill="white">闸机</text><rect x="40" y="40" width="180" height="70" fill="#fffaf0" stroke="#c5a048"/><text x="52" y="70">告示：＜120 半价</text><text x="52" y="92">否则全价 10 元</text></svg>${compare}${ticketView}<div class="gate-actions"><button type="button" id="gate-lead" data-focus="gate-lead" class="${hot('gate-lead','1')}">我去试一试</button><button type="button" id="gate-measure" data-focus="gate-ruler" class="${hot('gate-ruler','2')}">量 116 厘米</button><div class="gate-judge${hot('i0-judge','3')}" data-focus="i0-judge"><button type="button" id="gate-half">判半价</button><button type="button" id="gate-full">判全价</button></div><button type="button" id="gate-ticket" data-focus="gate-turnstile" class="${hot('gate-turnstile','4')}">闸机出票</button><button type="button" id="gate-sign" data-focus="gate-sign" class="${hot('gate-sign','5')}">看告示</button><button type="button" id="gate-idea" data-focus="gate-idea" class="${hot('gate-lead','6')}">看情况收费</button><button type="button" id="gate-leave" class="primary${hot('gate-portal','7')}" data-focus="gate-portal">去温室</button><button type="button" id="gate-skip">跳过导入</button><button type="button" id="gate-review">重看故障单</button></div></main>`;
+ const act=name=>extra=>{const next=introAct(intro,name,extra);state.intro=next;saveLocal();send('draft','intro',next);render();};
+ $('#gate-lead').onclick=()=>act('lead')();
+ $('#gate-measure').onclick=()=>act('measure')(116);
+ $('#gate-half').onclick=()=>act('judge')('half');
+ $('#gate-full').onclick=()=>act('judge')('full');
+ $('#gate-ticket').onclick=()=>act('ticket')();
+ $('#gate-sign').onclick=()=>act('sign')();
+ $('#gate-idea').onclick=()=>act('idea')('看情况收费');
+ $('#gate-leave').onclick=()=>act('leave')();
+ $('#gate-skip').onclick=()=>act('skip')();
+ $('#gate-review').onclick=()=>{gateTicketOpen=true;act('review')();};
+ if($('#gate-ticket-close'))$('#gate-ticket-close').onclick=()=>{gateTicketOpen=false;render();};
+ clearTimeout(gateSignTimer);
+ if(intro.ticket&&!intro.sawSign&&!intro.done&&!intro.skipped)gateSignTimer=setTimeout(()=>{const current=state.intro;if(!current?.ticket||current.sawSign||current.done)return;const next=introAct(current,'sign');state.intro=next;saveLocal();send('draft','intro',next);render();},20000);
 }
 function showHelp(html){$('#help-content').innerHTML=html;$('#help').showModal();}
 $('#close-help').onclick=()=>$('#help').close();$('#help').addEventListener('click',e=>{if(e.target===$('#help'))$('#help').close();});
 function quizDraft(){
  const old=state.drafts.quiz;
- if(old&&old.quizVersion!==quizVersion){if(old.answers?.some(Number.isInteger))localStorage.setItem(`branch-island-quiz-archive:${user.id}:${round}:${Date.now()}`,JSON.stringify({quizVersion:old.quizVersion||'legacy',draft:old}));state.drafts.quiz=null;}
- state.drafts.quiz||={answers:Array(20).fill(null),index:0,quizVersion};return state.drafts.quiz;
+ const legacy=Array.isArray(old?.answers)?old.answers.some(Number.isInteger):old?.answers&&Object.keys(old.answers).length>0;
+ if(old&&old.quizVersion!==quizVersion){if(legacy)localStorage.setItem(`branch-island-quiz-archive:${user.id}:${round}:${Date.now()}`,JSON.stringify({quizVersion:old.quizVersion||'legacy',draft:old}));state.drafts.quiz=null;}
+ if(!state.drafts.quiz||Array.isArray(state.drafts.quiz.answers))state.drafts.quiz={tier:'base',answers:{},index:0,confirmed:{},quizVersion};
+ state.drafts.quiz.quizVersion=quizVersion;
+ return state.drafts.quiz;
 }
 function saveQuiz(){saveLocal();send('draft','quiz',quizDraft());}
 async function renderQuiz(){
  const ownerId=user?.id;
  $('#workbench').classList.remove('game-workbench');
- if(!questions.length){try{const data=await api('/api/quiz');questions=data.questions;quizVersion=data.quizVersion;localStorage.setItem('branch-island-questions',JSON.stringify({quizVersion,questions}));}catch(e){const cached=JSON.parse(localStorage.getItem('branch-island-questions')||'null');questions=cached?.quizVersion&&Array.isArray(cached.questions)?cached.questions:[];quizVersion=cached?.quizVersion||'';if(!questions.length){$('#workbench').innerHTML=`<h1>独立检测</h1><p class="notice">${esc(e.message)}。请恢复连接后再次进入，学习记录已保留。</p>`;return;}}}
+ const gateOpen=demo||examOpened();
+ if(!gateOpen){
+  const required=(R.levels||[]).filter(level=>level.required!==false);
+  const missing=required.filter(level=>!state.levels[level.id]?.valid);
+  const closedFocus=currentFocus({levelId:'quiz',exam:{open:false,missing:missing.map(level=>({id:level.id,title:level.title}))}});
+  $('#workbench').innerHTML=`<p id="quiz-focus-hint" class="focus-hint" role="status">${esc(closedFocus.hint)}</p><h1>考核还没开放</h1><p>温室、返修和路口三站都当前通过后，考核会自动打开。选做的储能柜不参与。</p><ul id="exam-missing">${missing.map(level=>`<li>${esc(level.title)}</li>`).join('')}</ul>${missing.map((level,index)=>`<button class="primary${index===0?' focus-target':''}" data-back="${level.id}" ${index===0?'data-focus="exam-missing"':''}>回到该站（${esc(level.title)}）</button>`).join(' ')}`;
+  document.querySelectorAll('[data-back]').forEach(button=>button.onclick=()=>goToTask(button.dataset.back));
+  if(!gateInfoSent){gateInfoSent=true;send('nav_help','quiz',{trigger:'gate_info',strength:0,idleMs:0,step:closedFocus.step,focusId:closedFocus.id,levelId:'quiz'});}
+  quizIdle.configure({key:`quiz:${closedFocus.id}`,thinking:false});
+  return;
+ }
+ if(!questions.length){try{const data=await api('/api/quiz'+(demo?'':'?studentId='+encodeURIComponent(user.id)));questions=data.questions||[];quizVersion=data.quizVersion||quizVersion;if(demo&&!questions.length&&answerKey.length){questions=answerKey.map(question=>{const interaction=question.interaction?{...question.interaction}:undefined;if(interaction)delete interaction.note;return {id:question.id,goal:question.goal,prompt:question.prompt,options:question.options,tier:question.tier,type:question.type,interaction};});}state.quizOpenedAt=data.examGate?.openedAt||state.quizOpenedAt;if(data.challengeUnlocked||(demo&&questions.some(question=>question.tier==='challenge'))){state.quiz||={};state.quiz.challenge||={};state.quiz.challenge.unlockedAt||='open';}localStorage.setItem('branch-island-questions',JSON.stringify({quizVersion,questions,reward:!!data.rewardUnlocked}));}catch(e){const cached=JSON.parse(localStorage.getItem('branch-island-questions')||'null');questions=cached?.quizVersion&&Array.isArray(cached.questions)?cached.questions:[];quizVersion=cached?.quizVersion||'';if(!questions.length){$('#workbench').innerHTML=`<h1>独立检测</h1><p class="notice">${esc(e.message)}。请恢复连接后再次进入，学习记录已保留。</p>`;return;}}}
  if(current!=='quiz'||user?.id!==ownerId)return;
- const quizPending=!demo&&queue.events.some(e=>e.studentId===user.id&&e.round===round&&e.type==='quiz');
- const archived=queue.archived(user.id);const archiveHTML=archived.length?`<details class="records"><summary>旧版未评分答卷（${archived.length}份）</summary>${archived.map(item=>`<p>版本：${esc(item.event.payload.quizVersion||'旧版')} · 已答${item.event.payload.answers?.filter(v=>Number.isInteger(v)).length||0}题 · ${esc(item.reason)}<br>保存时间：${esc(new Date(item.archivedAt).toLocaleString('zh-CN'))}</p>`).join('')}<p>这些答卷完整保留在本机，不作为新版成绩。可继续上方新版检测。</p></details>`:'';
- const qd=quizDraft();quizIndex=Math.min(19,qd.index||0);const q=questions[quizIndex], answered=qd.answers.filter(v=>Number.isInteger(v)).length;
- if(quizReview&&state.attempts.length){const first=state.attempts[0],last=state.attempts.at(-1);$('#workbench').innerHTML=`<p class="eyebrow">检测反馈</p><h1>看看自己的理解</h1><div class="score-row"><div><strong>${last.score*5}</strong><span>最近成绩 / 100</span></div><div><strong>${first.score*5}</strong><span>首次成绩 / 100</span></div><div><strong>${state.attempts.length}</strong><span>已完成次数</span></div></div><p>重做成绩表示修订后的表现。首次成绩和任务实验仍然保留。</p><button id="retry-quiz" class="primary" ${quizPending?'disabled':''}>重新进行20题检测</button><details class="records"><summary>历史成绩</summary>${state.attempts.map((a,i)=>`<p>第${i+1}次：${a.score*5}分 · ${esc(new Date(a.at).toLocaleString('zh-CN'))}</p>`).join('')}</details><h2>错题与回学建议</h2>${last.quizVersion!==quizVersion?'<p class="notice">这是旧版检测记录，成绩与当时解析已保留。当前题库已更新，以下不套用新版题干与选项。</p>':''}${last.details.filter(a=>!a.correct).map(a=>{const question=last.quizVersion===quizVersion?questions.find(q=>q.id===a.id):null;return `<article class="wrong-question"><b>${esc(question?.prompt||a.id)}</b><p>你的选择：${esc(question?question.options[a.answer]:`选项${'ABCD'[a.answer]||'未答'}`)}</p><p>正确答案：${esc(question?question.options[a.correctAnswer]:`选项${'ABCD'[a.correctAnswer]}`)}</p><p>${esc(a.explanation)}</p></article>`;}).join('')||'<div class="award">本次20题全部答对。可以回到节能配电站，换一种等价方案再检验。</div>'}`;$('#retry-quiz').onclick=()=>{state.drafts.quiz={answers:Array(20).fill(null),index:0,quizVersion};quizReview=false;saveQuiz();renderQuiz();};return;}
- $('#workbench').innerHTML=`<div class="task-heading"><div><p class="eyebrow">独立检测 · 提交后查看反馈</p><h1>20题，检验你的理解</h1></div>${state.attempts.length?'<button id="history" class="quiet">看已交检测</button>':''}</div><p class="muted">已答${answered}/20。可以前后检查，提交前不显示正误。</p><div class="question-nav">${questions.map((q,i)=>`<button data-question="${i}" ${quizPending?'disabled':''} class="${i===quizIndex?'current':''} ${Number.isInteger(qd.answers[i])?'answered':''}" aria-label="第${i+1}题${Number.isInteger(qd.answers[i])?'已答':'未答'}">${i+1}</button>`).join('')}</div><article class="question"><p class="eyebrow">第${quizIndex+1}题 · ${esc(q.goal)}</p><h2>${esc(q.prompt)}</h2><div class="answers">${q.options.map((o,i)=>`<button data-answer="${i}" ${quizPending?'disabled':''} class="answer ${qd.answers[quizIndex]===i?'chosen':''}" aria-pressed="${qd.answers[quizIndex]===i}"><span>${'ABCD'[i]}</span>${esc(o)}${qd.answers[quizIndex]===i?'<small>已选择</small>':''}</button>`).join('')}</div></article><div class="quiz-actions"><button id="previous" class="quiet" ${quizIndex===0||quizPending?'disabled':''}>← 上一题</button><button id="next-question" class="primary" ${quizIndex===19||quizPending?'disabled':''}>下一题 →</button><button id="submit-quiz" class="primary" ${quizPending?'disabled':''}>${quizPending?'检测待同步，请保留记录':'检查并提交20题'}</button></div><div id="notice" class="notice" ${notice?'':'hidden'} role="status">${esc(notice)}</div>${demo?'<button id="quiz-key" class="quiet">查看20题标准答案与解析</button>':''}${archiveHTML}`;
- document.querySelectorAll('[data-question]').forEach(b=>b.onclick=()=>{qd.index=Number(b.dataset.question);saveQuiz();renderQuiz();});
- document.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>{qd.answers[quizIndex]=Number(b.dataset.answer);saveQuiz();renderQuiz();});
- $('#previous').onclick=()=>{qd.index--;saveQuiz();renderQuiz();};$('#next-question').onclick=()=>{qd.index++;saveQuiz();renderQuiz();};
- if($('#history'))$('#history').onclick=()=>{quizReview=true;renderQuiz();};
- $('#submit-quiz').onclick=async()=>{if(!demo&&queue.events.some(e=>e.studentId===user.id&&e.round===round&&e.type==='quiz'))return;const missing=qd.answers.flatMap((v,i)=>Number.isInteger(v)?[]:[i+1]);if(missing.length){setNotice(`还有${missing.length}题未答：${missing.join('、')}。请检查后再提交。`);return;}if(demo){const details=questions.map((q,i)=>({id:q.id,answer:qd.answers[i],correctAnswer:answerKey[i].answer,correct:qd.answers[i]===answerKey[i].answer,explanation:answerKey[i].explanation}));state.attempts.push({id:eventId(),quizVersion,score:details.filter(d=>d.correct).length,total:20,at:new Date().toISOString(),details});quizReview=true;saveLocal();renderQuiz();}else{send('quiz','quiz',{answers:qd.answers,quizVersion:qd.quizVersion});setNotice('检测正在提交；连接未完成时会保留，恢复后自动提交，请勿重复点击。');renderQuiz();}};
- if($('#quiz-key'))$('#quiz-key').onclick=()=>showHelp(`<h2>检测参考答案</h2>${questions.map((q,i)=>`<p><b>${i+1}. ${esc(q.prompt)}</b><br>${'ABCD'[answerKey[i].answer]}：${esc(q.options[answerKey[i].answer])}<br>${esc(answerKey[i].explanation)}</p>`).join('')}`);
+ const {mountQuiz}=await import('./quiz-board.mjs');
+ const draft=quizDraft();
+ const tier=draft.tier==='challenge'&&state.quiz?.challenge?.unlockedAt?'challenge':'base';
+ draft.tier=tier;
+ const reward=!!JSON.parse(localStorage.getItem('branch-island-questions')||'{}').reward;
+ const pending=!demo&&queue.events.some(event=>event.studentId===user.id&&event.round===round&&event.type==='quiz');
+ const latest=state.quiz?.base?.latest||state.attempts.at(-1);
+ const review=quizReview&&latest?`<section class="records"><h2>最近一次：${latest.score}/${latest.total}</h2>${(latest.details||[]).filter(detail=>detail.status==='incorrect'||detail.correct===false).map(detail=>`<article class="wrong-question"><b>${esc(detail.id)}</b><p>${esc(detail.explanation||'')}</p><p>${esc(detail.review||'')}</p></article>`).join('')||'<p>这次没有要回看的错题。</p>'}</section>`:'';
+  const list=questions.filter(question=>question.tier===tier);
+  const allFilled=list.length>0&&list.every(question=>question.type==='single_choice'?Number.isInteger(draft.answers?.[question.id]):!!draft.confirmed?.[question.id]);
+  const focus=currentFocus({levelId:'quiz',exam:{open:true,tier,allFilled,baseSubmitted:!!state.quiz?.base?.first,challengeSubmitted:!!state.quiz?.challenge?.first,challengeUnlocked:!!state.quiz?.challenge?.unlockedAt,showResult:quizReview}});
+  quizIdle.configure({key:`quiz:${tier}:${focus.id}:${draft.index}`,thinking:focus.thinking});
+  mountQuiz($('#workbench'),{questions,tier,draft,pending,notice,review,focus,focusStrength:quizStrength,challengeUnlocked:!!state.quiz?.challenge?.unlockedAt,rewardUnlocked:reward,onSave:saveQuiz,onRender:renderQuiz,onTier(next){quizIdle.reset();quizStrength=0;draft.tier=next;draft.index=0;saveQuiz();renderQuiz();},onNotice:setNotice,onSubmit(submitTier,answers){if(demo){notice='演示模式的作答只留在这台设备上。';quizReview=true;saveLocal();renderQuiz();return;}send('quiz','quiz',{tier:submitTier,answers,quizVersion:draft.quizVersion});setNotice('检测正在提交；连接未完成时会保留，恢复后自动提交。');renderQuiz();}});
+  $('#workbench').onpointerdown=()=>{quizIdle.reset();if(!quizStrength)return;quizStrength=0;document.querySelectorAll('#workbench .focus-target').forEach(node=>{node.dataset.strength='0';node.classList.remove('tap-hand');});};
 }
 async function boot(){
  try{const config=await api('/api/config');round=config.round;roster=await api('/api/roster');localStorage.setItem('branch-island-roster',JSON.stringify(roster));}catch(e){roster=JSON.parse(localStorage.getItem('branch-island-roster')||'null');if(!roster){$('#app').innerHTML=`<main class="loading"><h1>课堂连接还没有准备好</h1><p>${esc(e.message)}</p><a href="/">重新连接</a></main>`;return;}}

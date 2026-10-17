@@ -62,6 +62,25 @@ test('已失效的旧卷完整归档后解除阻塞，后续学习事件仍可�
   assert.equal(restored.archived()[0].reason,'版本失效');
 });
 
+test('校验拒绝的记录会留下说明并让后面的记录继续同步', async () => {
+  const values = new Map();
+  const storage = { getItem: k => values.get(k) || null, setItem: (k, v) => values.set(k, v) };
+  const sent = [];
+  const rejected = [];
+  const queue = new SyncQueue(storage, async event => {
+    if (event.eventId === 'bad') throw Object.assign(new Error('请检查判断条件'), { status: 400 });
+    sent.push(event.eventId);
+    return {};
+  }, () => {}, () => {}, (event, error) => rejected.push([event.eventId, error.message]));
+  queue.add({ studentId: 'one', round: 1, eventId: 'bad', type: 'draft' });
+  queue.add({ studentId: 'one', round: 1, eventId: 'next', type: 'run' });
+  await queue.flush();
+  assert.deepEqual(sent, ['next']);
+  assert.equal(queue.pending(), 0);
+  assert.deepEqual(rejected, [['bad', '请检查判断条件']]);
+  assert.equal(queue.archived()[0].reason, '请检查判断条件');
+});
+
 test('普通409冲突继续保留，不能被当作旧题库错误归档', async () => {
   const values=new Map();const storage={getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)};
   const queue=new SyncQueue(storage,async()=>{throw Object.assign(new Error('轮次不一致'),{status:409});});

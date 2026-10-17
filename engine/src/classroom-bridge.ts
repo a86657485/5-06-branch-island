@@ -1,6 +1,6 @@
 export type BridgeMethod =
   | 'change' | 'predict' | 'experiment' | 'reason' | 'complete'
-  | 'next' | 'flow' | 'help' | 'checkpoint' | 'evaluate';
+  | 'next' | 'flow' | 'help' | 'checkpoint' | 'evaluate' | 'navHelp' | 'conceptHint';
 
 export interface LessonContext {
   levelId: string;
@@ -31,14 +31,24 @@ let handshakeDeadline: ReturnType<typeof setTimeout> | undefined;
 const pending = new Map<string, PendingRequest>();
 const listeners = new Set<(value: LessonContext) => void>();
 
+export function keepNewerScene(previous: LessonContext | undefined, incoming: LessonContext): LessonContext {
+  if (!previous || previous.levelId !== incoming.levelId) return incoming;
+  const localRev = previous?.draft?.sceneRev || 0;
+  const incomingRev = incoming?.draft?.sceneRev || 0;
+  if (localRev > incomingRev && incoming?.draft && previous?.draft?.scene) {
+    return { ...incoming, draft: { ...incoming.draft, scene: previous.draft.scene, sceneRev: localRev } };
+  }
+  return incoming;
+}
+
 function setContext(value: LessonContext) {
   const previousLevelId = context?.levelId;
-  context = value;
-  if (previousLevelId && previousLevelId !== value.levelId) {
+  context = keepNewerScene(context, value);
+  if (previousLevelId && previousLevelId !== context.levelId) {
     window.dispatchEvent(new CustomEvent('lesson-level-changed'));
   }
-  resolveReady?.(value);
-  for (const listener of listeners) listener(value);
+  resolveReady?.(context);
+  for (const listener of listeners) listener(context);
 }
 
 function reportError(error: Error) {
