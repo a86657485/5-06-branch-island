@@ -135,3 +135,25 @@ export function nextSlot(flow: Flow): 'diamond' | 'yes' | 'no' | '' {
   if (!flow.no) return 'no';
   return '';
 }
+
+export type ThermalTrial = {
+  temperature: 29 | 30 | 31;
+  condition: boolean;
+  branch: 'yes' | 'no';
+  output: string;
+  fan: '启动' | '关闭';
+  correct: boolean;
+};
+
+/** 只解释学生已经锁定的图。比较方式和任务目标与 rules.js 的通风模型一致，不另判对错。 */
+export function thermalTrials(config: { operator?: string; yes?: string; no?: string }): ThermalTrial[] {
+  const operator = config.operator || '>=';
+  const holds = (temperature: number) => operator === '<' ? temperature < 30 : operator === '>' ? temperature > 30 : operator === '<=' ? temperature <= 30 : temperature >= 30;
+  return ([29, 30, 31] as const).map(temperature => {
+    const condition = holds(temperature);
+    const branch = condition ? 'yes' as const : 'no' as const;
+    const output = branch === 'yes' ? String(config.yes || '') : String(config.no || '');
+    const expected = temperature >= 30 ? 'on' : 'off';
+    return { temperature, condition, branch, output, fan: output === 'on' ? '启动' : '关闭', correct: output === expected };
+  });
+}

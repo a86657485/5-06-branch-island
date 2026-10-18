@@ -10,6 +10,7 @@ import { dispose, getContext, ready, request, subscribeContext } from './classro
 import FlowPanel from './gui/FlowPanel.vue';
 import { createIdleTimer } from '../../public/idle-timer.mjs';
 import { currentFocus, gotoTitle } from '../../public/focus.mjs';
+import { emptyFlow, repairPreset } from './gui/flow-model';
 import { toPlain } from './gui/plain';
 
 let engine: RpgClientEngine | undefined;
@@ -332,11 +333,16 @@ function mountPreview() {
     host.id = 'studio-preview';
     host.style.cssText = 'position:fixed;inset:0;z-index:3000;background:#173b31;';
     document.body.appendChild(host);
+    const params = new URLSearchParams(location.search);
+    const mode = params.get('mode') === 'repair' ? 'repair' : 'sale';
+    const flow = params.has('blank')
+      ? (mode === 'repair' ? repairPreset() : emptyFlow())
+      : { diamond: 'ge30', yes: 'on', no: 'off', locked: preview !== 'flow' };
     createApp(FlowPanel, {
-      mode: 'sale',
+      mode,
       preview,
       diagnosed: true,
-      flow: { diamond: 'ge30', yes: 'on', no: 'off', locked: preview !== 'flow' }
+      flow
     }).mount(host);
     return;
   }

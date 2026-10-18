@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import rules from '../public/rules.js';
 import {
   conditionLine, emptyFlow, faultSeen, lockFlow, lockPredictions, lockSentence,
-  placeCard, repairPreset, sentenceTokens
+  placeCard, repairPreset, sentenceTokens, thermalTrials
 } from '../engine/src/gui/flow-model.ts';
 
 test('动作卡放进菱形不能锁定，程序保持原样', () => {
@@ -68,6 +68,26 @@ test('锁定后换一张卡片会解开流程图', () => {
   assert.equal(edited.diamond, 'ge30');
   assert.equal(edited.locked, false);
   assert.equal(edited.yes, 'on');
+});
+
+test('运行验证只顺着学生锁定的图走，和服务器判定一致', () => {
+  const wrong = lockFlow('sale', { diamond: 'gt30', yes: 'on', no: 'off', locked: false });
+  const trials = thermalTrials(wrong.config);
+  assert.deepEqual(trials.map(trial => [trial.temperature, trial.branch, trial.fan, trial.correct]), [
+    [29, 'no', '关闭', true],
+    [30, 'no', '关闭', false],
+    [31, 'yes', '启动', true]
+  ]);
+  for (const trial of trials) {
+    const judged = rules.evaluate('sale', wrong.config, { temperature: trial.temperature });
+    assert.equal(trial.correct, judged.correct);
+    assert.equal(trial.branch, judged.branch);
+    assert.equal(trial.output, judged.output);
+  }
+  const right = thermalTrials(lockFlow('sale', { diamond: 'lt30', yes: 'off', no: 'on', locked: false }).config);
+  assert.equal(right.every(trial => trial.correct), true);
+  const preset = thermalTrials({ operator: '>=', yes: 'off', no: 'on' });
+  assert.equal(preset.find(trial => trial.temperature === 30).correct, false);
 });
 
 test('三个温度都选了才能锁定预测', () => {
