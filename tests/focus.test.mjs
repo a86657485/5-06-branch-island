@@ -62,9 +62,24 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
   const sentence = currentFocus({
     levelId: 'sale',
     scene: { phase: 'assigned', measured: true },
-    draft: { panel: 'sentence', flow: { locked: true }, sentence: { locked: false, slots: [] } }
+    draft: { panel: 'sentence', flow: { locked: true }, sentence: { locked: false, slots: [] }, predictionsLocked: { locked: true } }
   });
   assert.equal(sentence.id, 'sentence-slot-next');
+  const predictTab = currentFocus({
+    levelId: 'sale',
+    scene: { phase: 'assigned', measured: true },
+    draft: { panel: 'flow', flow: { locked: true, diamond: 'ge30', yes: 'on', no: 'off' }, sentence: { locked: false }, predictionsLocked: { locked: false } }
+  });
+  assert.equal(predictTab.id, 'predict-tab');
+  assert.equal(predictTab.kind, 'panel');
+  assert.equal(predictTab.hint, '点「预测」，锁定三个温度的预测。');
+  const predictFromSentence = currentFocus({
+    levelId: 'sale',
+    scene: { phase: 'assigned', measured: true },
+    draft: { panel: 'sentence', flow: { locked: true }, sentence: { locked: false }, predictionsLocked: { locked: false } }
+  });
+  assert.equal(predictFromSentence.id, 'predict-tab');
+  assert.equal(predictFromSentence.hint, '点「预测」，锁定三个温度的预测。');
   const predict = currentFocus({
     levelId: 'sale',
     scene: { phase: 'assigned', measured: true },

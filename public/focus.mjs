@@ -125,7 +125,7 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
   if (panel === 'flow' && !flow.locked) {
     return pack({ id: 'flow-lock', step: '5', kind: 'panel', thinking: false, goto: false, hint: '放好了，点锁定流程图。', strong: '点锁定流程图。', target: {} });
   }
-  if (panel === 'sentence' && !sentence.locked) {
+  if (panel === 'sentence' && !sentence.locked && !(levelId === 'sale' && flow.locked && !predictions.locked)) {
     return pack({ id: 'sentence-slot-next', step: '6', kind: 'panel', thinking: true, goto: false, hint: '点空格，再点一个词块。', strong: '先点词块区，再点空格。', target: {} });
   }
   if (panel === 'predict' && !predictions.locked) {
@@ -178,6 +178,9 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
     return pack({ id: 'control', step: '6', kind: 'map', thinking: false, goto: true, hint: '回控制柜，用词块拼一句。', strong: '按 E 打开拼句。', target: at(mapId, 'control') });
   }
   if ((levelId === 'sale' || levelId === 'repair') && !predictions.locked && !scene.ticket) {
+    if (panel && panel !== 'predict') {
+      return pack({ id: 'predict-tab', step: '7', kind: 'panel', thinking: false, goto: false, hint: '点「预测」，锁定三个温度的预测。', strong: '点「预测」，锁定三个温度的预测。', target: {} });
+    }
     return pack({ id: 'control', step: '7', kind: 'map', thinking: false, goto: true, hint: '回控制柜，锁定三个温度的预测。', strong: '按 E 打开预测表。', target: at(mapId, 'control') });
   }
   if (levelId === 'repair' && !scene.measured) {

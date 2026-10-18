@@ -144,6 +144,7 @@ function lock() {
     predictions.value = unlockPredictionsOnEdit(predictions.value, changed);
     if (changed) sentence.value = { ...sentence.value, locked: false };
     lockedConfig.value = result.config;
+    if (mode === 'sale' && !predictions.value.locked) view.value = 'predict';
     publish({ config: result.config });
   }
 }
@@ -175,7 +176,7 @@ onUnmounted(() => window.clearInterval(verifyTimer));
       <div class="studio-tabs">
         <button type="button" :class="{ on: view === 'flow' }" @click="show('flow')">流程图</button>
         <button type="button" :class="{ on: view === 'sentence' }" @click="show('sentence')">拼句</button>
-        <button v-if="mode === 'sale' || mode === 'repair'" type="button" :class="{ on: view === 'predict' }" @click="show('predict')">预测</button>
+        <button v-if="mode === 'sale' || mode === 'repair'" type="button" :class="{ on: view === 'predict' }" data-focus="predict-tab" @click="show('predict')">预测</button>
       </div>
       <div v-if="mode === 'repair'" class="diagnose" data-focus="diagnose-cards">
         <button v-for="item in [['condition','错在条件'],['exit','错在出口'],['none','都没错']]" :key="item[0]" type="button" :class="{ on: diagnose === item[0] }" @click="diagnose = item[0]; publish()">{{ item[1] }}</button>
