@@ -29,7 +29,7 @@ const cards = computed(() => cardsFor(mode));
 const slotName = computed(() => nextSlot(board.value));
 const nextTemperature = computed(() => {
   if (predictions.value.locked) return 0;
-  return ([29, 30, 31] as const).find(temperature => predictions.value[temperature] !== 'on' && predictions.value[temperature] !== 'off') || 0;
+  return ([29, 30, 31] as const).find(temperature => predictions.value[temperature] !== 'on' && predictions.value[temperature] !== 'off') ?? null;
 });
 const lockedOut = computed(() => mode === 'repair' && !props.diagnosed);
 const alarm = computed(() => /菱形|不能用来/.test(message.value));
@@ -40,7 +40,6 @@ const verifyStep = ref(-1);
 const dragLabel = ref('');
 const dragPoint = ref<{ x: number; y: number } | null>(null);
 let verifyTimer = 0;
-let suppressClick = false;
 let drag: { id: string; x: number; y: number; moved: boolean } | null = null;
 
 function cardLabel(id: string) {
@@ -64,7 +63,6 @@ function syncLocks() {
 }
 function show(next: 'flow' | 'sentence' | 'predict') { view.value = next; publish(); }
 function choose(id: string) {
-  if (suppressClick) { suppressClick = false; return; }
   picked.value = id;
   message.value = '';
 }
@@ -105,7 +103,15 @@ function endDrag(event: PointerEvent) {
   dragLabel.value = '';
   dragPoint.value = null;
   if (!current.moved) return;
-  suppressClick = true;
+  const card = event.currentTarget as HTMLElement | null;
+  if (card) {
+    const swallow = (click: Event) => {
+      click.preventDefault();
+      click.stopImmediatePropagation();
+    };
+    card.addEventListener('click', swallow, { capture: true, once: true });
+    window.setTimeout(() => card.removeEventListener('click', swallow, { capture: true }), 0);
+  }
   const slot = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-slot]')?.getAttribute('data-slot');
   if (slot === 'diamond' || slot === 'yes' || slot === 'no') putCard(slot, current.id);
 }
@@ -236,7 +242,7 @@ onUnmounted(() => window.clearInterval(verifyTimer));
           <button type="button" class="predict-option" :class="{ on: predictions[temperature] === 'on' }" @click="predictions = setPrediction(predictions, temperature, 'on'); publish()">启动</button>
           <button type="button" class="predict-option" :class="{ on: predictions[temperature] === 'off' }" @click="predictions = setPrediction(predictions, temperature, 'off'); publish()">关闭</button>
         </div>
-        <button type="button" class="studio-lock" data-focus="predict-lock" @click="lockTable">锁定预测</button>
+        <button type="button" class="studio-lock" :class="{ next: nextTemperature === null }" data-focus="predict-lock" @click="lockTable">锁定预测</button>
       </div>
       <p v-if="message" class="studio-message" role="status">{{ message }}</p>
       <div v-if="dragLabel && dragPoint" class="drag-ghost" :style="{ left: `${dragPoint.x}px`, top: `${dragPoint.y}px` }">{{ dragLabel }}</div>
@@ -286,6 +292,7 @@ onUnmounted(() => window.clearInterval(verifyTimer));
 .verify-list .wait { color: #6d7f74; }
 .drag-ghost { position: fixed; z-index: 4000; transform: translate(-50%, -130%); pointer-events: none; background: #fffef8; border: 2px solid #184c3b; border-radius: 10px; padding: 8px 10px; font-weight: 700; }
 .predict-row.next button { outline: 3px solid #1175bb; outline-offset: 2px; }
+.studio-lock.next, .studio-lock.focus-target { outline: 4px solid #e39b00; outline-offset: 3px; }
 .flow-slot b, .flow-slot span { display: block; }
 .card-tray { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0; padding: 6px; border: 2px solid #d7e2cc; border-radius: 12px; }
 .studio-card { padding: 8px 10px; touch-action: none; }

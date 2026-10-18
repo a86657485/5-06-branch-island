@@ -184,8 +184,12 @@ function projectWorld(target: { x?: number, y?: number }) {
   return { x: sx, y: sy, offscreen: sx < rect.left || sx > rect.right || sy < rect.top || sy > rect.bottom };
 }
 function paintPanelFocus(focus: { kind?: string, id?: string }) {
-  document.querySelectorAll('.card-tray.focus-target, .flow-slot.focus-target, .studio.focus-target, .predict-option.focus-target, .studio-tabs .focus-target').forEach(node => node.classList.remove('focus-target'));
+  document.querySelectorAll('.card-tray.focus-target, .flow-slot.focus-target, .studio.focus-target, .predict-option.focus-target, .studio-tabs .focus-target, .studio-lock.focus-target, .predict-table.focus-target').forEach(node => node.classList.remove('focus-target'));
   if (focus.kind !== 'panel' || !focus.id) return;
+  if (focus.id === 'predict-row-next' && document.querySelector('[data-focus="predict-lock"].next')) {
+    document.querySelector('[data-focus="predict-lock"]')?.classList.add('focus-target');
+    return;
+  }
   document.querySelector(`[data-focus="${focus.id}"]`)?.classList.add('focus-target');
   if (focus.id === 'predict-row-next') document.querySelectorAll('.predict-row.next button').forEach(node => node.classList.add('focus-target'));
   if (focus.id === 'slot-next' || focus.id === 'sentence-slot-next') {
