@@ -278,12 +278,12 @@ test('旧四关首次进入场景需重验，移动保存与服务重启不重�
  const scene={version:1,x:200,y:300,facing:'up',phase:'assigned',measured:false,actions:[],visited:[]};
  for(const [id,config,input,actorId]of [['cross',cross,{facility:true},'cross-open'],['minimum',minimum,{a:3,b:8},'pair-a']]){
   const visited=await c.event('draft',id,{config,input,scene:{...scene,actorId}});
-  assert.equal(visited.status,200);assert.equal(visited.state.points,100);assert.equal(visited.state.levels[id].completed,true);assert.equal(visited.state.levels[id].valid,true);assert.equal(visited.state.levels[id].evidenceStart,0);
+  assert.equal(visited.status,200);assert.equal(visited.state.points,75);assert.equal(visited.state.bonusPoints,25);assert.equal(visited.state.levels[id].completed,true);assert.equal(visited.state.levels[id].valid,true);assert.equal(visited.state.levels[id].evidenceStart,0);
   const moved=await c.event('draft',id,{config,input,scene:{...scene,actorId,x:400}});assert.equal(moved.state.levels[id].valid,true);assert.equal(moved.state.levels[id].evidenceStart,0);
   await c.restart();const restored=await c.event('draft',id,{config,input,scene:{...scene,actorId,x:500}});assert.equal(restored.state.levels[id].valid,true);assert.equal(restored.state.runs[id].length,2);
  }
  const changed=await c.event('draft','cross',{config:{yes:'crossing',no:'bridge'},scene});
- assert.equal(changed.state.levels.cross.valid,false);assert.equal(changed.state.points,100);
+ assert.equal(changed.state.levels.cross.valid,false);assert.equal(changed.state.points,75);assert.equal(changed.state.bonusPoints,25);
  const saleVisit=await c.event('draft','sale',{config:sale,scene});
  assert.equal(saleVisit.state.levels.sale.valid,false);
 });
@@ -385,4 +385,23 @@ test('概念提示记 hinted，操作帮助不会',async t=>{
  const moved=await c.complete('cross',cross,[{facility:true},{facility:false}],'one');
  assert.equal(moved.result.attemptKind,'transfer');
  assert.equal(moved.state.levels.cross.hinted,false);
+});
+
+test('储能柜记选做加分，锁定被拒时只保留 M8',async t=>{
+ const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
+ const ventilation={model:'ventilation',operator:'>=',yes:'on',no:'off'};
+ const draft=await c.event('draft','sale',{flow:{diamond:'on',yes:'on',no:'off',locked:false},flowRejections:[{mCodes:['M8'],diamond:'on',at:1},{mCodes:['M3'],diamond:'gt30',at:2},{mCodes:['M8'],diamond:'x'.repeat(80),at:3}]});
+ assert.equal(draft.status,200);
+ assert.equal(draft.state.drafts.sale.flowRejections.length,2);
+ assert.deepEqual(draft.state.drafts.sale.flowRejections[0].mCodes,['M8']);
+ assert.equal(draft.state.drafts.sale.flowRejections[1].diamond.length,40);
+ await c.complete('sale',ventilation,[29,30,31].map(temperature=>({temperature})),'boundary');
+ await c.event('run','repair',{config:{...ventilation,yes:'off',no:'on'},input:{temperature:30}});
+ await c.complete('repair',ventilation,[29,30,31].map(temperature=>({temperature})),'swap');
+ await c.complete('cross',cross,[{facility:true},{facility:false}],'one');
+ const bonus=await c.complete('minimum',minimum,[{a:3,b:8},{a:9,b:2}],'compare');
+ assert.equal(bonus.result.passed,true);
+ assert.equal(bonus.state.points,75);
+ assert.equal(bonus.state.bonusPoints,25);
+ assert.equal(bonus.state.levels.minimum.points,25);
 });

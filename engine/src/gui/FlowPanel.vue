@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { inject } from 'vue';
 import SentencePanel from './SentencePanel.vue';
 import { toPlain } from './plain';
-import { cardsFor, emptyFlow, emptyPredictions, emptySentence, lockFlow, lockPredictions, nextSlot, placeCard, repairEditMessage, repairPreset, repairSymbolHint, setPrediction, thermalTrials, unlockPredictionsOnEdit, type Flow, type Predictions, type Sentence, type ThermalTrial } from './flow-model';
+import { canRunVerify, cardsFor, emptyFlow, emptyPredictions, emptySentence, lockFlow, lockPredictions, nextSlot, placeCard, releaseAfterProgramEdit, repairEditMessage, repairPreset, repairSymbolHint, setPrediction, thermalTrials, unlockPredictionsOnEdit, type Flow, type Predictions, type Sentence, type ThermalTrial } from './flow-model';
 
 const props = defineProps<{
   mode?: string;
@@ -11,6 +11,7 @@ const props = defineProps<{
   sentence?: Sentence;
   predictions?: Predictions;
   diagnosed?: boolean;
+  diagnoseAnswer?: string;
   preview?: string;
   focusStrength?: number;
 }>();
@@ -22,7 +23,7 @@ const predictions = ref<Predictions>(props.predictions || emptyPredictions());
 const view = ref(props.preview === 'sentence' ? 'sentence' : props.preview === 'predict' ? 'predict' : 'flow');
 const picked = ref('');
 const message = ref('');
-const diagnose = ref('');
+const diagnose = ref(props.diagnoseAnswer || '');
 const lockedConfig = ref<Record<string, unknown> | null>(null);
 const cards = computed(() => cardsFor(mode));
 const slotName = computed(() => nextSlot(board.value));
@@ -33,6 +34,7 @@ const nextTemperature = computed(() => {
 const lockedOut = computed(() => mode === 'repair' && !props.diagnosed);
 const alarm = computed(() => /菱形|不能用来/.test(message.value));
 const thermal = mode === 'sale' || mode === 'repair';
+const showVerify = computed(() => canRunVerify(mode, board.value, predictions.value));
 const trials = ref<ThermalTrial[] | null>(null);
 const verifyStep = ref(-1);
 const dragLabel = ref('');
@@ -51,8 +53,14 @@ function clearVerify() {
   verifyStep.value = -1;
 }
 function publish(extra: Record<string, unknown> = {}) {
-  const detail = toPlain({ flow: board.value, sentence: sentence.value, predictionsLocked: predictions.value, diagnoseAnswer: diagnose.value, panel: view.value, ...extra });
-  window.dispatchEvent(new CustomEvent('lesson-artifact', { detail }));
+  const detail: Record<string, unknown> = { flow: board.value, sentence: sentence.value, predictionsLocked: predictions.value, panel: view.value, ...extra };
+  if (!('diagnoseAnswer' in extra) && diagnose.value) detail.diagnoseAnswer = diagnose.value;
+  window.dispatchEvent(new CustomEvent('lesson-artifact', { detail: toPlain(detail) }));
+}
+function syncLocks() {
+  const released = releaseAfterProgramEdit(board.value, predictions.value, sentence.value);
+  predictions.value = released.predictions;
+  sentence.value = released.sentence;
 }
 function show(next: 'flow' | 'sentence' | 'predict') { view.value = next; publish(); }
 function choose(id: string) {
@@ -65,6 +73,7 @@ function putCard(slot: 'diamond' | 'yes' | 'no', cardId: string) {
   if (blocked) { message.value = blocked; return; }
   if (!cardId) { message.value = '先点一张卡片，再点空格。'; return; }
   board.value = placeCard(board.value, slot, cardId);
+  syncLocks();
   picked.value = '';
   message.value = '';
   clearVerify();
@@ -128,6 +137,7 @@ function lock() {
   const symbol = mode === 'repair' ? repairSymbolHint(result.config as { operator?: string; yes?: string; no?: string }) : '';
   message.value = symbol ? `${result.message} ${symbol}` : result.message;
   board.value = result.flow;
+  if (!result.ok && 'mCodes' in result && Array.isArray(result.mCodes) && result.mCodes.length) publish({ mCodes: result.mCodes });
   if (result.ok && result.config) {
     clearVerify();
     const changed = !!lockedConfig.value && JSON.stringify(lockedConfig.value) !== JSON.stringify(result.config);
@@ -150,6 +160,7 @@ function finish(action: string) {
 onMounted(() => {
   const initial = lockFlow(mode, { ...board.value, locked: false });
   if (board.value.locked && initial.ok && initial.config) lockedConfig.value = initial.config;
+  syncLocks();
   publish();
   void nextTick(() => document.querySelector<HTMLElement>('.studio')?.focus());
 });
@@ -209,7 +220,7 @@ onUnmounted(() => window.clearInterval(verifyTimer));
           <button v-for="card in cards" :key="card.id" type="button" class="studio-card" :class="{ on: picked === card.id }" draggable="true" @dragstart="$event.dataTransfer?.setData('text/plain', card.id)" @pointerdown="beginDrag(card.id, $event)" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="cancelDrag" @click="choose(card.id)">{{ card.label }}</button>
         </div>
         <button type="button" class="studio-lock" data-focus="flow-lock" @click="lock">锁定流程图</button>
-        <button v-if="thermal && board.locked" type="button" class="studio-lock verify-run" @click="runVerify">运行验证</button>
+        <button v-if="showVerify" type="button" class="studio-lock verify-run" @click="runVerify">运行验证</button>
         <ol v-if="trials" class="verify-list">
           <li v-for="(trial, index) in trials" :key="trial.temperature" :class="{ on: index === verifyStep, wait: index > verifyStep }">
             <template v-if="index <= verifyStep">{{ trial.temperature }}℃ · 风机{{ trial.fan }} · {{ trial.correct ? '符合' : '不符合' }}</template>

@@ -36,6 +36,7 @@ export async function configure(player:RpgPlayer){
   flow:ctx().draft.flow||(mode==='repair'?repairPreset():emptyFlow()),
   sentence:ctx().draft.sentence||emptySentence(mode),
   predictions:ctx().draft.predictionsLocked||emptyPredictions(),
+  diagnoseAnswer:ctx().draft.diagnoseAnswer||'',
   diagnosed:mode!=='repair'||diagnosed
  },{waitingAction:true,blockPlayerInput:true}) as {action?:string,predictions?:{locked?:boolean,[key:string]:unknown}} | null;
  if(!result||result.action==='close')return;

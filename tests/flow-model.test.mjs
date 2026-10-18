@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import rules from '../public/rules.js';
 import {
   conditionLine, emptyFlow, faultSeen, lockFlow, lockPredictions, lockSentence,
-  placeCard, repairPreset, sentenceTokens, thermalTrials
+  canRunVerify, placeCard, releaseAfterProgramEdit, repairPreset, sentenceTokens, thermalTrials
 } from '../engine/src/gui/flow-model.ts';
 
 test('动作卡放进菱形不能锁定，程序保持原样', () => {
@@ -95,4 +95,29 @@ test('三个温度都选了才能锁定预测', () => {
   const locked = lockPredictions({ 29: 'off', 30: 'on', 31: 'on', locked: false });
   assert.equal(locked.ok, true);
   assert.equal(locked.table.locked, true);
+});
+
+test('运行验证：温室要先锁定预测，返修预置故障程序例外', () => {
+  const flow = { diamond: 'ge30', yes: 'on', no: 'off', locked: true };
+  const open = { 29: 'off', 30: 'on', 31: 'on', locked: false };
+  const locked = { ...open, locked: true };
+  assert.equal(canRunVerify('sale', flow, open), false);
+  assert.equal(canRunVerify('sale', { ...flow, locked: false }, locked), false);
+  assert.equal(canRunVerify('sale', flow, locked), true);
+  assert.equal(canRunVerify('repair', repairPreset(), open), true);
+  assert.equal(canRunVerify('repair', { ...flow, preset: false }, open), false);
+  assert.equal(canRunVerify('repair', { ...flow, preset: false }, locked), true);
+});
+
+test('重新打开已解开的图时，句子和预测可以再改', () => {
+  const flow = { diamond: 'ge30', yes: 'on', no: 'off', locked: false };
+  const predictions = { 29: 'off', 30: 'on', 31: 'on', locked: true };
+  const sentence = { slots: ['if'], locked: true };
+  const released = releaseAfterProgramEdit(flow, predictions, sentence);
+  assert.equal(released.predictions.locked, false);
+  assert.equal(released.predictions[30], 'on');
+  assert.equal(released.sentence.locked, false);
+  const preset = releaseAfterProgramEdit(repairPreset(), predictions, sentence);
+  assert.equal(preset.predictions.locked, true);
+  assert.equal(preset.sentence.locked, true);
 });

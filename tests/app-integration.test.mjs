@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import rules from '../public/rules.js';
 import adventure from '../public/adventure-rules.js';
 import { createIntro, introAct, TESTERS } from '../public/intro.mjs';
+import { pointsLabel } from '../public/scoreboard.mjs';
 
 function appHarness(rpg = false) {
  const nodes = new Map();
@@ -14,7 +15,7 @@ function appHarness(rpg = false) {
   SyncQueue:class {constructor(){this.events=[];}pending(){return 0;}add(e){events.push(e);}async flush(){}},reconcileState:(_local,remote)=>remote,
   createIdleTimer:()=>({configure(){},setPaused(){},tick(){},reset(){},strength(){return 0}}),
   currentFocus:()=>({id:'guide',step:'1',hint:'先听园艺员说任务。',strong:'走到发光的圆圈上按 E。',thinking:false,goto:true,gotoReason:'',pause:false,kind:'map',target:{stationId:'sale',mapId:'greenhouse',x:1,y:1}}),
-  createIntro, introAct, TESTERS,
+  createIntro, introAct, TESTERS, pointsLabel,
   createParkScene:host=>{ const scene={host,destroy(){host.onChange({scene:{version:1,x:20,y:30}});},refresh(){}};scenes.push(scene);return scene; },
   createRpgScene:host=>{const scene={engine:'rpgjs',host,destroy(){},refresh(){},navigate(id){this.host=host.forLevel(id);}};scenes.push(scene);return scene;}
  });

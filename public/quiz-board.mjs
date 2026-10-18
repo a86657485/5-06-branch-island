@@ -1,7 +1,7 @@
 import { canLeave, chooseCard, chooseSingle, confirmCurrent, currentQuestion, dropCard, filled, goNext, goTo, groupsIntoTargets, placeCard, slotIds } from './quiz-flow.mjs';
 
 export function quizSubmittedNotice(tier) {
-  return tier === 'challenge' ? '检测已提交。看看自己的结果。' : '检测已提交。看看错题，再决定要不要做挑战层。';
+  return tier === 'challenge' ? '检测已提交。看看自己的结果。' : '检测已提交。看看错题。';
 }
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);

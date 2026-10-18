@@ -45,7 +45,8 @@ test('分类题把每张卡片放进目标框', () => {
   dropCard(dragged, 2, 'none');
   dropCard(dragged, 3, 'none');
   assert.deepEqual(dragged.answers.q20, { 0: 'remind', 1: 'remind', 2: 'none', 3: 'none' });
-  assert.equal(quizSubmittedNotice('base').includes('挑战层'), true);
+  assert.equal(quizSubmittedNotice('base').includes('挑战层'), false);
+  assert.equal(quizSubmittedNotice('base'), '检测已提交。看看错题。');
   assert.equal(quizSubmittedNotice('challenge').includes('挑战层'), false);
   assert.equal(quizSubmittedNotice('challenge'), '检测已提交。看看自己的结果。');
 });

@@ -117,7 +117,7 @@ const idle = createIdleTimer({
   }
 });
 function lessonFocus(context = getContext()) {
-  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level, draft: context?.draft, panelOpen: !!document.querySelector('.studio') });
+  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level, draft: context?.draft, panelOpen: !!document.querySelector('.studio'), runs: context?.runs, evidenceStart: context?.evidenceStart });
 }
 function noteActivity() {
   idle.reset();

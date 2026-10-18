@@ -56,6 +56,8 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
   assert.equal(slot.id, 'slot-next');
   assert.equal(slot.step, '4');
   assert.equal(slot.thinking, true);
+  assert.equal(slot.strong, '把卡片拖进亮着的空格，或先点卡片再点空格。');
+  assert.equal([...slot.strong].length <= 30, true);
   const sentence = currentFocus({
     levelId: 'sale',
     scene: { phase: 'assigned', measured: true },
@@ -216,8 +218,18 @@ test('温室和返修已经跑过时，不先跳去拼句', () => {
     draft: { flow: { locked: true, preset: true }, sentence: { locked: false } },
     panelOpen: false
   });
-  assert.equal(repairRun.step, '3');
-  assert.equal(repairRun.hint, '回控制柜，点一张诊断。');
+  assert.equal(repairRun.step, '9');
+  assert.equal(repairRun.id, 'verify');
+  assert.equal(repairRun.hint, '到核验处保存这次结果。');
+
+  const repairDiagnose = currentFocus({
+    levelId: 'repair',
+    scene: { phase: 'assigned', measured: true, visited: ['verified'] },
+    draft: { flow: { locked: true, preset: true }, sentence: { locked: false } },
+    panelOpen: false
+  });
+  assert.equal(repairDiagnose.step, '3');
+  assert.equal(repairDiagnose.hint, '回控制柜，点一张诊断。');
 
   const repairEdit = currentFocus({
     levelId: 'repair',
@@ -226,7 +238,7 @@ test('温室和返修已经跑过时，不先跳去拼句', () => {
     panelOpen: false
   });
   assert.equal(repairEdit.step, '4');
-  assert.equal(repairEdit.hint, '点要换的格子，再点新卡片。');
+  assert.equal(repairEdit.hint, '先点新卡片再点格子，或拖放。');
 
   const repairSentence = currentFocus({
     levelId: 'repair',
@@ -236,6 +248,39 @@ test('温室和返修已经跑过时，不先跳去拼句', () => {
   });
   assert.equal(repairSentence.step, '6');
   assert.equal(repairSentence.hint, '回控制柜，用词块拼一句。');
+
+  const cabinet = currentFocus({
+    levelId: 'minimum',
+    scene: { phase: 'executed', measured: true, ticket: { output: 'a' } },
+    draft: { flow: { locked: true }, sentence: { locked: false }, panel: 'sentence' },
+    panelOpen: false
+  });
+  assert.equal(cabinet.step, '9');
+  assert.equal(cabinet.id, 'monitor');
+  assert.equal(cabinet.hint, '到核验处保存这次结果。');
+});
+
+test('温室核验之后按结果去下一处，不再默认回探头', () => {
+  const config = { operator: '>=', yes: 'on', no: 'off' };
+  const run = (temperature, correct) => ({ config, input: { temperature }, correct });
+  const scene = { phase: 'assigned', measured: false, visited: ['verified'] };
+  const draft = { flow: { locked: true }, sentence: { locked: true }, predictionsLocked: { locked: true }, config };
+  const nextTemp = currentFocus({ levelId: 'sale', scene, draft, runs: [run(29, true)], evidenceStart: 0, panelOpen: false });
+  assert.equal(nextTemp.id, 'sensor');
+  assert.equal(nextTemp.hint, '换一个温度再试。');
+  const wrong = currentFocus({ levelId: 'sale', scene, draft, runs: [run(29, true), run(30, false), run(31, true)], evidenceStart: 0, panelOpen: false });
+  assert.equal(wrong.id, 'control');
+  assert.equal(wrong.hint, '对照结果，回控制柜改图。');
+  const done = currentFocus({ levelId: 'sale', scene, draft, runs: [run(29, true), run(30, true), run(31, true)], evidenceStart: 0, panelOpen: false });
+  assert.equal(done.id, 'guide');
+  assert.equal(done.step, '11');
+  assert.equal(done.hint, '回园艺员那里汇报。');
+  const repairPanel = currentFocus({
+    levelId: 'repair',
+    scene: { phase: 'assigned', measured: true },
+    draft: { panel: 'flow', flow: { diamond: '', yes: '', no: '', locked: false } }
+  });
+  assert.equal(repairPanel.strong, '先点新卡片再点格子，或拖放。');
 });
 
 test('考核页焦点框住整题或提交按钮，思考步骤用 40 秒', () => {

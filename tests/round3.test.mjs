@@ -79,6 +79,13 @@ test('返修没看到故障不能改，只改符号仍然错，对调出口或�
     ...[29, 30, 31].map(temperature => ({ config: swapped, input: { temperature } }))
   ];
   assert.equal(rules.validateComplete('repair', swapped, runs, 'swap', 0).passed, true);
+  assert.equal(rules.validateComplete('repair', swapped, runs, 'symbol', 0).passed, false);
+  const restoredRuns = [
+    runs[0],
+    ...[29, 30, 31].map(temperature => ({ config: restored, input: { temperature } }))
+  ];
+  assert.equal(rules.validateComplete('repair', restored, restoredRuns, 'symbol', 0).passed, true);
+  assert.equal(rules.validateComplete('repair', restored, restoredRuns, 'swap', 0).passed, false);
   assert.equal(rules.validateComplete('repair', symbolChanged, [
     runs[0],
     ...[29, 30, 31].map(temperature => ({ config: symbolChanged, input: { temperature } }))

@@ -129,6 +129,19 @@ export function unlockPredictionsOnEdit(table: Predictions, changed: boolean): P
   return { ...table, locked: false };
 }
 
+/** 图已经解开时，句子和预测恢复可改；预置故障图仍锁定，不会在这里放开。 */
+export function releaseAfterProgramEdit(flow: Flow, predictions: Predictions, sentence: Sentence) {
+  if (flow.locked) return { predictions, sentence };
+  return { predictions: unlockPredictionsOnEdit(predictions, true), sentence: { ...sentence, locked: false } };
+}
+
+/** S1 要先锁定 29/30/31 的预测。S2 预置故障程序例外，改过之后重新要求预测。 */
+export function canRunVerify(mode: string, flow: Flow, predictions: Predictions) {
+  if (!flow.locked || (mode !== 'sale' && mode !== 'repair')) return false;
+  if (mode === 'repair' && flow.preset) return true;
+  return predictions.locked && ([29, 30, 31] as const).every(temperature => predictions[temperature] === 'on' || predictions[temperature] === 'off');
+}
+
 export function nextSlot(flow: Flow): 'diamond' | 'yes' | 'no' | '' {
   if (!flow.diamond) return 'diamond';
   if (!flow.yes) return 'yes';

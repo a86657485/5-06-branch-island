@@ -92,7 +92,11 @@
     } else if (id === 'cross') {
       if (![true,false].every(facility => current.some(run => run.input.facility === facility))) return { passed: false, feedback: '请分别测试“有设施”和“没有设施”，确认两条分支都能正确执行。' };
     } else if (![true,false].every(smaller => current.some(run => (run.input.a < run.input.b) === smaller))) return { passed: false, feedback: '请分别测试a较小和b较小，不能只验证同一条分支。' };
-    if (reason !== solutions[id].reason) return { passed: false, feedback: '实验已完成。请再选择能解释判断条件和执行分支关系的理由。' };
+    if (id === 'repair' && ventilation) {
+      const reverted = config.operator === '<' && config.yes === 'off' && config.no === 'on';
+      const expected = reverted ? 'symbol' : 'swap';
+      if (reason !== expected) return { passed: false, feedback: reverted ? '实验已完成。这个改法是把判断改回小于，请选择“只改判断方向”。' : '实验已完成。这个改法交换了出口，请选择“判断方向改变，要交换两个出口”。' };
+    } else if (reason !== solutions[id].reason) return { passed: false, feedback: '实验已完成。请再选择能解释判断条件和执行分支关系的理由。' };
     return { passed: true, feedback: '当前方案通过了所需测试，理由也符合本关目标。' };
   }
   return { levels, evaluate, validateComplete, solutions, normalizeConfig, configKey };

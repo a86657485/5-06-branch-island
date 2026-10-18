@@ -26,7 +26,7 @@ function isPrivateAddress(address) {
   return parts[0] === 127 || parts[0] === 10 || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) || (parts[0] === 192 && parts[1] === 168) || (parts[0] === 169 && parts[1] === 254);
 }
 function initialState() {
-  return { drafts: {}, levels: Object.fromEntries(rules.levels.map(level => [level.id, { completed: false, valid: false, points: 0, completedAt: null, reason: null, evidenceStart: 0 }])), runs: Object.fromEntries(rules.levels.map(level => [level.id, []])), predictions: Object.fromEntries(rules.levels.map(level => [level.id, []])), attempts: [], points: 0, quizOpenedAt: null, exam: { openedAt: null }, quiz: { base: { first: null, latest: null, attempts: [], firstSubmittedAt: null, firstScore: null, passed: false }, challenge: { unlockedAt: null, closed: false, first: null, latest: null, attempts: [], firstSubmittedAt: null } }, awards: {}, navHelp: [], conceptHints: [], intro: { accepted: false, heightCase: null, judged: null, ticket: null, idea: null, sawSign: false, done: false, skipped: false, review: false, blocked: null } };
+  return { drafts: {}, levels: Object.fromEntries(rules.levels.map(level => [level.id, { completed: false, valid: false, points: 0, completedAt: null, reason: null, evidenceStart: 0 }])), runs: Object.fromEntries(rules.levels.map(level => [level.id, []])), predictions: Object.fromEntries(rules.levels.map(level => [level.id, []])), attempts: [], points: 0, bonusPoints: 0, quizOpenedAt: null, exam: { openedAt: null }, quiz: { base: { first: null, latest: null, attempts: [], firstSubmittedAt: null, firstScore: null, passed: false }, challenge: { unlockedAt: null, closed: false, first: null, latest: null, attempts: [], firstSubmittedAt: null } }, awards: {}, navHelp: [], conceptHints: [], intro: { accepted: false, heightCase: null, judged: null, ticket: null, idea: null, sawSign: false, done: false, skipped: false, review: false, blocked: null } };
 }
 function ensureState(state) {
   state.exam ||= { openedAt: null };
@@ -314,6 +314,13 @@ function createService(options = {}) {
       if ('rpg' in payload) payload.rpg = checkedRule(() => adventure.validateRpgDraft(payload.rpg,id));
       if (id === 'quiz') acceptQuizDraft(state, payload);
       else if ('config' in payload) checkedRule(() => rules.normalizeConfig(id,payload.config,true));
+      if (Array.isArray(payload.flowRejections)) {
+        payload.flowRejections = payload.flowRejections.filter(item => item && Array.isArray(item.mCodes) && item.mCodes.includes('M8')).slice(-20).map(item => ({
+          mCodes: ['M8'],
+          diamond: typeof item.diamond === 'string' ? item.diamond.slice(0, 40) : '',
+          at: Number.isFinite(item.at) ? item.at : now()
+        }));
+      }
       if (editedAt >= (meta.draftTimes[id] ?? -1)) {
         if (id !== 'quiz' && payload.scene?.version === 1) {
           meta.sceneVersions ||= {};
@@ -367,7 +374,14 @@ function createService(options = {}) {
           result = { ...result, attemptKind: level.attemptKind, hinted };
           level.reason = payload.reason;
           meta.validatedConfigs[id] = rules.configKey(id,config);
-          if (!level.completed) { level.completed = true; level.points = rules.levels.find(level => level.id === id).points; level.completedAt = now(); state.points += level.points; }
+          if (!level.completed) {
+            level.completed = true;
+            const award = rules.levels.find(item => item.id === id);
+            level.points = award.points;
+            level.completedAt = now();
+            if (award.required === false) state.bonusPoints = (Number(state.bonusPoints) || 0) + award.points;
+            else state.points += award.points;
+          }
           syncExam(student.id, record);
         }
       }
