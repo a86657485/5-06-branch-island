@@ -55,9 +55,18 @@ export function routeDots(mapId, output = 'bridge') {
   const target = bridge ? (east ? places.bridgeEast : places.bridgeWest) : (east ? places.crossingEast : places.crossingWest);
   const y = bridge ? 336 : 680;
   const endX = target[0] - 32;
+  // 有天桥时脚印从西入口画到东岸，穿过两段计数区；只画东半段跟过去不会被记成走过。
+  const startX = east && bridge ? places.bridgeWest[0] : endX - 32 * 4;
   const points = [];
-  for (let x = endX - 32 * 4; x <= endX; x += 32) points.push({ x, y });
+  for (let x = startX; x <= endX; x += 32) points.push({ x, y });
   return points;
+}
+
+/** 前往按钮的说明。过街那句只在亲自走的时候出现，流程面板打开时不挂在按钮上。 */
+export function gotoTitle(focus, processPanel = false) {
+  if (focus?.goto) return '前往下一目标';
+  if (processPanel && focus?.gotoReason === '这段要你亲自走过去') return '';
+  return focus?.gotoReason || '';
 }
 
 function opening(levelId) {
@@ -116,10 +125,26 @@ function stationFocus(levelId, scene, level, draft, panelOpen) {
     const drawHint = levelId === 'repair' ? '先运行原程序，看 30℃。' : levelId === 'cross' ? '到导行屏，按 E 打开画图。' : '到规则控制柜，按 E 打开。';
     return pack({ id: 'control', step: '3', kind: 'map', thinking: false, goto: true, hint: drawHint, strong: '走到发光的圆圈上按 E。', target: at(mapId, 'control') });
   }
-  if (!sentence.locked && !(levelId === 'cross' && scene.ticket)) {
+  // S1：句子在第一次运行之前。已经跑过就去预测、执行或核验。S2：故障跑完先诊断、再改图，句子在新图锁定之后。
+  const ran = !!scene.ticket || (scene.visited || []).includes('verified');
+  const revised = levelId === 'repair' && !!draft?.diagnoseAnswer && draft?.flow?.preset === false && !!draft?.flow?.locked;
+  if (levelId === 'repair' && ran && !draft?.diagnoseAnswer) {
+    const open = panel === 'flow';
+    return pack({
+      id: open ? 'diagnose-cards' : 'control', step: '3', kind: open ? 'panel' : 'map', thinking: open, goto: !open,
+      hint: open ? '点一张：问题出在哪里？' : '回控制柜，点一张诊断。',
+      strong: open ? '三张诊断一起看。' : '按 E 打开控制柜。',
+      target: open ? {} : at(mapId, 'control')
+    });
+  }
+  if (levelId === 'repair' && ran && draft?.diagnoseAnswer && !revised && !scene.ticket) {
+    return pack({ id: 'control', step: '4', kind: 'map', thinking: false, goto: true, hint: '点要换的格子，再点新卡片。', strong: '三个槽一起看。', target: at(mapId, 'control') });
+  }
+  const sentenceFirst = !sentence.locked && !(levelId === 'cross' && scene.ticket) && !(ran && (levelId === 'sale' || levelId === 'repair') && !(revised && !scene.ticket));
+  if (sentenceFirst) {
     return pack({ id: 'control', step: '6', kind: 'map', thinking: false, goto: true, hint: '回控制柜，用词块拼一句。', strong: '按 E 打开拼句。', target: at(mapId, 'control') });
   }
-  if ((levelId === 'sale' || levelId === 'repair') && !predictions.locked) {
+  if ((levelId === 'sale' || levelId === 'repair') && !predictions.locked && !scene.ticket) {
     return pack({ id: 'control', step: '7', kind: 'map', thinking: false, goto: true, hint: '回控制柜，锁定三个温度的预测。', strong: '按 E 打开预测表。', target: at(mapId, 'control') });
   }
   if (!scene.ticket) {

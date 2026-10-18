@@ -9,7 +9,7 @@ import { createApp } from 'vue';
 import { dispose, getContext, ready, request, subscribeContext } from './classroom-bridge';
 import FlowPanel from './gui/FlowPanel.vue';
 import { createIdleTimer } from '../../public/idle-timer.mjs';
-import { currentFocus } from '../../public/focus.mjs';
+import { currentFocus, gotoTitle } from '../../public/focus.mjs';
 import { toPlain } from './gui/plain';
 
 let engine: RpgClientEngine | undefined;
@@ -17,6 +17,7 @@ let heldDirection: Direction | undefined;
 let movementFrame = 0;
 let dialogOpen = false;
 let auxiliaryBusy = false;
+let processPanelOpen = false;
 const controls = document.getElementById('engine-controls');
 const status = document.getElementById('engine-status');
 const statusText = document.getElementById('engine-status-text');
@@ -232,7 +233,7 @@ function paintFocus(focus = lessonFocus()) {
   const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
   if (goto) {
     goto.disabled = !focus.goto;
-    goto.title = focus.goto ? '前往下一目标' : (focus.gotoReason || '');
+    goto.title = gotoTitle(focus, processPanelOpen);
     goto.classList.toggle('focus-target', focusStrength >= 2 && focus.goto);
   }
 }
@@ -243,6 +244,10 @@ function syncIdle(paused = dialogOpen || auxiliaryBusy || document.hidden) {
   idle.setPaused(paused || focus.pause);
   paintFocus(focus);
 }
+window.addEventListener('lesson-process-panel', event => {
+  processPanelOpen = !!(event as CustomEvent<{ open: boolean }>).detail?.open;
+  paintFocus();
+});
 window.addEventListener('lesson-dialog-state', event => {
   dialogOpen = !!(event as CustomEvent<{ open: boolean }>).detail.open;
   if (dialogOpen) stopMovement();

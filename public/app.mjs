@@ -3,6 +3,7 @@ import { createParkScene } from './scene.mjs';
 import { createRpgScene } from './rpg-scene.mjs';
 import { createIdleTimer } from './idle-timer.mjs';
 import { currentFocus } from './focus.mjs';
+import { quizSubmittedNotice } from './quiz-board.mjs';
 import { createIntro, introAct, TESTERS } from './intro.mjs';
 const R = window.BranchRules;
 let quizStrength = 0;
@@ -53,7 +54,7 @@ const queue = new SyncQueue(localStorage,e => api('/api/events',e),(event,data)=
   saveLocal();
   if(event.type==='complete' && !data.result.passed) {notice=data.result.feedback;if(activeScene?.engine==='rpgjs'){setNotice(notice);activeScene.refresh();}else render();}
   if(data.rewardUnlocked!=null){const cached=JSON.parse(localStorage.getItem('branch-island-questions')||'{}');cached.reward=!!data.rewardUnlocked;localStorage.setItem('branch-island-questions',JSON.stringify(cached));}
-  if(event.type==='quiz') {quizReview=true; questions=[]; notice='检测已提交。看看错题，再决定要不要做挑战层。';render();}
+  if(event.type==='quiz') {quizReview=true; questions=[]; notice=quizSubmittedNotice(event.payload?.tier);render();}
   updateHeader();
  }
 },(event,error)=>{
@@ -222,8 +223,9 @@ function renderIntro(){
  clearTimeout(gateSignTimer);
  if(intro.ticket&&!intro.sawSign&&!intro.done&&!intro.skipped)gateSignTimer=setTimeout(()=>{const current=state.intro;if(!current?.ticket||current.sawSign||current.done)return;const next=introAct(current,'sign');state.intro=next;saveLocal();send('draft','intro',next);render();},20000);
 }
-function showHelp(html){$('#help-content').innerHTML=html;$('#help').showModal();}
+function showHelp(html){$('#help-content').innerHTML=html;$('#help').showModal();window.dispatchEvent(new CustomEvent('branch-process-panel',{detail:{open:String(html).includes('当前执行过程')}}));}
 $('#close-help').onclick=()=>$('#help').close();$('#help').addEventListener('click',e=>{if(e.target===$('#help'))$('#help').close();});
+$('#help').addEventListener('close',()=>window.dispatchEvent(new CustomEvent('branch-process-panel',{detail:{open:false}})));
 function quizDraft(){
  const old=state.drafts.quiz;
  const legacy=Array.isArray(old?.answers)?old.answers.some(Number.isInteger):old?.answers&&Object.keys(old.answers).length>0;

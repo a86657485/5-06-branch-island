@@ -1,4 +1,8 @@
-import { canLeave, chooseCard, chooseSingle, confirmCurrent, currentQuestion, filled, goNext, goTo, groupsIntoTargets, placeCard, slotIds } from './quiz-flow.mjs';
+import { canLeave, chooseCard, chooseSingle, confirmCurrent, currentQuestion, dropCard, filled, goNext, goTo, groupsIntoTargets, placeCard, slotIds } from './quiz-flow.mjs';
+
+export function quizSubmittedNotice(tier) {
+  return tier === 'challenge' ? '检测已提交。看看自己的结果。' : '检测已提交。看看错题，再决定要不要做挑战层。';
+}
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
@@ -47,7 +51,7 @@ export function mountQuiz(root, options) {
   const value = session.answers[question.id];
   const targets = question.interaction?.targets || [];
   const frame = question.interaction?.frame || question.interaction?.code || '';
-  const cards = question.options.map((text, index) => `<button type="button" data-card="${index}" class="quiz-card ${session.card === index ? 'chosen' : ''}" ${pending ? 'disabled' : ''}>${esc(text)}</button>`).join('');
+  const cards = question.options.map((text, index) => `<button type="button" data-card="${index}" class="quiz-card ${session.card === index ? 'chosen' : ''}" ${pending ? 'disabled' : 'draggable="true"'}>${esc(text)}</button>`).join('');
   const slotButtons = question.type === 'matching' || groupsIntoTargets(question)
     ? targets.map(target => `<button type="button" data-slot="${esc(target.id)}" class="quiz-slot" ${pending ? 'disabled' : ''}>${esc(target.label || target.text || target.id)}</button>`).join('')
     : slots.map(slot => `<button type="button" data-slot="${esc(slot)}" class="quiz-slot" ${pending ? 'disabled' : ''}><b>${esc(slot)}</b><span>${esc(slotLabel(question, slot, question.type === 'ordering' ? value?.[Number(slot)] : value?.[slot]))}</span></button>`).join('');
@@ -65,8 +69,22 @@ export function mountQuiz(root, options) {
   root.querySelectorAll('[data-tier]').forEach(button => { button.onclick = () => options.onTier(button.dataset.tier); });
   root.querySelectorAll('[data-question]').forEach(button => { button.onclick = () => { goTo(session, Number(button.dataset.question)); save(); options.onRender(); }; });
   root.querySelectorAll('[data-single]').forEach(button => { button.onclick = () => { chooseSingle(session, Number(button.dataset.single)); save(); options.onRender(); }; });
-  root.querySelectorAll('[data-card]').forEach(button => { button.onclick = () => { chooseCard(session, Number(button.dataset.card)); save(); options.onRender(); }; });
-  root.querySelectorAll('[data-slot]').forEach(button => { button.onclick = () => { placeCard(session, button.dataset.slot); save(); options.onRender(); }; });
+  root.querySelectorAll('[data-card]').forEach(button => {
+    button.onclick = () => { chooseCard(session, Number(button.dataset.card)); save(); options.onRender(); };
+    button.ondragstart = event => { event.dataTransfer?.setData('text/plain', button.dataset.card); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'; };
+  });
+  root.querySelectorAll('[data-slot]').forEach(button => {
+    button.onclick = () => { placeCard(session, button.dataset.slot); save(); options.onRender(); };
+    button.ondragover = event => event.preventDefault();
+    button.ondrop = event => {
+      event.preventDefault();
+      const card = event.dataTransfer?.getData('text/plain');
+      if (card == null || card === '') return;
+      dropCard(session, card, button.dataset.slot);
+      save();
+      options.onRender();
+    };
+  });
   const confirm = root.querySelector('#confirm-question');
   if (confirm) confirm.onclick = () => { confirmCurrent(session); save(); options.onRender(); };
   root.querySelector('#previous').onclick = () => { if (session.index > 0) goTo(session, session.index - 1); save(); options.onRender(); };

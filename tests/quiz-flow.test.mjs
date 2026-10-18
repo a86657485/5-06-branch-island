@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chooseCard, confirmCurrent, emptySession, filled, goNext, placeCard } from '../public/quiz-flow.mjs';
+import { chooseCard, confirmCurrent, dropCard, emptySession, filled, goNext, placeCard } from '../public/quiz-flow.mjs';
+import { quizSubmittedNotice } from '../public/quiz-board.mjs';
 
 const question = {
   id: 'q22',
@@ -38,4 +39,13 @@ test('分类题把每张卡片放进目标框', () => {
   assert.equal(filled(sort, session.answers.q20), true);
   confirmCurrent(session);
   assert.equal(session.confirmed.q20, true);
+  const dragged = emptySession([sort]);
+  dropCard(dragged, 0, 'remind');
+  dropCard(dragged, 1, 'remind');
+  dropCard(dragged, 2, 'none');
+  dropCard(dragged, 3, 'none');
+  assert.deepEqual(dragged.answers.q20, { 0: 'remind', 1: 'remind', 2: 'none', 3: 'none' });
+  assert.equal(quizSubmittedNotice('base').includes('挑战层'), true);
+  assert.equal(quizSubmittedNotice('challenge').includes('挑战层'), false);
+  assert.equal(quizSubmittedNotice('challenge'), '检测已提交。看看自己的结果。');
 });

@@ -43,6 +43,13 @@ export function chooseCard(session, cardIndex) {
   return session.index;
 }
 
+export function dropCard(session, cardIndex, slotId) {
+  const index = Number(cardIndex);
+  if (!Number.isInteger(index)) return session.index;
+  chooseCard(session, index);
+  return placeCard(session, slotId);
+}
+
 export function placeCard(session, slotId) {
   const question = currentQuestion(session);
   if (!question || question.type === 'single_choice' || session.card == null) return session.index;

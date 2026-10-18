@@ -68,6 +68,8 @@ export function createRpgScene(initialHost) {
     post(await response);
   }
   window.addEventListener('message',receive);
+  const onProcessPanel = event => post({ type: 'rpgjs-process-panel', open: !!event.detail?.open });
+  window.addEventListener('branch-process-panel', onProcessPanel);
   return {
     engine:'rpgjs', refresh,
     navigate(levelId) {
@@ -80,6 +82,7 @@ export function createRpgScene(initialHost) {
       disposed = true;
       clearTimeout(timer);
       window.removeEventListener('message',receive);
+      window.removeEventListener('branch-process-panel', onProcessPanel);
       frame.remove();
       replies.clear();
     }

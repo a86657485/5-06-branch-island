@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { currentFocus } from '../public/focus.mjs';
+import { currentFocus, gotoTitle, routeDots } from '../public/focus.mjs';
+import { advanceRoute, routeMark } from '../engine/src/modules/lesson/route-progress.mjs';
 import { keepNewerScene } from '../engine/src/classroom-bridge.ts';
 import { createIdleTimer } from '../public/idle-timer.mjs';
 
@@ -150,6 +151,91 @@ test('脚印沿两条腿走，大约每 32 像素一点，不落在终点上', (
   });
   assert.equal(arrived.hint, '到核验处保存这次结果。');
   assert.equal(arrived.step, '9');
+});
+
+test('只沿天桥脚印走会记成 route', () => {
+  const focus = currentFocus({
+    levelId: 'cross',
+    scene: { phase: 'executed', measured: true, facility: true, ticket: { output: 'bridge' }, actions: [], signal: 'green' },
+    level: { valid: false }
+  });
+  const dots = focus.dots;
+  assert.equal(dots.some(dot => dot.x >= 430 && dot.x <= 580 && dot.y >= 288 && dot.y <= 392), true);
+  assert.equal(dots.some(dot => dot.x >= 700 && dot.x <= 860 && dot.y >= 288 && dot.y <= 392), true);
+  assert.equal(dots[0].x, 470);
+  assert.equal(dots[dots.length - 1].x >= 1024 && dots[dots.length - 1].x <= 1180, true);
+  const progress = dots.reduce((state, dot) => advanceRoute(state, dot, 'bridge', 'footprints'), undefined);
+  assert.equal(routeMark(progress.stage), 'route');
+  const zebra = routeDots('crossing', 'crossing');
+  assert.equal(zebra.length < dots.length, true);
+  assert.equal(zebra.some(dot => dot.x >= 700 && dot.x <= 860), false);
+});
+
+test('过街说明只在亲自走时挂在按钮上', () => {
+  const walk = currentFocus({
+    levelId: 'cross',
+    scene: { phase: 'executed', measured: true, facility: true, ticket: { output: 'bridge' }, actions: [] },
+    level: { valid: false }
+  });
+  assert.equal(gotoTitle(walk, false), '这段要你亲自走过去');
+  assert.equal(gotoTitle(walk, true), '');
+  assert.equal(gotoTitle({ goto: true, gotoReason: '' }, true), '前往下一目标');
+});
+
+test('温室和返修已经跑过时，不先跳去拼句', () => {
+  const saleRun = currentFocus({
+    levelId: 'sale',
+    scene: { phase: 'executed', measured: true, ticket: { output: 'on' }, visited: [] },
+    draft: { flow: { locked: true }, sentence: { locked: false }, predictionsLocked: { locked: false } },
+    panelOpen: false
+  });
+  assert.equal(saleRun.step, '9');
+  assert.equal(saleRun.id, 'verify');
+  assert.equal(saleRun.hint.includes('拼一句'), false);
+
+  const saleNext = currentFocus({
+    levelId: 'sale',
+    scene: { phase: 'assigned', measured: true, visited: ['verified'] },
+    draft: { flow: { locked: true }, sentence: { locked: false }, predictionsLocked: { locked: false } },
+    panelOpen: false
+  });
+  assert.equal(saleNext.step, '7');
+  assert.equal(saleNext.hint, '回控制柜，锁定三个温度的预测。');
+
+  const beforeRun = currentFocus({
+    levelId: 'sale',
+    scene: { phase: 'assigned', measured: true, visited: [] },
+    draft: { flow: { locked: true }, sentence: { locked: false } },
+    panelOpen: false
+  });
+  assert.equal(beforeRun.hint, '回控制柜，用词块拼一句。');
+
+  const repairRun = currentFocus({
+    levelId: 'repair',
+    scene: { phase: 'executed', measured: true, ticket: { output: 'off' }, visited: ['verified'] },
+    draft: { flow: { locked: true, preset: true }, sentence: { locked: false } },
+    panelOpen: false
+  });
+  assert.equal(repairRun.step, '3');
+  assert.equal(repairRun.hint, '回控制柜，点一张诊断。');
+
+  const repairEdit = currentFocus({
+    levelId: 'repair',
+    scene: { phase: 'assigned', measured: true, visited: ['verified'] },
+    draft: { flow: { locked: true, preset: true }, sentence: { locked: false }, diagnoseAnswer: 'exit' },
+    panelOpen: false
+  });
+  assert.equal(repairEdit.step, '4');
+  assert.equal(repairEdit.hint, '点要换的格子，再点新卡片。');
+
+  const repairSentence = currentFocus({
+    levelId: 'repair',
+    scene: { phase: 'assigned', measured: true, visited: ['verified'] },
+    draft: { flow: { locked: true, preset: false, diamond: 'lt30', yes: 'on', no: 'off' }, sentence: { locked: false }, diagnoseAnswer: 'exit' },
+    panelOpen: false
+  });
+  assert.equal(repairSentence.step, '6');
+  assert.equal(repairSentence.hint, '回控制柜，用词块拼一句。');
 });
 
 test('考核页焦点框住整题或提交按钮，思考步骤用 40 秒', () => {

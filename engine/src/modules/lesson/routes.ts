@@ -1,6 +1,6 @@
 import layout from '../../tiled/layout.json';
 import { EventMode, type EventDefinition, type RpgPlayer } from '@rpgjs/server';
-import { advanceRoute, bothRoadsVerified, closedBridgeSelected } from './route-progress.mjs';
+import { advanceRoute, bothRoadsVerified, closedBridgeSelected, routeMark } from './route-progress.mjs';
 import {
   apply, clearPending, configure, ctx, event, input, patchScene, predict,
   record, review, rpc, say, scene
@@ -29,10 +29,11 @@ export async function checkRoute(player: RpgPlayer) {
   }
   const progress = advanceRoute(routeProgress.get(player), { x: player.x(), y: player.y() }, selected, routeKey());
   routeProgress.set(player, progress);
-  if (progress.stage !== 3) return;
+  const mark = routeMark(progress.stage);
+  if (!mark) return;
   movingSave.add(player);
   try {
-    await patchScene(player, { actions: [...current.actions, 'route'], phase: 'arrived' });
+    await patchScene(player, { actions: [...current.actions, mark], phase: 'arrived' });
   } catch (error) {
     await say(player, '通行记录员', error instanceof Error ? error.message : '通行记录未同步，请重新尝试。');
   } finally {

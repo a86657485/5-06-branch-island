@@ -10,6 +10,11 @@ export function closedBridgeSelected(output, facility) {
   return output === 'bridge' && !facility;
 }
 
+/** Stage 3 is the walked corridor. checkRoute stores that as the `route` action. */
+export function routeMark(stage) {
+  return stage === 3 ? 'route' : '';
+}
+
 /** Track actual movement through one selected west-to-east road corridor. */
 export function advanceRoute(previous, position, route, key) {
   const progress = previous?.key === key && previous.route === route

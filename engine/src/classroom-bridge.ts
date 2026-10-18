@@ -76,6 +76,8 @@ function receive(event: MessageEvent) {
       request.reject(error);
     }
     else request.resolve(message.result?.value);
+  } else if (message.type === 'rpgjs-process-panel') {
+    window.dispatchEvent(new CustomEvent('lesson-process-panel', { detail: { open: !!message.open } }));
   }
 }
 
