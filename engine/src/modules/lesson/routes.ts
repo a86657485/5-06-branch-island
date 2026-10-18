@@ -1,5 +1,6 @@
 import layout from '../../tiled/layout.json';
-import { EventMode, Move, type EventDefinition, type RpgPlayer } from '@rpgjs/server';
+import { Direction } from '@rpgjs/common';
+import { EventMode, type EventDefinition, type RpgPlayer } from '@rpgjs/server';
 import { advanceRoute, bothRoadsVerified, closedBridgeSelected, routeMark } from './route-progress.mjs';
 import {
   apply, clearPending, configure, ctx, event, input, patchScene, predict,
@@ -139,8 +140,10 @@ let visitorShape: {
   teleport?: (position: { x: number; y: number }) => Promise<unknown>;
   x?: { set?: (value: number) => void };
   y?: { set?: (value: number) => void };
-  moveRoutes?: (routes: unknown[]) => Promise<boolean>;
   stopMoveTo?: () => void;
+  changeDirection?: (direction: Direction) => void;
+  setGraphicAnimation?: (name: string) => void;
+  animationFixed: boolean;
 } | undefined;
 
 function visitorSkipped(player: RpgPlayer) {
@@ -161,39 +164,26 @@ async function slideVisitor(route: 'bridge' | 'crossing', stopped: () => boolean
   const startX = 420;
   const endX = 1040;
   const shape = visitorShape;
+  if (!shape) return;
   const teleportTo = async (x: number) => {
-    if (typeof shape?.teleport === 'function') await shape.teleport({ x, y });
-    else { shape?.x?.set?.(x); shape?.y?.set?.(y); }
+    if (typeof shape.teleport === 'function') await shape.teleport({ x, y });
+    else { shape.x?.set?.(x); shape.y?.set?.(y); }
   };
+  shape.stopMoveTo?.();
+  shape.changeDirection?.(Direction.Right);
+  shape.setGraphicAnimation?.('walk');
+  shape.animationFixed = true;
   try {
-    if (typeof shape?.moveRoutes !== 'function') throw new Error('walk');
-    await teleportTo(startX);
-    const tiles = Math.max(1, Math.round((endX - startX) / 32));
-    for (let walked = 0; walked < tiles; walked += 4) {
-      if (stopped()) { shape.stopMoveTo?.(); return; }
-      const step = Math.min(4, tiles - walked);
-      const motion = shape.moveRoutes([Move.turnRight(), ...Move.right(step)]);
-      const halt = new Promise<never>((_resolve, reject) => {
-        const timer = setInterval(() => {
-          if (!stopped()) return;
-          clearInterval(timer);
-          shape.stopMoveTo?.();
-          reject(new Error('skip'));
-        }, 80);
-        motion.finally(() => clearInterval(timer));
-      });
-      const finished = await Promise.race([motion, halt]);
+    const steps = 20;
+    for (let step = 0; step <= steps; step += 1) {
       if (stopped()) return;
-      if (finished === false) throw new Error('stuck');
-    }
-  } catch (error) {
-    if (stopped() || (error instanceof Error && error.message === 'skip')) return;
-    for (let step = 0; step <= 12; step += 1) {
-      if (stopped()) return;
-      try { await teleportTo(startX + (endX - startX) * step / 12); }
+      try { await teleportTo(startX + (endX - startX) * step / steps); }
       catch { /* 关掉演出后不再追位置 */ }
-      await new Promise(resolve => setTimeout(resolve, 250));
+      await new Promise(resolve => setTimeout(resolve, 150));
     }
+  } finally {
+    shape.animationFixed = false;
+    shape.setGraphicAnimation?.('stand');
   }
 }
 

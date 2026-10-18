@@ -211,7 +211,15 @@ test('温室和返修已经跑过时，不先跳去拼句', () => {
     draft: { flow: { locked: true }, sentence: { locked: false } },
     panelOpen: false
   });
-  assert.equal(beforeRun.hint, '回控制柜，用词块拼一句。');
+  assert.equal(beforeRun.step, '7');
+  assert.equal(beforeRun.hint, '回控制柜，锁定三个温度的预测。');
+  const sentenceAfterPredict = currentFocus({
+    levelId: 'sale',
+    scene: { phase: 'assigned', measured: true, visited: [] },
+    draft: { flow: { locked: true }, sentence: { locked: false }, predictionsLocked: { locked: true } },
+    panelOpen: false
+  });
+  assert.equal(sentenceAfterPredict.hint, '回控制柜，用词块拼一句。');
 
   const repairRun = currentFocus({
     levelId: 'repair',
@@ -231,6 +239,14 @@ test('温室和返修已经跑过时，不先跳去拼句', () => {
   });
   assert.equal(repairDiagnose.step, '3');
   assert.equal(repairDiagnose.hint, '回控制柜，点一张诊断。');
+  const repairNeedsSample = currentFocus({
+    levelId: 'repair',
+    scene: { phase: 'assigned', measured: false, visited: ['verified'] },
+    draft: { flow: { locked: true, preset: true }, sentence: { locked: false } },
+    panelOpen: false
+  });
+  assert.equal(repairNeedsSample.id, 'sensor');
+  assert.equal(repairNeedsSample.hint, '到温度探头，选一个温度。');
 
   const repairEdit = currentFocus({
     levelId: 'repair',
