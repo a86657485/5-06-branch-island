@@ -151,6 +151,10 @@
       "portal": [
         1190,
         590
+      ],
+      "visitor": [
+        400,
+        680
       ]
     },
     "blockedTiles": 976
@@ -199,6 +203,10 @@
       "portal": [
         1190,
         590
+      ],
+      "visitor": [
+        400,
+        680
       ]
     },
     "blockedTiles": 912

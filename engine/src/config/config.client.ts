@@ -2,6 +2,7 @@ import { provideClientGlobalConfig, provideClientModules } from '@rpgjs/client';
 import { provideTiledMap } from '@rpgjs/tiledmap/client';
 import { provideVueGui, vueGui } from '@rpgjs/vue';
 import LessonDialog from '../gui/LessonDialog.vue';
+import FlowPanel from '../gui/FlowPanel.vue';
 import { lessonSprites } from '../modules/lesson/sprites';
 
 export default {
@@ -19,7 +20,7 @@ export default {
     provideVueGui({ selector: '#vue-gui-overlay', createIfNotFound: true }),
     provideClientModules([{
       spritesheets: lessonSprites,
-      gui: [vueGui({ id: 'lesson-dialog', component: LessonDialog })],
+      gui: [vueGui({ id: 'lesson-dialog', component: LessonDialog }), vueGui({ id: 'flow-panel', component: FlowPanel })],
     }]),
   ],
 };

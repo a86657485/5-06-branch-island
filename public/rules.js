@@ -6,10 +6,10 @@
 }(typeof window === 'object' ? window : globalThis, function () {
   'use strict';
   const levels = [
-    { id: 'sale', title: '温室通风', points: 25 },
-    { id: 'repair', title: '设备维修', points: 25 },
-    { id: 'cross', title: '安全通行', points: 25 },
-    { id: 'minimum', title: '节能配电', points: 25 }
+    { id: 'sale', title: '温室风机调试', points: 25, required: true },
+    { id: 'repair', title: '温室控制器返修', points: 25, required: true },
+    { id: 'cross', title: '路口导行屏调试', points: 25, required: true },
+    { id: 'minimum', title: '储能柜配电', points: 25, required: false }
   ];
   const solutions = {
     sale: { config: { model:'ventilation', operator: '>=', yes: 'on', no: 'off' }, reason: 'boundary', tests: [{temperature:29},{temperature:30},{temperature:31}], explanation: '本任务试运行设定：温度≥30°C启动风机，否则关闭。使用＜30°C判断时，两个出口对应交换。' },
@@ -30,7 +30,7 @@
     const allowed = value => choices.includes(value) || (partial && (value === '' || value === undefined));
     if (!allowed(config.yes) || !allowed(config.no)) throw new Error('请检查两个分支的选择');
     if (id === 'cross') return { yes: config.yes ?? '', no: config.no ?? '' };
-    const operators = id === 'minimum' ? ['<', '>'] : id === 'repair' ? ['>='] : ['<', '>='];
+    const operators = id === 'minimum' ? ['<', '>'] : ['<', '>=', '>', '<='];
     if (!operators.includes(config.operator) && !(partial && (config.operator === '' || config.operator === undefined))) throw new Error('请检查判断条件');
     return { ...(ventilation ? {model:'ventilation'} : {}), operator: config.operator ?? '', yes: config.yes ?? '', no: config.no ?? '' };
   }
@@ -39,18 +39,20 @@
     config = normalizeConfig(id, config);
     if (!input || typeof input !== 'object') throw new Error('请先设置实验输入');
     let condition, output, expected, conditionText, inputText;
+    const symbol = { '<': '＜', '>': '＞', '<=': '≤', '>=': '≥' };
+    const compare = (operator, left, right) => operator === '<' ? left < right : operator === '>' ? left > right : operator === '<=' ? left <= right : left >= right;
     if (config.model === 'ventilation') {
       if (!Number.isInteger(input.temperature)) throw new Error('温度请输入整数摄氏度');
-      condition = config.operator === '<' ? input.temperature < 30 : input.temperature >= 30;
+      condition = compare(config.operator, input.temperature, 30);
       expected = input.temperature >= 30 ? 'on' : 'off';
       inputText = `读取温度 ${input.temperature}°C`;
-      conditionText = `${input.temperature} ${config.operator === '<' ? '<' : '≥'} 30`;
+      conditionText = `${input.temperature} ${symbol[config.operator] || config.operator} 30`;
     } else if (id === 'sale' || id === 'repair') {
       if (!Number.isInteger(input.height) || input.height < 0 || input.height > 250) throw new Error('身高请输入0到250之间的整数厘米');
-      condition = config.operator === '<' ? input.height < 120 : input.height >= 120;
+      condition = compare(config.operator, input.height, 120);
       expected = input.height < 120 ? '5' : '10';
       inputText = `输入身高 ${input.height} 厘米`;
-      conditionText = `${input.height} ${config.operator === '<' ? '<' : '≥'} 120`;
+      conditionText = `${input.height} ${symbol[config.operator] || config.operator} 120`;
     } else if (id === 'cross') {
       if (typeof input.facility !== 'boolean') throw new Error('请明确选择附近是否有天桥或地下通道');
       condition = input.facility; expected = input.facility ? 'bridge' : 'crossing';
@@ -67,7 +69,7 @@
     const selected = config[branch];
     output = id === 'minimum' ? String(input[selected]) : selected;
     const label = value => config.model === 'ventilation' ? value === 'on' ? '启动风机' : '关闭风机' : id === 'cross' ? value === 'bridge' ? '走天桥或地下通道' : '到有信号灯的人行横道按信号通行' : id === 'minimum' ? `输出 ${value}` : `收 ${value} 元`;
-    return { condition, branch, output, expected, correct: output === expected, trace: [inputText, `判断“${conditionText}”：${condition ? '成立' : '不成立'}`, `只执行${condition ? '成立' : '不成立'}分支：${label(output)}`] };
+    return { condition, conditionText, branch, output, expected, correct: output === expected, trace: [inputText, `判断“${conditionText}”：${condition ? '成立' : '不成立'}`, `只执行${condition ? '成立' : '不成立'}分支：${label(output)}`] };
   }
   function validateComplete(id, config, runs, reason, evidenceStart = 0) {
     const key = configKey(id, config);
@@ -90,7 +92,11 @@
     } else if (id === 'cross') {
       if (![true,false].every(facility => current.some(run => run.input.facility === facility))) return { passed: false, feedback: '请分别测试“有设施”和“没有设施”，确认两条分支都能正确执行。' };
     } else if (![true,false].every(smaller => current.some(run => (run.input.a < run.input.b) === smaller))) return { passed: false, feedback: '请分别测试a较小和b较小，不能只验证同一条分支。' };
-    if (reason !== solutions[id].reason) return { passed: false, feedback: '实验已完成。请再选择能解释判断条件和执行分支关系的理由。' };
+    if (id === 'repair' && ventilation) {
+      const reverted = config.operator === '<' && config.yes === 'off' && config.no === 'on';
+      const expected = reverted ? 'symbol' : 'swap';
+      if (reason !== expected) return { passed: false, feedback: reverted ? '实验已完成。这个改法是把判断改回小于，请选择“只改判断方向”。' : '实验已完成。这个改法交换了出口，请选择“判断方向改变，要交换两个出口”。' };
+    } else if (reason !== solutions[id].reason) return { passed: false, feedback: '实验已完成。请再选择能解释判断条件和执行分支关系的理由。' };
     return { passed: true, feedback: '当前方案通过了所需测试，理由也符合本关目标。' };
   }
   return { levels, evaluate, validateComplete, solutions, normalizeConfig, configKey };

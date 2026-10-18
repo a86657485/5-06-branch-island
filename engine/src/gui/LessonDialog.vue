@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { DialogChoice } from './ask';
+import { DIALOG_DISMISS_EVENTS, dialogCloseValue } from './dialog-policy';
 
 const props = defineProps<{
   dialogId: number;
@@ -28,14 +29,15 @@ function finish(value: string | null) {
 }
 
 function levelChanged() {
-  finish(null);
+  submitted.value = false;
+  finish(dialogCloseValue('map'));
 }
 
 function keyboard(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     event.preventDefault();
     event.stopImmediatePropagation();
-    finish(null);
+    finish(dialogCloseValue('escape'));
   } else if (event.key === 'Tab' && panel.value) {
     const buttons = Array.from(panel.value.querySelectorAll<HTMLButtonElement>('button'));
     const first = buttons[0];
@@ -55,13 +57,13 @@ function keyboard(event: KeyboardEvent) {
 onMounted(async () => {
   window.dispatchEvent(new CustomEvent('lesson-dialog-state', { detail: { open: true } }));
   window.addEventListener('keydown', keyboard, true);
-  window.addEventListener('lesson-level-changed', levelChanged);
+  for (const name of DIALOG_DISMISS_EVENTS) window.addEventListener(name, levelChanged);
   await nextTick();
   panel.value?.focus();
 });
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', keyboard, true);
-  window.removeEventListener('lesson-level-changed', levelChanged);
+  for (const name of DIALOG_DISMISS_EVENTS) window.removeEventListener(name, levelChanged);
   window.dispatchEvent(new CustomEvent('lesson-dialog-state', { detail: { open: false } }));
 });
 </script>
@@ -77,7 +79,7 @@ onBeforeUnmount(() => {
       <div v-if="choices?.length" class="dialog-choices">
         <button v-for="choice in choices" :key="choice.id" :disabled="submitted" @click="finish(choice.id)">{{ choice.label }}</button>
       </div>
-      <button v-else class="dialog-return" @click="finish(null)">返回现场</button>
+      <button v-else class="dialog-return" @click="finish(dialogCloseValue('return'))">返回现场</button>
       <p class="dialog-footnote">随时关闭，当前进度会保留。</p>
     </section>
   </div>
