@@ -117,7 +117,7 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
     const repair = levelId === 'repair';
     return pack({
       id: 'slot-next', step: '4', kind: 'panel', thinking: true, goto: false,
-      hint: repair ? '先点新卡片再点格子，或拖放。' : '点亮着的空格，再点一张卡片。',
+      hint: repair ? '先点新卡片再点格子，或拖放。' : '把卡片拖进亮着的空格，或先点卡片再点空格。',
       strong: repair ? '先点新卡片再点格子，或拖放。' : '把卡片拖进亮着的空格，或先点卡片再点空格。',
       target: {}
     });

@@ -56,6 +56,7 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
   assert.equal(slot.id, 'slot-next');
   assert.equal(slot.step, '4');
   assert.equal(slot.thinking, true);
+  assert.equal(slot.hint, '把卡片拖进亮着的空格，或先点卡片再点空格。');
   assert.equal(slot.strong, '把卡片拖进亮着的空格，或先点卡片再点空格。');
   assert.equal([...slot.strong].length <= 30, true);
   const sentence = currentFocus({
@@ -280,6 +281,7 @@ test('温室核验之后按结果去下一处，不再默认回探头', () => {
     scene: { phase: 'assigned', measured: true },
     draft: { panel: 'flow', flow: { diamond: '', yes: '', no: '', locked: false } }
   });
+  assert.equal(repairPanel.hint, '先点新卡片再点格子，或拖放。');
   assert.equal(repairPanel.strong, '先点新卡片再点格子，或拖放。');
 });
 
