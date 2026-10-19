@@ -132,8 +132,9 @@ test('从入口走到返修再换三次图，关闭对话不写完成或证据',
     mapFor('cross', { facility: false }),
     mapFor('cross', { facility: true })
   ];
-  assert.deepEqual(maps, ['greenhouse', 'workshop', 'crossing', 'crossing-east']);
-  assert.equal(new Set(maps).size, 4);
+  assert.deepEqual(maps, ['greenhouse', 'greenhouse', 'crossing', 'crossing-east']);
+  assert.equal(mapFor('sale', {}), mapFor('repair', {}));
+  assert.equal(new Set(maps).size, 3);
   for (const signal of ['escape', 'return', 'map']) {
     assert.equal(dialogCloseValue(signal), null);
     assert.equal(dialogCloseWritesEvidence(), false);

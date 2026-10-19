@@ -119,9 +119,10 @@ test('开考前能看到缺的站，回到该站按钮可以点',()=>{
  s.levels={sale:{completed:true,valid:true},repair:{completed:false,valid:false},cross:{completed:false,valid:false},minimum:{completed:false,valid:false}};
  h.app.setState(s);h.app.setCurrent('quiz');h.app.render();
  const html=h.node('#exam-body').innerHTML;
- assert.match(html,/温室控制器返修/);
- assert.match(html,/回到该站（温室控制器返修）/);
+ assert.match(html,/控制器返修/);
+ assert.match(html,/回到该站（控制器返修）/);
  assert.equal(html.includes('data-back="repair" disabled'),false);
+ assert.match(html,/data-back="cross"[^>]*disabled/);
  assert.match(html,/考核还没开放/);
  assert.match(h.node('#app').innerHTML,/id="exam-overlay"/);
  assert.match(h.node('#app').innerHTML,/巡检单/);

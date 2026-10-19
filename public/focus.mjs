@@ -9,7 +9,7 @@ const PLACES = {
 };
 
 export function mapFor(levelId, scene) {
-  if (levelId === 'repair') return 'workshop';
+  if (levelId === 'repair') return 'greenhouse';
   if (levelId === 'minimum') return 'energy';
   if (levelId === 'cross') return scene?.facility === false ? 'crossing' : 'crossing-east';
   return 'greenhouse';
@@ -132,6 +132,12 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
     return pack({ id: 'predict-row-next', step: '7', kind: 'panel', thinking: true, goto: false, hint: '每个温度选：启动还是关闭？', strong: '点这一行的启动或关闭。', target: {} });
   }
   if (!scene.phase || scene.phase === 'start') {
+    if (levelId === 'repair') {
+      const spot = at('greenhouse', 'guide');
+      const focus = pack({ id: 'guide', step: '1', kind: 'map', thinking: false, goto: false, gotoReason: '同图走到返修，不传送。', hint: '沿箭头走到返修点，听维修员说问题。', strong: '走到发光的圆圈上按 E。', target: spot });
+      focus.dots = [1, 2, 3, 4].map(step => ({ x: spot.x + step * 32, y: spot.y + step * 16 }));
+      return focus;
+    }
     return pack({ id: 'guide', step: '1', kind: 'map', thinking: false, goto: true, hint: opening(levelId), strong: '走到发光的圆圈上按 E。', target: at(mapId, 'guide') });
   }
   const saved = (scene.visited || []).includes('verified');

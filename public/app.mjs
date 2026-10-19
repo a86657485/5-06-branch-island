@@ -252,7 +252,7 @@ function renderTask(idx){
   root:$('#workbench'),levelId:id,demo,forLevel:makeHost,getDraft:()=>state.drafts[id]||clone(defaults[id]),getRuns:()=>state.runs[id]||[],getLevel:()=>state.levels[id],getEvidenceStart:()=>state.levels[id]?.evidenceStart||0,reasons:reasonOptions[id],
   onChange(patch){
    if(!sameOwner())return;
-   if('rpg' in patch){patch={...patch,rpg:window.AdventureRules.validateRpgDraft(patch.rpg)};const maps={sale:['greenhouse'],repair:['workshop'],cross:['crossing','crossing-east'],minimum:['energy'],gate:['greenhouse']};if(!maps[id].includes(patch.rpg.mapId))throw new Error('当前位置与任务场景不一致。');}
+   if('rpg' in patch){patch={...patch,rpg:window.AdventureRules.validateRpgDraft(patch.rpg)};const maps={sale:['greenhouse'],repair:['greenhouse','workshop'],cross:['crossing','crossing-east'],minimum:['energy'],gate:['greenhouse']};if(!maps[id].includes(patch.rpg.mapId))throw new Error('当前位置与任务场景不一致。');}
    const editing=['config','flow','sentence','predictionsLocked','input','prediction','reason'].some(key=>key in patch);
    if(!state.drafts[id] && !editing){state.drafts[id]=clone(defaults[id]);for(const key of ['scene','rpg','panel'])if(key in patch)state.drafts[id][key]=clone(patch[key]);updateHeader();save();updateHeader();return {saved:true};}
    const d=state.drafts[id]||(state.drafts[id]={});
@@ -352,10 +352,10 @@ async function renderQuiz(){
  const gateOpen=demo||examOpened();
  if(!gateOpen){
   const required=(R.levels||[]).filter(level=>level.required!==false);
-  const missing=required.filter(level=>!state.levels[level.id]?.valid);
-  const closedFocus=currentFocus({levelId:'quiz',exam:{open:false,missing:missing.map(level=>({id:level.id,title:level.title}))},overlay:legacy?null:'exam'});
-  quizRoot.innerHTML=`<p id="quiz-focus-hint" class="focus-hint" role="status">${esc(closedFocus.hint)}</p><h1>考核还没开放</h1><p>温室、返修和路口三站都当前通过后，考核会自动打开。选做的储能柜不参与。</p><ul id="exam-missing">${missing.map(level=>`<li>${esc(level.title)}</li>`).join('')}</ul>${missing.map((level,index)=>`<button class="primary${index===0?' focus-target':''}" data-back="${level.id}" ${index===0?'data-focus="exam-missing"':''}>回到该站（${esc(level.title)}）</button>`).join(' ')}`;
-  quizRoot.querySelectorAll('[data-back]').forEach(button=>button.onclick=()=>{ closeExam(false); goToTask(button.dataset.back); });
+  const missing=required.filter(level=>!state.levels[level.id]?.valid).map(level=>({id:level.id,title:STATIONS.find(item=>item.id===level.id)?.title||level.title}));
+  const closedFocus=currentFocus({levelId:'quiz',exam:{open:false,missing},overlay:legacy?null:'exam'});
+  quizRoot.innerHTML=`<p id="quiz-focus-hint" class="focus-hint" role="status">${esc(closedFocus.hint)}</p><h1>考核还没开放</h1><p>温室、返修和路口三站都当前通过后，考核会自动打开。选做的储能柜不参与。</p><ul id="exam-missing">${missing.map(level=>`<li>${esc(level.title)}</li>`).join('')}</ul>${missing.map((level,index)=>`<button class="primary${index===0&&canEnter(level.id)?' focus-target':''}" data-back="${level.id}" ${canEnter(level.id)?'':'disabled'} ${index===0&&canEnter(level.id)?'data-focus="exam-missing"':''}>回到该站（${esc(level.title)}）</button>`).join(' ')}`;
+  quizRoot.querySelectorAll('[data-back]').forEach(button=>button.onclick=()=>{ if(button.disabled||!canEnter(button.dataset.back))return; closeExam(false); goToTask(button.dataset.back); });
   if(!gateInfoSent){gateInfoSent=true;send('nav_help','quiz',{trigger:'gate_info',strength:0,idleMs:0,step:closedFocus.step,focusId:closedFocus.id,levelId:'quiz'});}
   quizIdle.configure({key:`quiz:${closedFocus.id}`,thinking:false});
   return;

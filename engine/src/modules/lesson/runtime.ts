@@ -78,4 +78,4 @@ export async function review(player:RpgPlayer){
  await rpc('reason',{value});const result=await rpc('complete');
  const next=await say(player,'验收记录',result.feedback,result.passed?[{id:'next',label:ctx().levelId==='minimum'?'进入独立检测':'领取下一站委托'}]:undefined);if(next==='next')await rpc('next');
 }
-export function portal(){return event('下一站','portal',async player=>{if(!ctx().level.completed){await say(player,'任务通道','请先完成现场测试，并向负责人汇报。');return;}const value=await say(player,'任务通道','本项委托已完成，继续下一项巡检。',[{id:'next',label:'出发'}]);if(value==='next')await rpc('next');});}
+export function portal(){return event('下一站','portal',async player=>{if(ctx().levelId==='sale'){await say(player,'任务通道',ctx().level.completed?'返修就在这间温室。沿箭头走到维修员那里，不用传送。':'请先完成现场测试，并向负责人汇报。');return;}if(!ctx().level.completed){await say(player,'任务通道','请先完成现场测试，并向负责人汇报。');return;}const value=await say(player,'任务通道','本项委托已完成，继续下一项巡检。',[{id:'next',label:'出发'}]);if(value==='next')await rpc('next');});}

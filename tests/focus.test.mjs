@@ -13,7 +13,12 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
   assert.equal(start.hint, '先听园艺员说任务。');
   assert.equal([...start.hint].length <= 30, true);
   assert.equal(start.hint.includes('≥'), false);
-  assert.equal(currentFocus({ levelId: 'repair', scene: { phase: 'start' } }).hint, '听维修员说控制器的问题。');
+  const repairStart = currentFocus({ levelId: 'repair', scene: { phase: 'start' } });
+  assert.equal(repairStart.hint, '沿箭头走到返修点，听维修员说问题。');
+  assert.equal(repairStart.goto, false);
+  assert.equal(repairStart.gotoReason, '同图走到返修，不传送。');
+  assert.equal(repairStart.target.mapId, 'greenhouse');
+  assert.equal(repairStart.target.place, 'guide');
   assert.equal(currentFocus({ levelId: 'cross', scene: { phase: 'start' } }).hint, '听巡检员说导行屏的任务。');
   assert.equal(currentFocus({ levelId: 'minimum', scene: { phase: 'start' } }).hint, '听能源工程师说配电规则。');
 
