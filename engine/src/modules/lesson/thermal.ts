@@ -5,7 +5,7 @@ function events(repair:boolean){
  const place=(id:string,event:any)=>({id,x:p[id][0],y:p[id][1],event});
  return [
  place('guide',event(repair?'维修工程师':'温室管理员',repair?'mechanic':'gardener',async player=>{
- const choice=await say(player,repair?'维修员老修':'园艺员阿绿',repair?'有人改过控制器，风机又乱了。我不能告诉你错在哪。先跑 30℃，亲眼看故障。找出条件与出口是否配合。请先用30°C看到故障，再修复并复验29、30、31°C。':'温室好热！菜苗都蔫了！风机不会自己判断，得靠你。告示写着达到30°C就开风机。设备要看情况决定这一次做哪件事。请补流程图，再测29、30、31°C。',[{id:'accept',label:'开始本站任务'},{id:'review',label:'根据运行记录汇报验收'}]);
+ const choice=await say(player,repair?'维修员老修':'园艺员阿绿',repair?'有人改过控制器，风机又乱了。我不能告诉你错在哪。先跑 30℃，亲眼看故障。找出条件与出口是否配合。请先用30°C看到故障，再修复并复验29、30、31°C。':'温室好热！菜苗都蔫了！风机不会自己判断，得靠你。告示写着达到30°C就开风机。请补流程图，再测29、30、31°C。设备怎样‘看情况’决定这一次做哪件事？',[{id:'accept',label:'开始本站任务'},{id:'review',label:'根据运行记录汇报验收'}]);
  if(choice==='accept'&&scene().phase==='start')await patchScene(player,{phase:'assigned'});if(choice==='review')await review(player);
  })),
  place('sensor',event('温度探头','sensor',async player=>{

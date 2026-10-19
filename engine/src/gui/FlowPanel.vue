@@ -34,6 +34,13 @@ const nextTemperature = computed(() => {
 const lockedOut = computed(() => mode === 'repair' && !props.diagnosed);
 const alarm = computed(() => /菱形|不能用来/.test(message.value));
 const thermal = mode === 'sale' || mode === 'repair';
+const orderLine = mode === 'repair'
+  ? '工单：输入 — 判断 — 输出。对照故障，看条件和出口是否配合。'
+  : mode === 'cross'
+    ? '工单：设备看现场情况，决定走哪一条。输入 — 判断 — 输出。'
+    : mode === 'minimum'
+      ? '工单：设备比两组电量，决定先充哪一组。输入 — 判断 — 输出。'
+      : '工单：设备看温度，决定这一次做哪件事。输入 — 判断 — 输出。';
 const showVerify = computed(() => canRunVerify(mode, board.value, predictions.value));
 const trials = ref<ThermalTrial[] | null>(null);
 const verifyStep = ref(-1);
@@ -186,6 +193,7 @@ onUnmounted(() => { window.clearInterval(verifyTimer); window.removeEventListene
     <section class="studio" :class="{ 'studio-alarm': alarm }" role="dialog" aria-label="规则控制柜" tabindex="-1">
       <button class="studio-close" type="button" aria-label="关闭面板" @click="finish('close')">×</button>
       <p class="studio-kicker">{{ mode === 'repair' ? '返修控制柜' : mode === 'cross' ? '导行屏' : mode === 'minimum' ? '配电柜' : '规则控制柜' }}</p>
+      <p class="studio-order">{{ orderLine }}</p>
       <div class="studio-tabs">
         <button type="button" :class="{ on: view === 'flow' }" @click="show('flow')">流程图</button>
         <button type="button" :class="{ on: view === 'sentence' }" @click="show('sentence')">拼句</button>
@@ -267,6 +275,7 @@ onUnmounted(() => { window.clearInterval(verifyTimer); window.removeEventListene
 .studio-alarm { background: #fff1f0; border-color: #a33b32; }
 .studio-close { position: absolute; margin-left: calc(min(860px, 100%) - 64px); width: 44px; height: 44px; border: 0; border-radius: 50%; background: #e8eedf; font-size: 28px; }
 .studio-kicker { margin: 0 48px 8px 0; font-weight: 800; color: #22694d; }
+.studio-order { margin: 0 48px 8px 0; font-size: 13px; line-height: 1.5; }
 .studio-tabs, .diagnose, .studio-actions, .predict-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .studio-tabs button, .diagnose button, .studio-actions button, .predict-row button, .studio-lock, .studio-card, .flow-slot, .sentence-slot { font: inherit; min-height: 44px; border: 2px solid #73957a; border-radius: 10px; background: #fffef8; color: #163e31; }
 .studio-tabs button.on, .diagnose button.on, .predict-row button.on, .studio-card.on { background: #dcead0; outline: 3px solid #1175bb; }
