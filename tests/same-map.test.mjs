@@ -22,7 +22,8 @@ test('S1 与 S2 同在温室，返修点有箭头且不能一键传送', () => {
   assert.equal(repair.dots.length > 0, true);
   assert.equal(repair.dots.some(dot => dot.x === repair.target.x && dot.y === repair.target.y), false);
   const closed = currentFocus({ levelId: 'quiz', exam: { open: false, missing: [{ id: 'repair', title: '控制器返修' }, { id: 'cross', title: '路口导行屏' }] } });
-  assert.equal(closed.hint, '还差：控制器返修。');
+  assert.equal(closed.hint, '还差：控制器返修、路口导行屏。');
+  assert.equal(closed.hint.includes('控制器返修') && closed.hint.includes('路口导行屏'), true);
   assert.equal(adventure.validateRpgDraft(rpg('greenhouse'), 'repair').mapId, 'greenhouse');
   assert.equal(adventure.validateRpgDraft(rpg('workshop'), 'repair').mapId, 'workshop');
 });

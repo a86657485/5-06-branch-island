@@ -271,6 +271,10 @@ window.addEventListener('lesson-dialog-state', event => {
   syncIdle();
 });
 window.addEventListener('lesson-map-changed', () => { stopMovement(); syncIdle(true); window.setTimeout(() => syncIdle(), 800); });
+window.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || window.parent === window) return;
+  window.parent.postMessage({ type: 'rpgjs-overlay-close' }, window.location.origin);
+});
 function focusFrame() {
   idle.tick();
   paintFocus();

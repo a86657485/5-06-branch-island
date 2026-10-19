@@ -6,6 +6,8 @@ import { rpc,ctx } from './runtime';
 import { checkRoute } from './routes';
 import { mapForContext,registerActivePlayer,clearActivePlayer } from './active-player';
 import { standBeside } from './approach';
+import { ensureGreenhouseActors } from './thermal';
+import { currentFocus } from '../../../../public/focus.mjs';
 const spawn=Object.fromEntries(Object.entries(layout).map(([id,m])=>[id,{x:m.positions.start[0],y:m.positions.start[1]}]));
 const mapFor=mapForContext;
 type Runtime={map:string,lastSave:number,active:RpgPlayer,unsub?:()=>void,changing:boolean,checkpointTimer?:ReturnType<typeof setTimeout>,enter:(c:any)=>Promise<void>};
@@ -49,7 +51,7 @@ export const player:RpgPlayerHooks={
  if(!ctx().draft.scene){const c=ctx(),s={version:1,x:400,y:420,facing:'down',phase:'start',measured:false,actions:[],visited:[],actorId:c.levelId==='cross'?'cross-open':c.levelId==='minimum'?'pair-a':'sensor30',temperatureCase:30,facility:true,pair:'pair-a',collected:[],signal:'red'};await rpc('change',{patch:{scene:s}});}
  const runtime:Runtime={map:'',lastSave:0,active:player,changing:false,enter:async()=>{}};sessions.set(player.id,runtime);
  runtime.enter=async c=>{
- if(runtime.active){runtime.active.setVariable('lessonLevel',c.levelId||'');if(runtime.active.getCurrentMap?.())runtime.active.syncChanges();}
+ if(runtime.active){runtime.active.setVariable('lessonLevel',c.levelId||'');const here=runtime.active.getCurrentMap?.();if(here){await ensureGreenhouseActors(here,runtime.active,c.levelId||'');runtime.active.syncChanges();}}
  if(!c.draft.scene){const s={version:1,x:400,y:420,facing:'down',phase:'start',measured:false,actions:[],visited:[],actorId:c.levelId==='cross'?'cross-open':c.levelId==='minimum'?'pair-a':'sensor30',temperatureCase:30,facility:true,pair:'pair-a',collected:[],signal:'red'};await rpc('change',{patch:{scene:s}});return;}
  const map=mapFor(c);if(runtime.map===map||runtime.changing)return;runtime.changing=true;
  try{runtime.map=map;const saved=c.draft.rpg;const pos=saved?.mapId===map?saved.position:spawn[map];await runtime.active.changeMap(map,pos);}
@@ -59,15 +61,29 @@ export const player:RpgPlayerHooks={
  runtime.unsub=subscribeContext(c=>{void runtime.enter(c);});await runtime.enter(ctx());
  window.addEventListener('pagehide',()=>{runtime.unsub?.();clearTimeout(runtime.checkpointTimer);clearActivePlayer(player.id);sessions.delete(player.id);},{once:true});
  },
- onJoinMap(player,map){
+ async onJoinMap(player,map){
  const runtime=sessions.get(player.id);if(!runtime)return;clearTimeout(runtime.checkpointTimer);runtime.active=player;runtime.map=map.id;registerActivePlayer(player,map.id);
  window.dispatchEvent(new CustomEvent('lesson-map-changed'));
  map.setAutoTick(true);
  player.setHitbox(24,24);
  const saved=ctx().draft.rpg;if(saved?.mapId===map.id){const direction=directions[saved.direction as keyof typeof directions];if(direction)player.changeDirection(direction);}
  if(pendingApproach?.mapId===map.id)holdFacing(player,pendingApproach.direction,{x:player.x(),y:player.y()});
- player.setVariable('lessonBusy',false);player.setVariable('deviceOutput',ctx().draft.scene?.deviceOutput||'off');player.syncChanges();
+ const levelId=ctx().levelId||'';
+ player.setVariable('lessonLevel',levelId);player.setVariable('lessonBusy',false);player.setVariable('deviceOutput',ctx().draft.scene?.deviceOutput||'off');
+ await ensureGreenhouseActors(map,player,levelId);player.syncChanges();
  if(mapFor(ctx())!==map.id)void runtime.enter(ctx());
+ },
+ async onInput(player, input){
+  const action=(input as {action?:string,input?:string})?.action ?? (input as {input?:string})?.input ?? input;
+  if(action!=='action' || player.getVariable('lessonBusy'))return;
+  const context=getContext(); if(!context)return;
+  const focus=currentFocus({levelId:context.levelId,scene:context.draft?.scene,draft:context.draft,level:context.level});
+  const target=focus?.target as {x?:number,y?:number}|undefined;
+  if(typeof target?.x!=='number' || typeof target?.y!=='number')return;
+  if(Math.hypot(player.x()-target.x, player.y()-target.y)>56)return;
+  const here=player.getCurrentMap(); if(!here?.getEvents)return;
+  const hit=(here.getEvents() as Array<{id?:string,x:()=>number,y:()=>number,execMethod?:Function}>).find(item=>Math.hypot(item.x()-target.x!, item.y()-target.y!)<20);
+  if(hit?.execMethod)await hit.execMethod('onAction',[player,input]);
  },
  async onMove(player){
  const runtime=sessions.get(player.id);if(!runtime||runtime.changing||mapFor(ctx())!==runtime.map||!getContext()?.draft.scene)return;

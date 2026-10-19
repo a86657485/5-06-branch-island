@@ -213,12 +213,13 @@ function gateFocus(intro) {
 
 function examFocus(exam) {
   if (!exam.open) {
-    const missing = exam.missing?.[0];
+    const missing = (Array.isArray(exam.missing) ? exam.missing : []).filter(item => item?.title);
+    const titles = missing.map(item => item.title);
     return pack({
       id: 'exam-missing', step: '0', kind: 'exam', thinking: false, goto: true,
-      hint: missing ? `还差：${missing.title}。` : '先完成三站再来考核。',
+      hint: titles.length ? `还差：${titles.join('、')}。` : '先完成三站再来考核。',
       strong: '点回到该站，自己走进去。',
-      target: { stationId: missing?.id || '' }
+      target: { stationId: missing[0]?.id || '' }
     });
   }
   if (exam.tier === 'challenge' && exam.challengeSubmitted) {

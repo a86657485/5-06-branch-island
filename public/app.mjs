@@ -74,7 +74,7 @@ function goToTask(id){
  current=id;lastRun=null;notice='';quizReview=false;
  if(id==='quiz'){saveLocal();openExam();return {levelId:'quiz'};}
  closeExam(false);
- if(activeScene?.engine==='rpgjs'){prepareSceneDraft(id);saveLocal();activeScene.navigate(id);activeScene.setOverlay?.('');updateRoutes();showStationStory(id);return {levelId:id};}
+ if(activeScene?.engine==='rpgjs'){prepareSceneDraft(id);saveLocal();activeScene.navigate(id);activeScene.setOverlay?.('');updateChrome();showStationStory(id);return {levelId:id};}
  saveLocal();render();return {levelId:id};
 }
 function send(type,levelId,payload){
@@ -328,11 +328,19 @@ function renderTask(idx){
  activeScene=(legacy?createParkScene:createRpgScene)(host);
 }
 function showHelp(html){$('#help-content').innerHTML=html;$('#help').showModal();window.dispatchEvent(new CustomEvent('branch-process-panel',{detail:{open:String(html).includes('当前执行过程')}}));}
+function closeTopOverlay(){
+ if($('#story-overlay') && $('#story-overlay').hidden===false){ closeStory(true); return true; }
+ if($('#patrol-overlay') && $('#patrol-overlay').hidden===false){ closePatrol(); return true; }
+ if($('#exam-overlay') && $('#exam-overlay').hidden===false){ closeExam(true); return true; }
+ return false;
+}
 document.addEventListener('keydown',event=>{
  if(event.key!=='Escape')return;
- if($('#story-overlay') && $('#story-overlay').hidden===false){ event.preventDefault(); closeStory(true); }
- else if($('#patrol-overlay') && $('#patrol-overlay').hidden===false){ event.preventDefault(); closePatrol(); }
- else if($('#exam-overlay') && $('#exam-overlay').hidden===false){ event.preventDefault(); closeExam(true); }
+ if(closeTopOverlay()) event.preventDefault();
+});
+window.addEventListener('message',event=>{
+ if(event.origin!==location.origin || event.data?.type!=='rpgjs-overlay-close')return;
+ closeTopOverlay();
 });
 $('#close-help').onclick=()=>$('#help').close();$('#help').addEventListener('click',e=>{if(e.target===$('#help'))$('#help').close();});
 $('#help').addEventListener('close',()=>window.dispatchEvent(new CustomEvent('branch-process-panel',{detail:{open:false}})));
