@@ -233,8 +233,26 @@ function examFocus(exam) {
   });
 }
 
-export function currentFocus({ levelId = 'sale', scene = null, level = null, draft = null, exam = null, intro = null, panelOpen = undefined, runs = null, evidenceStart = 0 } = {}) {
-  if (levelId === 'gate' || intro) return gateFocus(intro || {});
+function overlayFocus(overlay, exam) {
+  if (overlay === 'story') {
+    return pack({ id: 'story-skip', step: '0b', kind: 'overlay', thinking: false, goto: false, pause: true, hint: '想快进可跳过剧情。', strong: '点右上角 ×，或按 Esc。', target: {} });
+  }
+  if (overlay === 'checklist') {
+    return pack({ id: 'patrol-checklist', step: '0', kind: 'overlay', thinking: false, goto: false, pause: true, hint: '打开巡检单，确认本站任务。', strong: '点当前这一站。', target: {} });
+  }
+  if (overlay === 'route') {
+    return pack({ id: 'route-arrow', step: 'P1', kind: 'map', thinking: false, goto: true, hint: '沿箭头去下一巡检站。', strong: '走到发光的圆圈上按 E。', target: {} });
+  }
+  if (overlay === 'exam') return exam ? examFocus(exam) : examFocus({ open: true, tier: 'base', allFilled: false });
+  return null;
+}
+
+export function currentFocus({ levelId = 'sale', scene = null, level = null, draft = null, exam = null, intro = null, panelOpen = undefined, runs = null, evidenceStart = 0, overlay = null } = {}) {
+  const covered = overlayFocus(overlay, exam);
+  if (covered) return covered;
+  // 旧存档里的闸机字段不参与焦点，避免缺字段或残留 intro 把学生挡在温室外。
   if (levelId === 'quiz' || exam) return examFocus(exam || {});
-  return stationFocus(levelId, scene || {}, level || {}, draft || {}, panelOpen, runs || [], evidenceStart);
+  const station = levelId === 'gate' ? 'sale' : levelId;
+  void intro;
+  return stationFocus(station, scene || {}, level || {}, draft || {}, panelOpen, runs || [], evidenceStart);
 }

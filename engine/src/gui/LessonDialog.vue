@@ -71,7 +71,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="dialog-shade" @pointerdown.stop @click.stop>
     <section ref="panel" class="lesson-dialog" role="dialog" aria-modal="true" :aria-label="title || name" tabindex="-1">
-      <button class="dialog-close" aria-label="关闭对话，继续探索" @click="finish(null)">×</button>
+      <button class="dialog-close" data-focus="story-skip" aria-label="跳过剧情" @click="finish(null)">×</button>
       <p class="dialog-speaker">{{ name }}</p>
       <h2 v-if="title">{{ title }}</h2>
       <p class="dialog-text">{{ text }}</p>

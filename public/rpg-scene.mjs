@@ -9,7 +9,7 @@ export function createRpgScene(initialHost) {
   fallback.searchParams.set('engine','legacy');
   let host = initialHost, disposed = false, ready = false;
   const replies = new Map();
-  root.innerHTML = `<section class="rpg-shell"><div class="rpg-heading"><p>智慧园区 · 设备调试员</p><span>方向键 / WASD 行走 · E / 空格交互</span></div><iframe class="rpg-frame" src="/rpgjs/?session=${encodeURIComponent(sessionId)}" title="RPGJS 智慧园区探究场景" allow="fullscreen"></iframe><p id="rpg-status" class="rpg-status" role="status">正在准备园区地图与角色…</p><p id="rpg-fallback" class="rpg-fallback" hidden>场景尚未加载完成，学习记录已保留。<a href="${fallback.href.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">使用原版继续学习</a></p></section>`;
+  root.innerHTML = `<section class="rpg-shell"><div class="rpg-heading"><p>智慧园区 · 巡检员</p><span>方向键 / WASD 行走 · E / 空格交互 · 浮层按 Esc 关闭</span></div><iframe class="rpg-frame" src="/rpgjs/?session=${encodeURIComponent(sessionId)}" title="RPGJS 智慧园区探究场景" allow="fullscreen"></iframe><p id="rpg-status" class="rpg-status" role="status">正在准备园区地图与角色…</p><p id="rpg-fallback" class="rpg-fallback" hidden>场景尚未加载完成，学习记录已保留。<a href="${fallback.href.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">使用原版继续学习</a></p></section>`;
   const frame = root.querySelector('iframe');
   const status = root.querySelector('#rpg-status');
   const fallbackMessage = root.querySelector('#rpg-fallback');
@@ -76,6 +76,9 @@ export function createRpgScene(initialHost) {
       if (disposed || levelId === host.levelId) return;
       host = initialHost.forLevel(levelId);
       refresh();
+    },
+    setOverlay(kind) {
+      post({ type: 'rpgjs-overlay', open: !!kind, kind: kind || '' });
     },
     destroy() {
       if (disposed) return;

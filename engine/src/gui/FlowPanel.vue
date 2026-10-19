@@ -164,14 +164,21 @@ function finish(action: string) {
   publish({ panel: '' });
   close?.('flow-panel', { action, flow: toPlain(board.value), sentence: toPlain(sentence.value), predictions: toPlain(predictions.value) });
 }
+function onKey(event: KeyboardEvent) {
+  if (event.key !== 'Escape') return;
+  event.preventDefault();
+  event.stopPropagation();
+  finish('close');
+}
 onMounted(() => {
   const initial = lockFlow(mode, { ...board.value, locked: false });
   if (board.value.locked && initial.ok && initial.config) lockedConfig.value = initial.config;
   syncLocks();
   publish();
+  window.addEventListener('keydown', onKey, true);
   void nextTick(() => document.querySelector<HTMLElement>('.studio')?.focus());
 });
-onUnmounted(() => window.clearInterval(verifyTimer));
+onUnmounted(() => { window.clearInterval(verifyTimer); window.removeEventListener('keydown', onKey, true); });
 </script>
 
 <template>

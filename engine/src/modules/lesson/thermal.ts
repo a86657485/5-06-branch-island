@@ -5,7 +5,7 @@ function events(repair:boolean){
  const place=(id:string,event:any)=>({id,x:p[id][0],y:p[id][1],event});
  return [
  place('guide',event(repair?'维修工程师':'温室管理员',repair?'mechanic':'gardener',async player=>{
- const choice=await say(player,repair?'维修委托':'园艺员',repair?'旧程序用“温度<30°C”判断：成立关机，否则启动。有人把判断改成了“温度≥30°C”，却没改两个出口。请先用30°C看到故障，再修复并复验29、30、31°C。':'温室试运行规则：达到30°C启动风机，低于30°C关闭。请走到温度探头采样，到控制柜设置判断和两个分支，先预测再执行，到核验仪观察。29、30、31°C都要测试。',[{id:'accept',label:'接受委托，去读取温度'},{id:'review',label:'根据运行记录汇报验收'}]);
+ const choice=await say(player,repair?'维修员老修':'园艺员阿绿',repair?'有人改过控制器，风机又乱了。我不能告诉你错在哪。先跑 30℃，亲眼看故障。找出条件与出口是否配合。请先用30°C看到故障，再修复并复验29、30、31°C。':'温室好热！菜苗都蔫了！风机不会自己判断，得靠你。告示写着达到30°C就开风机。设备要看情况决定这一次做哪件事。请补流程图，再测29、30、31°C。',[{id:'accept',label:'开始本站任务'},{id:'review',label:'根据运行记录汇报验收'}]);
  if(choice==='accept'&&scene().phase==='start')await patchScene(player,{phase:'assigned'});if(choice==='review')await review(player);
  })),
  place('sensor',event('温度探头','sensor',async player=>{

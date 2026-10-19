@@ -116,8 +116,9 @@ const idle = createIdleTimer({
     void request('navHelp', { levelId: context?.levelId, mapId: focus.target.mapId || context?.draft?.rpg?.mapId || '', step: focus.step, focusId: focus.id, trigger: 'idle', strength: detail.strength, idleMs: detail.idleMs }).catch(() => undefined);
   }
 });
+let hostOverlay = '';
 function lessonFocus(context = getContext()) {
-  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level, draft: context?.draft, panelOpen: !!document.querySelector('.studio'), runs: context?.runs, evidenceStart: context?.evidenceStart });
+  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level, draft: context?.draft, panelOpen: !!document.querySelector('.studio'), runs: context?.runs, evidenceStart: context?.evidenceStart, overlay: hostOverlay || undefined });
 }
 function noteActivity() {
   idle.reset();
@@ -212,6 +213,7 @@ function paintDots(dots: Array<{ x: number, y: number }> = []) {
 }
 function paintFocus(focus = lessonFocus()) {
   if (new URLSearchParams(location.search).has('preview')) return;
+  if (hostOverlay && focusMarker) focusMarker.hidden = true;
   const focusStrength = idle.strength();
   if (taskHint) {
     taskHint.textContent = focusStrength ? focus.strong : focus.hint;
@@ -222,7 +224,7 @@ function paintFocus(focus = lessonFocus()) {
   }
   if (focusMarker && focusLabel) {
     const point = projectTarget(focus.target || {});
-    focusMarker.hidden = !point;
+    focusMarker.hidden = !!hostOverlay || !point;
     focusMarker.dataset.strength = String(focusStrength);
     focusMarker.classList.toggle('edge', !!point?.offscreen);
     focusMarker.classList.toggle('tap-hand', focusStrength >= 2 && focus.kind === 'map' && !point?.offscreen);
@@ -233,7 +235,7 @@ function paintFocus(focus = lessonFocus()) {
     }
     focusLabel.textContent = point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '';
   }
-  paintDots(focus.dots || []);
+  paintDots(hostOverlay ? [] : (focus.dots || []));
   paintPanelFocus(focus);
   const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
   if (goto) {
@@ -252,6 +254,15 @@ function syncIdle(paused = dialogOpen || auxiliaryBusy || document.hidden) {
 window.addEventListener('lesson-process-panel', event => {
   processPanelOpen = !!(event as CustomEvent<{ open: boolean }>).detail?.open;
   paintFocus();
+});
+window.addEventListener('message', event => {
+  const message = event.data;
+  if (!message || message.type !== 'rpgjs-overlay') return;
+  hostOverlay = message.open ? (message.kind || 'overlay') : '';
+  if (hostOverlay) stopMovement();
+  if (controls) controls.inert = !!hostOverlay || dialogOpen;
+  if (focusMarker && hostOverlay) focusMarker.hidden = true;
+  syncIdle(dialogOpen || auxiliaryBusy || document.hidden || !!hostOverlay);
 });
 window.addEventListener('lesson-dialog-state', event => {
   dialogOpen = !!(event as CustomEvent<{ open: boolean }>).detail.open;

@@ -96,26 +96,23 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
   assert.equal(currentFocus({ levelId: 'repair', scene: { phase: 'measured', measured: true }, draft: { flow: { locked: false } } }).hint, '先运行原程序，看 30℃。');
 });
 
-test('闸机引导从运维主管开始，出票后还要看告示再回答', () => {
+test('旧闸机字段不占焦点，浮层打开时地图设备不再当焦点', () => {
   const fresh = currentFocus({ levelId: 'gate', intro: { accepted: false } });
-  assert.equal(fresh.step, '1');
-  assert.equal(fresh.id, 'gate-lead');
-  assert.equal(fresh.hint, '走到运维主管面前，按 E 交谈。');
-  const ruler = currentFocus({ levelId: 'gate', intro: { accepted: true } });
-  assert.equal(ruler.id, 'gate-ruler');
-  const judged = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116 } });
-  assert.equal(judged.id, 'i0-judge');
-  const ticket = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116, judged: 'half' } });
-  assert.equal(ticket.id, 'gate-turnstile');
-  const sign = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116, judged: 'half', ticket: '10' } });
-  assert.equal(sign.id, 'gate-sign');
-  assert.equal(sign.hint, '看告示，和闸机出的票比一比。');
-  const idea = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116, judged: 'half', ticket: '10', sawSign: true } });
-  assert.equal(idea.step, '6');
-  assert.equal(idea.hint, '回运维主管处，回答一个问题。');
-  const portal = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116, judged: 'half', ticket: '10', sawSign: true, idea: '看情况收费' } });
-  assert.equal(portal.id, 'gate-portal');
-  assert.equal(portal.hint, '从北边园区通道去温室。');
+  assert.equal(fresh.id, 'guide');
+  assert.equal(fresh.hint, '先听园艺员说任务。');
+  const leftover = currentFocus({ levelId: 'sale', intro: { done: false, ticket: '10' }, scene: { phase: 'start' } });
+  assert.equal(leftover.id, 'guide');
+  assert.equal(leftover.target.place, 'guide');
+  const story = currentFocus({ levelId: 'sale', overlay: 'story', scene: { phase: 'assigned', measured: false } });
+  assert.equal(story.id, 'story-skip');
+  assert.equal(story.pause, true);
+  assert.equal(story.target.place, undefined);
+  const list = currentFocus({ overlay: 'checklist', levelId: 'repair', scene: { phase: 'start' } });
+  assert.equal(list.id, 'patrol-checklist');
+  assert.equal(list.hint, '打开巡检单，确认本站任务。');
+  const route = currentFocus({ overlay: 'route', levelId: 'sale' });
+  assert.equal(route.id, 'route-arrow');
+  assert.equal(route.hint, '沿箭头去下一巡检站。');
 });
 
 test('脚印沿两条腿走，大约每 32 像素一点，不落在终点上', () => {

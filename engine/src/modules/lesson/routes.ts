@@ -43,8 +43,8 @@ export async function checkRoute(player: RpgPlayer) {
 }
 
 async function roadGuide(player: RpgPlayer, east = false) {
-  const choice = await say(player, '交通设施巡检员',
-    '请调试这块指路牌：附近有天桥就引导走天桥，否则到斑马线等待绿灯。观察现场、写出两个出口、先预测，再亲自沿选中路线通行。两种现场都要试。', [
+  const choice = await say(player, '巡检员小巡',
+    '导行屏坏了，游客在排队！有没有天桥，走法不一样。这回图要你自己画。补全分支，两种状态都要走通。过街要亲自走。', [
       { id: 'accept', label: '领取巡检任务' },
       { id: 'bridge', label: '巡检有天桥的东区路口' },
       { id: 'crossing', label: '巡检没有天桥的西区路口' },
@@ -275,8 +275,8 @@ export const crossingEvents = [
 ];
 
 async function energyGuide(player: RpgPlayer) {
-  const choice = await say(player, '园区能源工程师',
-    '调试两路充电柜：先给电量较低的一组充电。请分别走近 A、B 读取电量，配置比较条件和两个出口，先预测，再亲自到被选中的支路接入，最后回核验台。两组数据都要验证。', [
+  const choice = await say(player, '储能柜小电',
+    '两块电池，谁电量低充谁？选做哦，做完随时可走。请分别走近 A、B 读取电量，写好比较和两个出口，先预测再去选中的支路。两组都要验证。', [
       { id: 'accept', label: '领取节能配电任务' },
       { id: 'pair-a', label: '装入第一组：A 3%，B 8%' },
       { id: 'pair-b', label: '装入第二组：A 9%，B 2%' },

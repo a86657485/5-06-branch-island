@@ -344,7 +344,7 @@ test('再次进入已通过的站，默认配置和纯场景保存都不作废',
  assert.equal(boundary.result.correct,false);assert.deepEqual(boundary.result.mCodes,['M3']);assert.equal(boundary.result.conditionText,'30 ＞ 30');
 });
 
-test('流程图、预测和闸机接单在刷新后还在',async t=>{
+test('流程图和预测在刷新后还在，旧闸机草稿被忽略',async t=>{
  const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
  const flow={diamond:'ge30',yes:'on',no:'off',locked:true};
  const predictionsLocked={29:'off',30:'on',31:'on',locked:true};
@@ -352,17 +352,22 @@ test('流程图、预测和闸机接单在刷新后还在',async t=>{
  assert.equal(saved.state.drafts.sale.flow.diamond,'ge30');
  assert.equal(saved.state.drafts.sale.predictionsLocked.locked,true);
  assert.equal(saved.state.drafts.sale.panel,'flow');
- const intro=await c.event('draft','intro',{accepted:true,heightCase:116,judged:'half',ticket:'10',sawSign:false,idea:null,review:true});
- assert.equal(intro.state.intro.accepted,true);
- assert.equal(intro.state.intro.ticket,'10');
- assert.equal(intro.state.intro.review,true);
- assert.equal(intro.state.intro.heightCase,116);
+ const intro=await c.event('draft','intro',{});
+ assert.equal(intro.status,200);
+ assert.equal(intro.result.ignored,true);
+ assert.equal(intro.state.intro.accepted,false);
+ assert.equal(intro.state.intro.done,false);
+ const partial=await c.event('draft','intro',{accepted:true,heightCase:116,judged:'half',ticket:'10'});
+ assert.equal(partial.status,200);
+ assert.equal(partial.state.intro.accepted,false);
+ assert.equal(partial.state.intro.ticket,null);
+ assert.equal(partial.state.levels.sale.completed,false);
  await c.restart();
  const restored=await c.api('/api/state?studentId=s1');
  assert.equal(restored.state.drafts.sale.flow.yes,'on');
  assert.equal(restored.state.drafts.sale.predictionsLocked[30],'on');
- assert.equal(restored.state.intro.accepted,true);
- assert.equal(restored.state.intro.judged,'half');
+ assert.equal(restored.state.intro.accepted,false);
+ assert.equal(restored.state.intro.done,false);
 });
 test('概念提示记 hinted，操作帮助不会',async t=>{
  const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});

@@ -4,18 +4,18 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import rules from '../public/rules.js';
 import adventure from '../public/adventure-rules.js';
-import { createIntro, introAct, TESTERS } from '../public/intro.mjs';
+import { STATIONS, createPatrol, markStory, storyKey, storyScript, stationUnlocked, storyChangesLearning } from '../public/patrol.mjs';
 import { pointsLabel } from '../public/scoreboard.mjs';
 
 function appHarness(rpg = false) {
  const nodes = new Map();
- const node = key => { if (!nodes.has(key)) nodes.set(key, { innerHTML:'', textContent:'', hidden:false, classList:{add(){},remove(){}}, addEventListener(){}, showModal(){},close(){} }); return nodes.get(key); };
+ const node = key => { if (!nodes.has(key)) nodes.set(key, { innerHTML:'', textContent:'', hidden:false, classList:{add(){},remove(){},toggle(){}}, addEventListener(){}, showModal(){},close(){}, querySelector(){return null;}, querySelectorAll(){return [];} }); return nodes.get(key); };
  const storage = new Map(), scenes = [], events = [];
- const context = vm.createContext({ window:{BranchRules:rules,AdventureRules:adventure,addEventListener(){}}, location:{search:rpg?'':'?engine=legacy'},document:{querySelector:node,querySelectorAll:()=>[]},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},URLSearchParams,AbortSignal,Date,JSON,crypto:{randomUUID:()=>`event-${events.length}`},setInterval(){},setTimeout(){},console,
+ const context = vm.createContext({ window:{BranchRules:rules,AdventureRules:adventure,addEventListener(){}}, location:{search:rpg?'':'?engine=legacy'},document:{querySelector:node,querySelectorAll:()=>[],addEventListener(){}},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},URLSearchParams,AbortSignal,Date,JSON,crypto:{randomUUID:()=>`event-${events.length}`},setInterval(){},setTimeout(){},console,
   SyncQueue:class {constructor(){this.events=[];}pending(){return 0;}add(e){events.push(e);}async flush(){}},reconcileState:(_local,remote)=>remote,
   createIdleTimer:()=>({configure(){},setPaused(){},tick(){},reset(){},strength(){return 0}}),
   currentFocus:()=>({id:'guide',step:'1',hint:'先听园艺员说任务。',strong:'走到发光的圆圈上按 E。',thinking:false,goto:true,gotoReason:'',pause:false,kind:'map',target:{stationId:'sale',mapId:'greenhouse',x:1,y:1}}),
-  createIntro, introAct, TESTERS, pointsLabel,
+  STATIONS, createPatrol, markStory, storyKey, storyScript, stationUnlocked, storyChangesLearning, pointsLabel,
   createParkScene:host=>{ const scene={host,destroy(){host.onChange({scene:{version:1,x:20,y:30}});},refresh(){}};scenes.push(scene);return scene; },
   createRpgScene:host=>{const scene={engine:'rpgjs',host,destroy(){},refresh(){},navigate(id){this.host=host.forLevel(id);}};scenes.push(scene);return scene;}
  });
@@ -118,9 +118,11 @@ test('开考前能看到缺的站，回到该站按钮可以点',()=>{
  const s=state();
  s.levels={sale:{completed:true,valid:true},repair:{completed:false,valid:false},cross:{completed:false,valid:false},minimum:{completed:false,valid:false}};
  h.app.setState(s);h.app.setCurrent('quiz');h.app.render();
- const html=h.node('#workbench').innerHTML;
+ const html=h.node('#exam-body').innerHTML;
  assert.match(html,/温室控制器返修/);
  assert.match(html,/回到该站（温室控制器返修）/);
  assert.equal(html.includes('data-back="repair" disabled'),false);
- assert.match(h.node('#app').innerHTML,/还差哪一站/);
+ assert.match(html,/考核还没开放/);
+ assert.match(h.node('#app').innerHTML,/id="exam-overlay"/);
+ assert.match(h.node('#app').innerHTML,/巡检单/);
 });

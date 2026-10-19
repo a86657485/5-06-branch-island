@@ -224,7 +224,8 @@ function createService(options = {}) {
   function requireOpen(state, id) {
     const index = rules.levels.findIndex(level => level.id === id);
     if (index < 0) fail(400, '找不到这个任务');
-    if (rules.levels.slice(0,index).some(level => !state.levels[level.id].completed)) fail(409, '请先完成前面的主线任务');
+    if (rules.levels[index].required === false) return;
+    if (rules.levels.slice(0, index).some(level => level.required !== false && !state.levels[level.id].completed)) fail(409, '请先完成前面的主线任务');
   }
     const draftConfigKey = (id,config) => JSON.stringify(rules.normalizeConfig(id,config,true));
   function isVisitDefault(id, config) {
@@ -291,8 +292,7 @@ function createService(options = {}) {
       state.levels[id].hinted = true;
       result = { saved: true, hinted: true };
     } else if (body.type === 'draft' && id === 'intro') {
-      state.intro = sanitizeIntro(payload);
-      result = { saved: true };
+      result = { saved: true, ignored: true };
     } else if (body.type === 'quiz' || (body.type === 'draft' && id === 'quiz')) {
       const gate = examGateFor(student.id, record);
       if (!state.quizOpenedAt) fail(409, '完成温室、返修和路口三站的当前验证后再进入考核');
