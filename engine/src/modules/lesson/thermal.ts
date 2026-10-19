@@ -11,10 +11,13 @@ function guideLabel(repair: boolean) {
   return repair ? '维修员老修' : '园艺员阿绿';
 }
 
+const labelLift = { guide: 78, verify: 16, sensor: 44, control: 44, fan: 44, portal: 36 };
+
 function paintLabel(target: any, label: string, graphic: string) {
   target.name = label;
   target.setGraphic?.(graphic);
-  target.setComponentsTop?.(Components.text(label, { fill: '#163e31', fontSize: 15 }), { marginBottom: 46 });
+  const lift = labelLift[actorIdOf(target.id)] || 44;
+  target.setComponentsTop?.(Components.text(label, { fill: '#163e31', fontSize: 15 }), { marginBottom: lift, width: 96 });
 }
 
 const guide = {
@@ -82,7 +85,9 @@ export async function ensureGreenhouseActors(map: any, player: any, levelId: str
     if (actor.move && target.teleport) await target.teleport({ x: actor.x, y: actor.y });
     paintLabel(target, actor.label, actor.graphic);
   }
-  // 进图时地图块先于角色发出。同一位玩家在这张图上只挪动 1 像素再挪回，位置同步才会把角色发给客户端。
+  // 角色进客户端靠 player.syncChanges()。进图时地图流先于场景角色发出，区块中心不变时不会再推事件，
+  // through 的角色也不在第一次空间查询里。公开接口没有“补发当前视野事件”，所以同一位玩家在这张图上
+  // 只用 teleport 挪 1 像素再回到原位，让这一次位置同步把角色快照带出去。
   const flushKey = `${player.id || ''}:${map.id}`;
   if (clientFlush.get(player) !== flushKey && typeof player.teleport === 'function' && typeof player.x === 'function') {
     clientFlush.set(player, flushKey);

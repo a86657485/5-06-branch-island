@@ -34,17 +34,26 @@ function parseXml(source) {
   return root;
 }
 
+const captions = {
+  'ill-brief.svg': ['今日巡检', 'S1 温室', 'S2 返修', 'S3 路口', '阿派'],
+  'ill-cool.svg': ['凉下来了'],
+  'ill-cross-ok.svg': ['安全过街'],
+  'ill-energy.svg': ['A 较高', 'B 较低', '电量低的先充'],
+  'ill-fault.svg': ['30℃不开', '条件与出口', '控制器故障'],
+  'ill-queue.svg': ['导行屏', '游客排队'],
+  'ill-wilt.svg': ['菜苗蔫了']
+};
+
 test('剧情 SVG 都是合法 UTF-8，并能解析成 SVG', () => {
   const files = readdirSync(dir).filter(name => name.endsWith('.svg')).sort();
-  assert.deepEqual(files, [
-    'ill-brief.svg', 'ill-cool.svg', 'ill-cross-ok.svg', 'ill-energy.svg',
-    'ill-fault.svg', 'ill-queue.svg', 'ill-wilt.svg'
-  ]);
+  assert.deepEqual(files, Object.keys(captions));
   for (const name of files) {
     const bytes = readFileSync(path.join(dir, name));
     const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     const root = parseXml(text);
     assert.equal(root?.name, 'svg', name);
     assert.equal(text.includes('\uFFFD'), false, name);
+    assert.equal(text.includes('??'), false, name);
+    for (const caption of captions[name]) assert.equal(text.includes(caption), true, `${name} 缺少 ${caption}`);
   }
 });

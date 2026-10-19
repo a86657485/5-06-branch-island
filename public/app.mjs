@@ -24,6 +24,7 @@ const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const clone = v => JSON.parse(JSON.stringify(v));
 const eventId = () => globalThis.crypto?.randomUUID?.() || Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2,'0')).join('');
 const ids = ['sale','repair','cross','minimum'];
+function rememberStation(id){ if(ids.includes(id)) lastStation=id; }
 const titles = ['温室风机调试','温室控制器返修','路口导行屏调试','储能柜配电'];
 const demo = new URLSearchParams(location.search).has('demo');
 const legacy = new URLSearchParams(location.search).get('engine') === 'legacy';
@@ -70,7 +71,8 @@ function canEnter(id){return stationUnlocked(id, state.levels, demo);}
 function updateRoutes(){document.querySelectorAll('[data-route]').forEach(button=>{const id=button.dataset.route;button.disabled=!canEnter(id);button.classList.toggle('selected',current===id);if(id!=='quiz'&&button.classList.contains('route-item')){const level=state.levels[id],stop=button.querySelector('.stop'),small=button.querySelector('small');if(stop)stop.textContent=level?.completed?'✓':ids.indexOf(id)+1;if(small)small.textContent=level?.completed?(level.valid?'已完成 · 当前已验证':'曾完成 · 当前待重验'):(canEnter(id)?'可开始探索':'完成上一站解锁');}});}
 function goToTask(id){
  if(!canEnter(id))throw new Error('请先完成前面的主线任务。');
- if(id!=='quiz')lastStation=id;
+ if(id==='quiz'){ if(current!=='quiz') rememberStation(current); }
+ else rememberStation(id);
  current=id;lastRun=null;notice='';quizReview=false;
  if(id==='quiz'){saveLocal();openExam();return {levelId:'quiz'};}
  closeExam(false);
@@ -113,7 +115,7 @@ function login(){
  $('#manual-name').oninput=e=>{manual=e.target.value;selectedStudent='';$('#student-select').value='';$('#chosen-identity').textContent=`${loginClass}班 · ${manual || '尚未填写姓名'}`;};
  $('#login').onclick=async()=>{try{if(!selectedStudent&&!manual.trim())throw new Error('先选择自己的姓名，或在“名单中没有我”填写。');const data=await api('/api/login',{classId:loginClass,...(manual.trim()?{name:manual.trim()}:{studentId:selectedStudent})});attach(data);}catch(e){$('#login-error').textContent=e.message;}};
 }
-function attach(data){destroyScene();user=data.student;if(data.round!==round)queue.retire(user.id,data.round);round=data.round;state=data.state;const local=JSON.parse(localStorage.getItem(cacheKey())||'null');const pendingThisRound=queue.events.some(event=>event.studentId===user.id&&event.round===round);if(pendingThisRound&&local)state=local.state;current=pendingThisRound&&local?.current?local.current:(ids.find(id=>!state.levels[id]?.completed)||'quiz');if(new URLSearchParams(location.search).get('task')==='quiz')current='quiz';if(!demo)localStorage.setItem('branch-island-identity',JSON.stringify({user,round}));saveLocal();render();queue.flush().then(updateHeader);}
+function attach(data){destroyScene();user=data.student;if(data.round!==round)queue.retire(user.id,data.round);round=data.round;state=data.state;const local=JSON.parse(localStorage.getItem(cacheKey())||'null');const pendingThisRound=queue.events.some(event=>event.studentId===user.id&&event.round===round);if(pendingThisRound&&local)state=local.state;current=pendingThisRound&&local?.current?local.current:(ids.find(id=>!state.levels[id]?.completed)||'quiz');if(current!=='quiz')rememberStation(current);if(new URLSearchParams(location.search).get('task')==='quiz')current='quiz';if(!demo)localStorage.setItem('branch-island-identity',JSON.stringify({user,round}));saveLocal();render();queue.flush().then(updateHeader);}
 const patrolKey = () => `branch-island-patrol:${demo?'demo':user?.id}:${round}`;
 function loadPatrol(){ try { const saved = JSON.parse(localStorage.getItem(patrolKey()) || 'null'); if (saved && typeof saved === 'object') return { briefSeen: !!saved.briefSeen, seen: saved.seen || {}, skipped: Array.isArray(saved.skipped) ? saved.skipped : [] }; } catch { /* 旧稿损坏就当没看过 */ } return createPatrol(); }
 function savePatrol(patrol){ localStorage.setItem(patrolKey(), JSON.stringify(patrol)); }
@@ -387,8 +389,8 @@ async function renderQuiz(){
 }
 async function boot(){
  try{const config=await api('/api/config');round=config.round;roster=await api('/api/roster');localStorage.setItem('branch-island-roster',JSON.stringify(roster));}catch(e){roster=JSON.parse(localStorage.getItem('branch-island-roster')||'null');if(!roster){$('#app').innerHTML=`<main class="loading"><h1>课堂连接还没有准备好</h1><p>${esc(e.message)}</p><a href="/">重新连接</a></main>`;return;}}
- if(demo){const solutions=await api('/api/teacher/solutions');answerKey=solutions.questions||solutions.quiz||solutions.answers;user={id:'demo',classId:'演示',name:'演示调试员'};const saved=JSON.parse(localStorage.getItem(cacheKey())||'null');state=saved?.state||emptyState();current=saved?.current||'sale';render();return;}
- const saved=JSON.parse(localStorage.getItem('branch-island-identity')||'null');if(saved){try{attach(await api(`/api/state?studentId=${encodeURIComponent(saved.user.id)}`));return;}catch(e){user=saved.user;round=saved.round;const local=JSON.parse(localStorage.getItem(cacheKey())||'null');if(local){state=local.state;current=local.current;render();return;}user=null;}}
+ if(demo){const solutions=await api('/api/teacher/solutions');answerKey=solutions.questions||solutions.quiz||solutions.answers;user={id:'demo',classId:'演示',name:'演示调试员'};const saved=JSON.parse(localStorage.getItem(cacheKey())||'null');state=saved?.state||emptyState();current=saved?.current||'sale';if(current!=='quiz')rememberStation(current);render();return;}
+ const saved=JSON.parse(localStorage.getItem('branch-island-identity')||'null');if(saved){try{attach(await api(`/api/state?studentId=${encodeURIComponent(saved.user.id)}`));return;}catch(e){user=saved.user;round=saved.round;const local=JSON.parse(localStorage.getItem(cacheKey())||'null');if(local){state=local.state;current=local.current;if(current!=='quiz')rememberStation(current);render();return;}user=null;}}
  login();
 }
 window.addEventListener('online',()=>queue.flush().then(updateHeader));window.addEventListener('beforeunload',()=>{destroyScene();saveLocal();});setInterval(()=>{if(!demo)queue.flush().then(updateHeader);},5000);

@@ -20,7 +20,7 @@ function appHarness(rpg = false) {
   createRpgScene:host=>{const scene={engine:'rpgjs',host,destroy(){},refresh(){},navigate(id){this.host=host.forLevel(id);}};scenes.push(scene);return scene;}
  });
  let source = fs.readFileSync(new URL('../public/app.mjs',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace(/boot\(\)\.catch[\s\S]*$/,'');
- source += `\nglobalThis.testApp={render,renderTask,destroyScene,draft,quizDraft,setState(s){state=s;user={id:'student-a',classId:'501',name:'同学甲'};},setCurrent(id){current=id;},getState(){return state;},setQuizVersion(v){quizVersion=v;},setUser(u){user=u;}};`;
+ source += `\nglobalThis.testApp={render,renderTask,destroyScene,draft,quizDraft,attach,goToTask,closeExam,setState(s){state=s;user={id:'student-a',classId:'501',name:'同学甲'};},setCurrent(id){current=id;},getState(){return state;},getStation(){return {current,lastStation};},setQuizVersion(v){quizVersion=v;},setUser(u){user=u;}};`;
  vm.runInContext(source,context);
  return {app:context.testApp,scenes,events,storage,node};
 }
@@ -111,6 +111,27 @@ test('再次进入已通过的站不提交默认配置',()=>{
  assert.equal(h.app.getState().levels.sale.valid,true);
  assert.equal(h.app.getState().drafts.sale.config.yes,'on');
  assert.equal(h.app.getState().drafts.sale.config.no,'off');
+});
+
+test('直接进入当前站后开关考核，进度仍写入该站', () => {
+ const cases = [['sale', []], ['repair', ['sale']], ['cross', ['sale', 'repair']]];
+ for (const [id, done] of cases) {
+  const h = appHarness(true);
+  const s = state();
+  for (const finished of done) s.levels[finished] = { completed: true, valid: true };
+  h.app.attach({ student: { id: 'student-a', classId: '501', name: '同学甲' }, round: 1, state: s });
+  assert.equal(h.app.getStation().current, id, id);
+  assert.equal(h.app.getStation().lastStation, id, id);
+  h.app.goToTask('quiz');
+  h.app.closeExam(true);
+  assert.equal(h.app.getStation().current, id, id);
+  assert.equal(h.app.getStation().lastStation, id, id);
+  const host = h.scenes.at(-1).host;
+  assert.equal(host.levelId, id);
+  const saved = host.onChange({ scene: { version: 1, x: 12, y: 34, facing: 'down', phase: 'start' } });
+  assert.equal(saved?.saved, true, id);
+  assert.equal(h.events.some(event => event.type === 'draft' && event.levelId === id), true, id);
+ }
 });
 
 test('开考前能看到缺的站，回到该站按钮可以点',()=>{
