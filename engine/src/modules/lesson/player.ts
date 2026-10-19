@@ -76,13 +76,19 @@ export const player:RpgPlayerHooks={
  async onInput(player, input){
   const action=(input as {action?:string,input?:string})?.action ?? (input as {input?:string})?.input ?? input;
   if(action!=='action' || player.getVariable('lessonBusy'))return;
+  const here=player.getCurrentMap(); if(!here?.getEvents)return;
+  const events=here.getEvents() as Array<{id?:string,x:()=>number,y:()=>number,execMethod?:Function}>;
+  const nearest=events
+    .map(item=>({item,d:Math.hypot(item.x()-player.x(), item.y()-player.y())}))
+    .filter(entry=>entry.d<=48 && typeof entry.item.execMethod==='function')
+    .sort((a,b)=>a.d-b.d)[0]?.item;
+  if(nearest){ await nearest.execMethod('onAction',[player,input]); return; }
   const context=getContext(); if(!context)return;
   const focus=currentFocus({levelId:context.levelId,scene:context.draft?.scene,draft:context.draft,level:context.level});
   const target=focus?.target as {x?:number,y?:number}|undefined;
   if(typeof target?.x!=='number' || typeof target?.y!=='number')return;
   if(Math.hypot(player.x()-target.x, player.y()-target.y)>56)return;
-  const here=player.getCurrentMap(); if(!here?.getEvents)return;
-  const hit=(here.getEvents() as Array<{id?:string,x:()=>number,y:()=>number,execMethod?:Function}>).find(item=>Math.hypot(item.x()-target.x!, item.y()-target.y!)<20);
+  const hit=events.find(item=>Math.hypot(item.x()-target.x!, item.y()-target.y!)<20);
   if(hit?.execMethod)await hit.execMethod('onAction',[player,input]);
  },
  async onMove(player){

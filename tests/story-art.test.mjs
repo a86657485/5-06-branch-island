@@ -53,7 +53,15 @@ test('剧情 SVG 都是合法 UTF-8，并能解析成 SVG', () => {
     const root = parseXml(text);
     assert.equal(root?.name, 'svg', name);
     assert.equal(text.includes('\uFFFD'), false, name);
-    assert.equal(text.includes('??'), false, name);
+    assert.equal(text.includes('?'), false, name);
     for (const caption of captions[name]) assert.equal(text.includes(caption), true, `${name} 缺少 ${caption}`);
+    if (name === 'ill-energy.svg') {
+      const bar = (x) => {
+        const found = text.match(new RegExp(`<rect x="${x}" y="\\d+" width="88" height="(\\d+)"`));
+        assert.ok(found, name);
+        return Number(found[1]);
+      };
+      assert.equal(bar(166) > bar(386), true);
+    }
   }
 });

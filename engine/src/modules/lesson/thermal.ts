@@ -11,13 +11,20 @@ function guideLabel(repair: boolean) {
   return repair ? '维修员老修' : '园艺员阿绿';
 }
 
-const labelLift = { guide: 78, verify: 16, sensor: 44, control: 44, fan: 44, portal: 36 };
+const labelPlace: Record<string, { marginBottom: number, marginLeft: number, width: number }> = {
+  guide: { marginBottom: 8, marginLeft: 0, width: 88 },
+  sensor: { marginBottom: 8, marginLeft: 0, width: 80 },
+  fan: { marginBottom: 8, marginLeft: -64, width: 80 },
+  control: { marginBottom: 8, marginLeft: 64, width: 96 },
+  verify: { marginBottom: 4, marginLeft: 92, width: 96 },
+  portal: { marginBottom: 8, marginLeft: 0, width: 64 }
+};
 
 function paintLabel(target: any, label: string, graphic: string) {
   target.name = label;
   target.setGraphic?.(graphic);
-  const lift = labelLift[actorIdOf(target.id)] || 44;
-  target.setComponentsTop?.(Components.text(label, { fill: '#163e31', fontSize: 15 }), { marginBottom: lift, width: 96 });
+  const place = labelPlace[actorIdOf(target.id)] || { marginBottom: 8, marginLeft: 0, width: 80 };
+  target.setComponentsTop?.(Components.text(label, { fill: '#163e31', fontSize: 15 }), place);
 }
 
 const guide = {
