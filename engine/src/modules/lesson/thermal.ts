@@ -14,15 +14,20 @@ function guideLabel(repair: boolean) {
 const labelPlace: Record<string, { marginBottom: number, marginLeft: number, width: number }> = {
   guide: { marginBottom: 8, marginLeft: 0, width: 88 },
   sensor: { marginBottom: 8, marginLeft: 0, width: 80 },
-  fan: { marginBottom: 8, marginLeft: -64, width: 80 },
-  control: { marginBottom: 8, marginLeft: 64, width: 96 },
-  verify: { marginBottom: 4, marginLeft: 92, width: 96 },
+  fan: { marginBottom: 8, marginLeft: 0, width: 80 },
+  control: { marginBottom: 8, marginLeft: 0, width: 96 },
+  verify: { marginBottom: 4, marginLeft: 0, width: 96 },
   portal: { marginBottom: 8, marginLeft: 0, width: 64 }
 };
 
 function paintLabel(target: any, label: string, graphic: string) {
   target.name = label;
   target.setGraphic?.(graphic);
+  if (actorIdOf(target.id) === 'verify') {
+    target.setComponentsTop?.([]);
+    target.setComponentsBottom?.(Components.text(label, { fill: '#163e31', stroke: '#fffaf0', fontSize: 15 }), { width: 96, height: 18, marginLeft: 0, marginBottom: 36 });
+    return;
+  }
   const place = labelPlace[actorIdOf(target.id)] || { marginBottom: 8, marginLeft: 0, width: 80 };
   target.setComponentsTop?.(Components.text(label, { fill: '#163e31', fontSize: 15 }), place);
 }

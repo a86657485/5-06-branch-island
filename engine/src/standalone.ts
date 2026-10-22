@@ -12,6 +12,7 @@ import { createIdleTimer } from '../../public/idle-timer.mjs';
 import { currentFocus, gotoTitle } from '../../public/focus.mjs';
 import { emptyFlow, repairPreset } from './gui/flow-model';
 import { toPlain } from './gui/plain';
+import { focusFootprint } from './focus-marker';
 
 let engine: RpgClientEngine | undefined;
 let heldDirection: Direction | undefined;
@@ -138,20 +139,24 @@ function mapViewport() {
   viewportCache = findViewport((engine as any)?.canvasApp?.stage);
   return viewportCache;
 }
-function projectTarget(target: { x?: number, y?: number, mapId?: string }) {
+function projectTarget(target: { x?: number, y?: number, mapId?: string, place?: string }) {
   const canvas = document.querySelector('#rpg canvas') as HTMLCanvasElement | null;
-  const x = Number(target?.x);
-  const y = Number(target?.y);
-  if (!canvas || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const footprint = focusFootprint(target);
+  if (!canvas || !footprint) return null;
   const rect = canvas.getBoundingClientRect();
   const viewport = mapViewport();
   let sx = rect.left + rect.width / 2;
   let sy = rect.top + rect.height / 2;
+  let scaleX = 1;
+  let scaleY = 1;
   if (viewport) {
-    const global = viewport.toGlobal({ x, y });
+    const global = viewport.toGlobal({ x: footprint.x, y: footprint.y });
     if (Number.isFinite(global?.x) && Number.isFinite(global?.y)) {
       sx = rect.left + Number(global.x);
       sy = rect.top + Number(global.y);
+      const unit = viewport.toGlobal({ x: footprint.x + 1, y: footprint.y + 1 });
+      scaleX = Math.abs(unit.x - global.x);
+      scaleY = Math.abs(unit.y - global.y);
     }
   }
   const margin = 48;
@@ -167,7 +172,10 @@ function projectTarget(target: { x?: number, y?: number, mapId?: string }) {
     x: Math.min(maxX, Math.max(minX, sx)),
     y: Math.min(maxY, Math.max(minY, sy)),
     offscreen,
-    arrow: offscreen ? arrow : '↓'
+    arrow: offscreen ? arrow : '→',
+    ringWidth: footprint.radiusX * 2 * scaleX,
+    ringHeight: footprint.radiusY * 2 * scaleY,
+    halfWidth: footprint.halfWidth * scaleX
   };
 }
 function projectWorld(target: { x?: number, y?: number }) {
@@ -231,6 +239,9 @@ function paintFocus(focus = lessonFocus()) {
     if (point) {
       focusMarker.style.left = `${point.x}px`;
       focusMarker.style.top = `${point.y}px`;
+      focusMarker.style.setProperty('--ring-width', `${point.ringWidth}px`);
+      focusMarker.style.setProperty('--ring-height', `${point.ringHeight}px`);
+      focusMarker.style.setProperty('--target-half-width', `${point.halfWidth}px`);
       if (focusArrow) focusArrow.textContent = point.arrow;
     }
     focusLabel.textContent = point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '';

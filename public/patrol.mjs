@@ -12,74 +12,74 @@ export const STATIONS = [
 export const STORIES = {
   brief: {
     npc: '调度员阿派',
-    image: '/assets/story/ill-brief.svg',
+    image: '/assets/story/ill-brief.png',
     lines: ['今天你是园区巡检员。', '路线：温室→返修→路口。', '打开巡检单，从第一站开始！']
   },
   sale: {
     opening: {
       npc: '园艺员阿绿',
-      image: '/assets/story/ill-wilt.svg',
+      image: '/assets/story/ill-wilt.png',
       lines: ['温室好热！菜苗都蔫了！', '风机不会自己判断，得靠你。', '告示写着：≥30℃就开风机。', '请补流程图，再测 29/30/31。', '设备怎样‘看情况’决定这一次做哪件事？']
     },
     result_ok: {
       npc: '园艺员阿绿',
-      image: '/assets/story/ill-cool.svg',
+      image: '/assets/story/ill-cool.png',
       lines: ['凉下来了！苗抬起头啦！', '分支就是看条件，只走一条。']
     },
     result_fail: {
       npc: '园艺员阿绿',
-      image: '/assets/story/ill-wilt.svg',
+      image: '/assets/story/ill-wilt.png',
       lines: ['还是好热……再检查出口吧。']
     }
   },
   repair: {
     opening: {
       npc: '维修员老修',
-      image: '/assets/story/ill-fault.svg',
+      image: '/assets/story/ill-fault.png',
       lines: ['有人改过控制器，风机又乱了。', '我不能告诉你错在哪。', '先跑 30℃，亲眼看故障。', '找出条件与出口是否配合。']
     },
     result_ok: {
       npc: '维修员老修',
-      image: '/assets/story/ill-cool.svg',
+      image: '/assets/story/ill-cool.png',
       lines: ['修好了！条件改了出口要跟着。', '下一站：路口导行屏。']
     },
     result_fail: {
       npc: '维修员老修',
-      image: '/assets/story/ill-fault.svg',
+      image: '/assets/story/ill-fault.png',
       lines: ['30℃还是不开……再改改。']
     }
   },
   cross: {
     opening: {
       npc: '巡检员小巡',
-      image: '/assets/story/ill-queue.svg',
+      image: '/assets/story/ill-queue.png',
       lines: ['导行屏坏了，游客在排队！', '有没有天桥，走法不一样。', '这回图要你自己画。', '补全分支，两种状态都要走通。']
     },
     result_ok: {
       npc: '巡检员小巡',
-      image: '/assets/story/ill-cross-ok.svg',
+      image: '/assets/story/ill-cross-ok.png',
       lines: ['游客安全过街了，辛苦啦！', '三站巡检完成，可以开考了。']
     },
     result_fail: {
       npc: '巡检员小巡',
-      image: '/assets/story/ill-queue.svg',
+      image: '/assets/story/ill-queue.png',
       lines: ['这条路走不通，回头改图吧。']
     }
   },
   minimum: {
     opening: {
       npc: '储能柜小电',
-      image: '/assets/story/ill-energy.svg',
+      image: '/assets/story/ill-energy.png',
       lines: ['两块电池，谁电量低充谁？', '选做哦，做完随时可走。']
     },
     result_ok: {
       npc: '储能柜小电',
-      image: '/assets/story/ill-energy.svg',
+      image: '/assets/story/ill-energy.png',
       lines: ['充对了！加分记上啦。']
     },
     result_fail: {
       npc: '储能柜小电',
-      image: '/assets/story/ill-energy.svg',
+      image: '/assets/story/ill-energy.png',
       lines: ['再比一比，谁的电量更低。']
     }
   }

@@ -52,7 +52,7 @@
 .screen-overlay[hidden]{display:none}
 .overlay-card{position:relative;width:min(880px,100%);max-height:min(92vh,920px);overflow:auto;padding:28px 24px 20px;border:3px solid #184c3b;border-radius:20px;background:#fffaf0;box-shadow:0 18px 50px #061e2b66}
 .overlay-close{position:absolute;top:10px;right:12px;width:44px;height:44px;border-radius:50%;font-size:28px;line-height:1}
-.story-card img{display:block;width:100%;max-height:280px;object-fit:cover;border-radius:14px;background:#e7f2ea}
+.story-card img{display:block;width:100%;max-height:280px;object-fit:contain;border-radius:14px;background:#e7f2ea}
 .story-line{font-size:22px;line-height:1.65;min-height:2.4em}
 .patrol-list{display:grid;gap:8px;margin:12px 0 16px}
 .check-row{display:flex;gap:10px;width:100%;text-align:left;align-items:center}
