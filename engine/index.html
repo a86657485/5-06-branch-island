@@ -52,6 +52,7 @@
       #engine-status p { margin: 0 0 15px; line-height: 1.7; }
       #engine-status button { min-height: 44px; padding: 8px 20px; border: 0; border-radius: 9px; color: white; background: #1c624d; }
       @media (max-width: 600px) { .engine-pad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 44px); gap: 3px; left: 10px; bottom: 10px; } .engine-pad-caption { display: none; } .engine-tools { top: 8px; right: 8px; gap: 5px; } .engine-tools button { font-size: 12px; padding: 6px 10px; } #engine-controls #engine-action { right: 12px; bottom: 20px; width: 72px; height: 62px; font-size: 17px; } }
+    #engine-goto { position:fixed;right:20px;bottom:24px;min-width:240px;min-height:56px;background:#1c624d!important;color:white!important;font-size:19px!important;box-shadow:0 4px 18px #153b3266;} #engine-goto:disabled {opacity:.65;} #engine-status p {white-space:pre-line;} @media(max-width:600px){#engine-goto{right:12px;bottom:16px;min-width:200px;font-size:16px!important;}}
     </style>
   </head>
   <body>
@@ -63,17 +64,10 @@
       <nav class="engine-tools" aria-label="探究帮助">
         <button id="engine-flow" type="button">查看流程</button>
         <button id="engine-help" type="button">操作帮助</button>
-        <button id="engine-hint" type="button">求助</button>
+        <button id="engine-undo" type="button" disabled>↶ 撤回上一步</button>
+        <button id="engine-hint" type="button">通关法宝 5/5</button>
         <button id="engine-goto" type="button">前往下一目标</button>
       </nav>
-      <div class="engine-pad" aria-label="按住方向按钮行走">
-        <button type="button" data-direction="up" aria-label="向上行走" aria-pressed="false">↑</button>
-        <button type="button" data-direction="left" aria-label="向左行走" aria-pressed="false">←</button>
-        <button type="button" data-direction="right" aria-label="向右行走" aria-pressed="false">→</button>
-        <button type="button" data-direction="down" aria-label="向下行走" aria-pressed="false">↓</button>
-        <span class="engine-pad-caption">按住行走 · 面向人物或设备后交互</span>
-      </div>
-      <button id="engine-action" type="button">交互<small>E / 空格</small></button>
     </div>
     <aside id="engine-status" role="alert" hidden>
       <p id="engine-status-text"></p>

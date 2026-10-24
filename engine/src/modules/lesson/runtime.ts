@@ -7,6 +7,14 @@ import { waitForActivePlayer,mapForContext } from './active-player';
 export const ctx=()=> {const value=getContext();if(!value)throw new Error('课堂正在连接，请稍候。');return value;};
 export function scene():Record<string,any>{return ctx().draft.scene;}
 export function input(){const s=scene(),id=ctx().levelId;return id==='cross'?{facility:!!s.facility}:id==='minimum'?(s.pair==='pair-b'?{a:9,b:2}:{a:3,b:8}):{temperature:s.temperatureCase||30};}
+export function currentRuns(){const config=ctx().draft.config||{};return ctx().runs.slice(ctx().evidenceStart||0).filter(run=>['model','operator','yes','no'].every(key=>run.config?.[key]===config[key]));}
+export function canReview(){
+ const id=ctx().levelId,runs=currentRuns();
+ if(!runs.length||runs.some(run=>run.correct!==true))return false;
+ if(id==='sale'||id==='repair')return (id!=='repair'||faultSeen(ctx().runs))&&[29,30,31].every(temperature=>runs.some(run=>run.input?.temperature===temperature));
+ if(id==='cross')return [true,false].every(facility=>runs.some(run=>run.input?.facility===facility&&run.scene?.outcome==='arrived'));
+ return [true,false].every(smaller=>runs.some(run=>((run.input?.a??0)<(run.input?.b??0))===smaller));
+}
 export async function rpc<T=any>(method:BridgeMethod,payload:Record<string,any>={}) {const levelId=ctx().levelId;const result=await request<T>(method,{levelId,...payload});if(ctx().levelId!==levelId&&method!=='next')throw new Error('任务已切换，请继续当前场景。');return result;}
 function inputFor(s:Record<string,any>){const id=ctx().levelId;return id==='cross'?{facility:!!s.facility}:id==='minimum'?(s.pair==='pair-b'?{a:9,b:2}:{a:3,b:8}):{temperature:s.temperatureCase||30};}
 function stageScene(next:Record<string,any>){const draft=ctx().draft;const snapshot={scene:draft.scene,sceneRev:draft.sceneRev||0};draft.scene=next;draft.sceneRev=snapshot.sceneRev+1;return snapshot;}
@@ -22,17 +30,26 @@ export const outputChoices=()=>ctx().levelId==='cross'?[{id:'bridge',label:'走�
 export async function predict(player:RpgPlayer){
  if(!scene().measured){await say(player,'控制柜','先去读取现场数据，再作预测。');return;}
  if(scene().ticket){await say(player,'控制柜','本次设备已执行。请先到核验点比较结果，再开始新测试。');return;}
- const value=await say(player,'先预测，再运行',`现场输入：${ctx().levelId==='cross'?(input().facility?'附近有可用天桥':'附近没有天桥'):ctx().levelId==='minimum'?`A剩余${input().a}%，B剩余${input().b}%`:`温度${input().temperature}°C`}。按你当前设置的条件和两个分支，设备会执行哪项操作？`,outputChoices());if(!value)return;
+ const id=ctx().levelId,config=ctx().draft.config||{},choices=outputChoices();
+ const symbols:Record<string,string>={'>=':'≥','<':'＜','>':'＞','<=':'≤'};
+ const condition=id==='cross'?'附近有可用天桥或地下通道吗':id==='minimum'?`电量A${symbols[config.operator]||config.operator}B吗`:`温度${symbols[config.operator]||config.operator}30℃吗`;
+ const label=(value:string)=>choices.find(choice=>choice.id===value)?.label||'尚未设置';
+ const value=await say(player,'先预测，再运行',`当前程序：判断“${condition}”；成立时${label(config.yes)}，不成立时${label(config.no)}。\n现场输入：${id==='cross'?(input().facility?'附近有可用天桥':'附近没有天桥'):id==='minimum'?`A剩余${input().a}%，B剩余${input().b}%`:`温度${input().temperature}℃`}。\n沿当前程序想一想：这次会执行哪项操作？`,choices);if(!value)return;
  await rpc('predict',{value,input:input(),config:ctx().draft.config});await patchScene(player,{...advance(scene(),'predict')});
 }
 export async function configure(player:RpgPlayer){
  if(scene().ticket){await say(player,'本次结果待核验','本次程序已执行，请先走到核验点保存实际结果，再修改程序。');return;}
  const id=ctx().levelId;
- if(!scene().measured && id!=='cross'){await say(player,'控制柜','先读取现场输入。');return;}
- const mode=id==='repair'?'repair':id==='cross'?'cross':id==='minimum'?'minimum':'sale';
  const diagnosed=faultSeen(ctx().runs);
+ if(id==='repair'&&!diagnosed){
+  if(!scene().measured){await say(player,'控制柜','先点温度探头读取30℃，保留原程序，看看风机为什么不转。');return;}
+  return scene().actions?.[1]==='predict'?apply(player):predict(player);
+ }
+ if(!scene().measured && id!=='cross'&&!ctx().runs.length&&!(scene().visited||[]).includes('verified')){await say(player,'控制柜','先读取现场输入。');return;}
+ const mode=id==='repair'?'repair':id==='cross'?'cross':id==='minimum'?'minimum':'sale';
  const result=await player.gui('flow-panel').open({
   mode,
+  measured:!!scene().measured,
   flow:ctx().draft.flow||(mode==='repair'?repairPreset():emptyFlow()),
   sentence:ctx().draft.sentence||emptySentence(mode),
   predictions:ctx().draft.predictionsLocked||emptyPredictions(),
@@ -68,8 +85,11 @@ export async function record(player:RpgPlayer,finalStep:string,outcome?:string){
  const result=await rpc('experiment',{input:input(),prediction:ctx().draft.prediction,sceneEvidence:evidence});
  if(!result)throw new Error('本次实验没有保存，请重试核验。');
  const hint=!result.correct&&input().temperature===30?repairSymbolHint(ctx().draft.config):'';
- const message=`条件${result.condition?'成立':'不成立'}，只执行${result.branch==='yes'?'成立':'不成立'}分支。${result.correct?'符合任务目标。':'实际结果与任务目标不符，请检查条件及分支配置。'}${result.correct?'':`\n你的条件：${conditionLine(result)}`}${hint?`\n${hint}`:''}`;
- const clean:Record<string,any>={...s,actions:[],phase:'assigned',measured:false,lastFeedback:message,visited:[...new Set([...(s.visited||[]),'verified'])]};delete clean.ticket;
+ let feedbackNext=result.correct?'到负责人那里换下一种现场，再读取、预测和运行。':'回控制柜检查条件和两个出口，再重新测试。';
+ if(canReview())feedbackNext='本站需要的情况已经测齐，到负责人那里说明你的发现。';
+ else if(result.correct&&(id==='sale'||id==='repair')){const temperature=[29,30,31].find(value=>!currentRuns().some(run=>run.input?.temperature===value&&run.correct));feedbackNext=`到温度探头${temperature?`采样${temperature}℃`:'重新读数'}，继续检验当前程序。`;}
+ const message=`${outcome==='blocked'?'通道受阻，你留在安全侧。':''}条件${result.condition?'成立':'不成立'}，只执行${result.branch==='yes'?'成立':'不成立'}分支。${result.correct?'符合任务约定。':'这次结果与任务约定不符。'}${result.correct?'':`\n你的条件：${conditionLine(result)}`}${hint?`\n${hint}`:''}\n下一步：${feedbackNext}`;
+ const clean:Record<string,any>={...s,actions:[],phase:'assigned',measured:false,lastFeedback:message,visited:[...new Set([...(s.visited||[]),'verified'])],...(id==='minimum'?{collected:[]}:{})};delete clean.ticket;
  await commitScene(player,clean,{prediction:''});await say(player,'现场核验',message);return result;
 }
 export async function review(player:RpgPlayer){

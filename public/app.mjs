@@ -1,3 +1,5 @@
+import { toolHint } from './task-guidance.mjs';
+import { captureEdit, restoreEdit } from './task-history.mjs';
 import { SyncQueue, reconcileState } from './sync.mjs';
 import { createParkScene } from './scene.mjs';
 import { createRpgScene } from './rpg-scene.mjs';
@@ -37,10 +39,10 @@ const defaults = {
  minimum:{config:{operator:'',yes:'',no:''},input:{a:3,b:8},prediction:'',reason:'',hint:0}
 };
 const reasonOptions = {
- sale:[['both','达到阈值时，两条出口都执行'],['boundary','30℃达到启动阈值，应启动；低于30℃才停机'],['small','30比30小，所以停机']],
- repair:[['symbol','只改判断方向，出口可以不变'],['swap','判断方向改变，要交换两个出口才能保持原来的设备规则'],['both','两条出口设成同一个动作就能修好']],
- cross:[['one','条件成立与否决定路径，一次只执行对应的一条'],['none','没有天桥就不用考虑其他通行方式'],['both','先走天桥，再走斑马线']],
- minimum:[['always','A排在前面，每次都优先充A'],['compare','先比较两组电量，沿对应路径让较低电量的一组优先充电'],['both','一次将两组都接入唯一充电口']]
+ sale:[['both','达到30℃，两个动作都做'],['boundary','刚好30℃也要开，低于30℃才关'],['small','30比30小，所以关风机']],
+ repair:[['symbol','只改判断方向，动作不变'],['swap','判断换了，两边动作也要对调'],['both','把两边设成同一个动作就能修好']],
+ cross:[['one','先看条件，这次只走选中的一路'],['none','没有天桥，就可以随便过街'],['both','先走天桥，再走斑马线']],
+ minimum:[['always','A排在前面，每次都先充A'],['compare','先比电量，哪块少就先给哪块充'],['both','一次把两块都接入优先充电口']]
 };
 async function api(path, body) {
  const response = await fetch(path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(8000)});
@@ -140,7 +142,7 @@ function bindChrome(){
  const brand=$('.brand'); if(brand) brand.onclick=e=>{ e.preventDefault(); closePatrol(); goToTask(lastStation==='quiz'?'sale':(current==='quiz'?lastStation:'sale')); };
  const switcher=$('#switch-user'); if(switcher) switcher.onclick=()=>{ destroyScene(); saveLocal(); localStorage.removeItem('branch-island-identity'); user=null; selectedStudent=''; manual=''; notice=''; lastRun=null; storySession=null; if(demo){ location.href='/teacher.html'; return; } login(); };
  const patrolBtn=$('#open-patrol'); if(patrolBtn) patrolBtn.onclick=()=>openPatrol();
- const helpBtn=$('#open-help'); if(helpBtn) helpBtn.onclick=()=>showHelp('<h2>怎么操作</h2><ol><li>你是园区巡检员。巡检单按温室→返修→路口，不能跳站。</li><li>方向键或 WASD 行走，面向人或设备后按 E。</li><li>对白、流程图、拼句、考核和巡检单都是浮层，右上角 × 或 Esc 可关闭。</li><li>关掉浮层不会替你提交没确认的答案。</li></ol>');
+ const helpBtn=$('#open-help'); if(helpBtn) helpBtn.onclick=()=>showHelp('<h2>怎么操作</h2><ol><li>你是园区巡检员。巡检单按温室→返修→路口，不能跳站。</li><li>点“下一步”，角色会走近并开始。</li><li>对白、流程图、预测和巡检单都是浮层，右上角 × 或 Esc 可关闭。</li><li>关掉浮层不会替你提交没确认的答案。</li></ol>');
  const examBtn=$('#open-exam'); if(examBtn) examBtn.onclick=()=>{ closePatrol(); goToTask('quiz'); };
 }
 function updateChrome(){
@@ -246,15 +248,19 @@ function renderTask(idx){
  const initialId=ids[idx],ownerId=user.id,ownerRound=round,generation=sceneGeneration;
  prepareSceneDraft(initialId);
  $('#workbench').classList.add('game-workbench');
+ const undoStacks = new Map();
+ let restoring = false;
+ const rememberEdit = id => { const stack=undoStacks.get(id)||[]; stack.push(captureEdit(draft(id))); undoStacks.set(id,stack.slice(-30)); };
  const makeHost=id=>{
   if(!ids.includes(id))throw new Error('找不到这个任务场景。');
   const idx=ids.indexOf(id),sameOwner=()=>user?.id===ownerId&&round===ownerRound&&sceneGeneration===generation&&(legacy||current===id);
   const save=()=>{if(sameOwner())send('draft',id,draft(id));};
   return {
-  root:$('#workbench'),levelId:id,demo,forLevel:makeHost,getDraft:()=>state.drafts[id]||clone(defaults[id]),getRuns:()=>state.runs[id]||[],getLevel:()=>state.levels[id],getEvidenceStart:()=>state.levels[id]?.evidenceStart||0,reasons:reasonOptions[id],
+  root:$('#workbench'),levelId:id,demo,forLevel:makeHost,getDraft:()=>state.drafts[id]||clone(defaults[id]),getRuns:()=>state.runs[id]||[],getLevel:()=>state.levels[id],getSupport:()=>state.support||{hints:[]},getUndoAvailable:()=>!!undoStacks.get(id)?.length,getEvidenceStart:()=>state.levels[id]?.evidenceStart||0,reasons:reasonOptions[id],
   onChange(patch){
    if(!sameOwner())return;
    if('rpg' in patch){patch={...patch,rpg:window.AdventureRules.validateRpgDraft(patch.rpg)};const maps={sale:['greenhouse'],repair:['greenhouse','workshop'],cross:['crossing','crossing-east'],minimum:['energy'],gate:['greenhouse']};if(!maps[id].includes(patch.rpg.mapId))throw new Error('当前位置与任务场景不一致。');}
+   if(!restoring && patch.input && state.drafts[id] && JSON.stringify(patch.input)!==JSON.stringify(draft(id).input))rememberEdit(id);
    const editing=['config','flow','sentence','predictionsLocked','input','prediction','reason'].some(key=>key in patch);
    if(!state.drafts[id] && !editing){state.drafts[id]=clone(defaults[id]);for(const key of ['scene','rpg','panel'])if(key in patch)state.drafts[id][key]=clone(patch[key]);updateHeader();save();updateHeader();return {saved:true};}
    const d=state.drafts[id]||(state.drafts[id]={});
@@ -272,6 +278,7 @@ function renderTask(idx){
   onEvaluate({input,config}){if(!sameOwner())throw new Error('当前任务已切换。');return R.evaluate(id,config||draft(id).config,input||draft(id).input);},
   onPrediction({value,input,config}){
    if(!sameOwner())return null;
+   rememberEdit(id);
    const d=draft(id),normalized=R.normalizeConfig(id,config||d.config),reading=clone(input||d.input);
    R.evaluate(id,normalized,reading);
    const choices=id==='cross'?['bridge','crossing']:id==='minimum'?['a','b']:['on','off'];
@@ -312,8 +319,37 @@ function renderTask(idx){
   },
   onNext(){if(!sameOwner())return;const next=ids[idx+1]||'quiz';if(!legacy&&next==='quiz'){setTimeout(()=>{if(sameOwner())goToTask('quiz');},0);return {levelId:'quiz'};}return goToTask(next);},
   onFlow(){showHelp(`<h2>${titles[idx]} · 当前执行过程</h2><div class="scene-flow-preview">${flow()}</div><p>根据条件是否成立，一次只执行“是”或“否”对应的一条路径。</p>`);},
-  onHelp(){showHelp(`<h2>智慧园区 · 怎么操作</h2><ol><li>${legacy?'点击NPC或设备的名称，角色会沿步道走近，抵达后交谈或操作。':'使用方向键、WASD或屏幕方向按钮行走，走近并面向NPC或设备。'}</li><li>按E、空格或屏幕交互按钮，与面前的对象交谈。</li><li>先领取委托、读取现场输入，在设备旁设置规则并预测。</li><li>亲自执行、到核验点观察结果，再向NPC汇报。不同情况都要验证。</li></ol><p>对话右上角的×可随时关闭，进度会保留。帮助不扣积分。</p><p class="muted">场景参考深圳智慧园林；地图、人物和30℃规则均为教学仿真。</p>`);},
+  onHelp(){showHelp(`<h2>智慧园区 · 怎么操作</h2><ol><li>${legacy?'点击NPC或设备的名称，角色会沿步道走近，抵达后交谈或操作。':'单击“下一步”，角色走近当前任务点。'}</li><li>按任务卡依次选择，错误可撤回上一步。</li><li>先领取委托、读取现场输入，在设备旁设置规则并预测。</li><li>亲自执行、到核验点观察结果，再向NPC汇报。不同情况都要验证。</li></ol><p>对话右上角的×可随时关闭，进度会保留。帮助不扣积分。</p><p class="muted">场景参考深圳智慧园林；地图、人物和30℃规则均为教学仿真。</p>`);},
   onNavHelp(data){if(!sameOwner())return null;send('nav_help',id,{trigger:data.trigger||'button',strength:data.strength??0,idleMs:data.idleMs||0,step:data.step||'',focusId:data.focusId||'',mapId:data.mapId||'',levelId:id});return {saved:true};},
+  async onToolHint({step}={}){
+   if(!sameOwner())throw new Error('身份已切换，请继续当前任务。');
+   if(demo){
+    const hint=toolHint(id,draft(id),step||{});
+    state.support||={hints:[]};
+    const previous=state.support.hints.find(item=>item.key===hint.key);
+    if(!previous && state.support.hints.length>=5)throw new Error('全课法宝用完了，点错了可以撤回。');
+    if(!previous){state.support.hints.push({...hint,levelId:id,at:new Date().toISOString()});state.levels[id]||={};state.levels[id].hinted=true;}
+    saveLocal();updateHeader();
+    return {hint:previous||hint,used:state.support.hints.length,remaining:5-state.support.hints.length,reused:!!previous};
+   }
+   await queue.flush();
+   if(!sameOwner())throw new Error('身份已切换，请继续当前任务。');
+   if(queue.pending(user.id))throw new Error('先等学习记录保存，再用法宝。次数还没扣。');
+   const data=await api('/api/events',{studentId:user.id,round,eventId:eventId(),type:'tool_hint',levelId:id,payload:{step:step||{}}});
+   if(!sameOwner())return null;
+   state=reconcileState(state,data.state,true);saveLocal();updateHeader();
+   return {...data.result,used:state.support?.hints?.length||0,remaining:Math.max(0,5-(state.support?.hints?.length||0))};
+  },
+  onUndo(){
+   if(!sameOwner())return null;
+   const stack=undoStacks.get(id)||[];const snapshot=stack.pop();
+   if(!snapshot)return {undone:false};
+   const restored=restoreEdit(draft(id),snapshot);
+   restoring=true;
+   try{makeHost(id).onChange(restored);}finally{restoring=false;}
+   send('nav_help',id,{trigger:'button',step:'undo',focusId:'undo',strength:0,idleMs:0,levelId:id});
+   return {undone:true};
+  },
   onConceptHint(){
    if(!sameOwner())return null;
    const level=state.levels[id]||{};

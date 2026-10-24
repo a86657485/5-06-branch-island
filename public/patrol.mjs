@@ -1,4 +1,5 @@
 /** 巡检主线：固定 S1→S2→S3。跳过剧情只记叙事，不写学习达成。 */
+import { stationBrief } from './task-guidance.mjs';
 
 export const ROUTE = ['sale', 'repair', 'cross'];
 
@@ -19,7 +20,7 @@ export const STORIES = {
     opening: {
       npc: '园艺员阿绿',
       image: '/assets/story/ill-wilt.png',
-      lines: ['温室好热！菜苗都蔫了！', '风机不会自己判断，得靠你。', '告示写着：≥30℃就开风机。', '请补流程图，再测 29/30/31。', '设备怎样‘看情况’决定这一次做哪件事？']
+      lines: ['温室好热！菜苗都蔫了！', stationBrief('sale').purpose, stationBrief('sale').success, '设备怎样‘看情况’决定这一次做哪件事？']
     },
     result_ok: {
       npc: '园艺员阿绿',
@@ -29,14 +30,14 @@ export const STORIES = {
     result_fail: {
       npc: '园艺员阿绿',
       image: '/assets/story/ill-wilt.png',
-      lines: ['还是好热……再检查出口吧。']
+      lines: ['这次风机的动作与告示不符。', '回控制柜改一处，再用现场温度试试。']
     }
   },
   repair: {
     opening: {
       npc: '维修员老修',
       image: '/assets/story/ill-fault.png',
-      lines: ['有人改过控制器，风机又乱了。', '我不能告诉你错在哪。', '先跑 30℃，亲眼看故障。', '找出条件与出口是否配合。']
+      lines: Object.values(stationBrief('repair'))
     },
     result_ok: {
       npc: '维修员老修',
@@ -46,14 +47,14 @@ export const STORIES = {
     result_fail: {
       npc: '维修员老修',
       image: '/assets/story/ill-fault.png',
-      lines: ['30℃还是不开……再改改。']
+      lines: ['这次动作还没有全部符合告示。', '看看是哪种温度走错了出口，再修改和重测。']
     }
   },
   cross: {
     opening: {
       npc: '巡检员小巡',
       image: '/assets/story/ill-queue.png',
-      lines: ['导行屏坏了，游客在排队！', '有没有天桥，走法不一样。', '这回图要你自己画。', '补全分支，两种状态都要走通。']
+      lines: Object.values(stationBrief('cross'))
     },
     result_ok: {
       npc: '巡检员小巡',
@@ -63,14 +64,14 @@ export const STORIES = {
     result_fail: {
       npc: '巡检员小巡',
       image: '/assets/story/ill-queue.png',
-      lines: ['这条路走不通，回头改图吧。']
+      lines: ['刚才选择的路线还不符合现场约定。', '先看这里有没有可用设施，再修改导行屏。']
     }
   },
   minimum: {
     opening: {
       npc: '储能柜小电',
       image: '/assets/story/ill-energy.png',
-      lines: ['两块电池，谁电量低充谁？', '选做哦，做完随时可走。']
+      lines: [stationBrief('minimum').problem, '选做哦，做完随时可走。', stationBrief('minimum').purpose, stationBrief('minimum').success]
     },
     result_ok: {
       npc: '储能柜小电',

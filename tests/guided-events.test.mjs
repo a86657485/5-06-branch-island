@@ -1,0 +1,212 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import ts from '../engine/node_modules/typescript/lib/typescript.js';
+import rules from '../public/rules.js';
+const require = createRequire(import.meta.url);
+const base = path.resolve(import.meta.dirname, '..');
+const model = require('../engine/src/gui/flow-model.ts');
+const experiment = require('../engine/src/modules/lesson/experiment.ts');
+const layout = JSON.parse(fs.readFileSync(path.join(base, 'engine/src/tiled/layout.json'), 'utf8'));
+function compile(file, imports) {
+  const source = fs.readFileSync(path.join(base, file), 'utf8');
+  const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
+  const module = { exports: {} };
+  vm.runInNewContext(js, { module, exports: module.exports, require: name => {
+    if (Object.hasOwn(imports, name)) return imports[name];
+    if (name.endsWith('task-guidance.mjs')) return require('../public/task-guidance.mjs');
+    throw new Error(`Unexpected dependency ${name}`);
+  }, console, setTimeout, clearTimeout, localStorage: { getItem: () => null, setItem() {}, removeItem() {} } });
+  return module.exports;
+}
+function harness(id = 'sale') {
+  const config = id === 'repair' ? { model: 'ventilation', operator: '>=', yes: 'off', no: 'on' } : id === 'cross' ? { yes: 'bridge', no: 'crossing' } : id === 'minimum' ? { operator: '<', yes: 'a', no: 'b' } : { model: 'ventilation', operator: '>=', yes: 'on', no: 'off' };
+  const context = { levelId: id, draft: { config, scene: { version: 1, phase: 'assigned', measured: true, actions: [id === 'repair' ? 'inspect' : id === 'cross' ? 'observe' : id === 'minimum' ? 'collect' : 'measure'], visited: [], temperatureCase: 30, facility: true, pair: 'pair-a', actorId: id === 'repair' ? 'sensor30' : id === 'cross' ? 'cross-open' : id === 'minimum' ? 'pair-a' : 'sensor30' } }, runs: [], level: {}, evidenceStart: 0, reasons: [{ value: 'boundary', label: '比较边界' }] };
+  const dialogs = [], calls = [], guis = [], answers = [];
+  const variables = new Map();
+  const player = { id: 'test-player', syncChanges() {}, getVariable: key => variables.get(key), setVariable: (key, value) => variables.set(key, value), gui: name => ({ open: async data => { guis.push({ name, data }); return null; } }), x: () => 450, y: () => 340 };
+  const runtime = compile('engine/src/modules/lesson/runtime.ts', {
+    '@rpgjs/server': { Components: { text: text => ({ text }) }, EventMode: { Scenario: 'Scenario' } },
+    '../../classroom-bridge': { getContext: () => context, request: async (method, payload) => {
+      calls.push({ method, payload });
+      if (method === 'change') Object.assign(context.draft, payload.patch);
+      if (method === 'predict') context.draft.prediction = payload.value;
+      if (method === 'evaluate') return rules.evaluate(id, payload.config, payload.input);
+      if (method === 'experiment') { const result = rules.evaluate(id, config, payload.input); context.runs.push({ config: { ...config }, input: payload.input, scene: payload.sceneEvidence, ...result }); return result; }
+      return { saved: true };
+    } },
+    '../../gui/ask': { ask: async (_player, data) => { dialogs.push(data); return answers.shift() ?? null; } },
+    './experiment': experiment,
+    '../../gui/flow-model': model,
+    './active-player': { waitForActivePlayer: async () => player, mapForContext: () => 'test-map' }
+  });
+  const imports = { './runtime': runtime, '../../gui/flow-model': model, '../../tiled/layout.json': layout, '@rpgjs/common': { Direction: { Right: 'right' } }, '@rpgjs/server': { EventMode: { Scenario: 'Scenario' }, Components: { text: text => ({ text }) } }, './route-progress.mjs': require('../engine/src/modules/lesson/route-progress.mjs'), './greenhouse-cast': { actorIdOf: id => id, planGreenhouseSync: () => [] } };
+  const thermal = compile('engine/src/modules/lesson/thermal.ts', imports);
+  const routes = compile('engine/src/modules/lesson/routes.ts', imports);
+  const act = async (events, eventId) => events.find(item => item.id === eventId).event.onAction(player);
+  return { context, runtime, thermal, routes, dialogs, calls, guis, answers, player, variables, act };
+}
+function run(id, config, input, correct = true) { return { config: { ...config }, input, correct, ...(id === 'cross' ? { scene: { outcome: correct ? 'arrived' : 'blocked' } } : {}) }; }
+
+test('返修第一次在原30℃程序上先预测、再次点击才运行，不打开编辑器代替故障', async () => {
+  const h = harness('repair'); h.answers.push('off');
+  await h.runtime.configure(h.player);
+  assert.equal(h.guis.length, 0);
+  assert.equal(h.calls.filter(call => call.method === 'predict').length, 1);
+  assert.equal(h.context.draft.scene.ticket, undefined);
+  assert.match(h.dialogs[0].text, /30/);
+  assert.match(h.dialogs[0].text, /≥|>=/);
+  assert.match(h.dialogs[0].text, /成立.*关闭/);
+  assert.match(h.dialogs[0].text, /不成立.*启动/);
+  await h.runtime.configure(h.player);
+  assert.equal(h.context.draft.scene.ticket.output, 'off');
+  assert.equal(h.context.draft.scene.ticket.correct, false);
+  assert.equal(h.calls.filter(call => call.method === 'predict').length, 1);
+});
+
+test('关闭预测对话不选择答案、不运行；故障核验后未重新读数也可先修图', async () => {
+  const h = harness('repair');
+  await h.runtime.configure(h.player);
+  assert.equal(h.calls.length, 0);
+  h.context.runs.push(run('repair', h.context.draft.config, { temperature: 30 }, false));
+  h.context.draft.scene.measured = false;
+  await h.runtime.configure(h.player);
+  assert.equal(h.guis.length, 1);
+  assert.equal(h.guis[0].data.diagnosed, true);
+  assert.equal(h.guis[0].data.measured, false);
+});
+
+test('路口和储能控制台只打开当前一步：画图、预测、运行，不给并行菜单', async () => {
+  for (const [id, eventId] of [['cross', 'road-console'], ['minimum', 'energy-console']]) {
+    const h = harness(id), events = id === 'cross' ? h.routes.crossingEvents : h.routes.energyEvents;
+    await h.act(events, eventId);
+    assert.equal(h.guis.length, 1, id);
+    assert.equal(h.dialogs.length, 0, id);
+    h.context.draft.flow = { locked: true };
+    h.answers.push(id === 'cross' ? 'bridge' : 'a');
+    await h.act(events, eventId);
+    assert.equal(h.calls.filter(call => call.method === 'predict').length, 1, id);
+    assert.equal(h.context.draft.scene.ticket, undefined, id);
+    const before = h.dialogs.length;
+    await h.act(events, eventId);
+    assert.ok(h.context.draft.scene.ticket, id);
+    assert.equal(h.dialogs.length - before, 1, `${id}一次运行只给一条执行结果`);
+  }
+});
+
+test('四站负责人初次只给领取委托，未跑齐不提供验收捷径', async () => {
+  for (const id of ['sale', 'repair', 'cross', 'minimum']) {
+    const h = harness(id); h.context.draft.scene.phase = 'start';
+    const events = ['sale', 'repair'].includes(id) ? h.thermal.greenhouseEvents : id === 'cross' ? h.routes.crossingEvents : h.routes.energyEvents;
+    const eventId = ['sale', 'repair'].includes(id) ? 'guide' : id === 'cross' ? 'road-guide' : 'energy-guide';
+    await h.act(events, eventId);
+    assert.equal(h.dialogs[0].choices.length, 1, id);
+    assert.equal(h.dialogs[0].choices[0].id, 'accept', id);
+    assert.match(h.dialogs[0].text, /温室|控制器|导行屏|电池/, id);
+    assert.equal(h.calls.some(call => call.method === 'complete'), false, id);
+  }
+});
+
+test('传感器建议首个尚未正确核验温度，返修故障首次只给30℃', async () => {
+  const h = harness('sale'); h.context.runs.push(run('sale', h.context.draft.config, { temperature: 29 }));
+  await h.act(h.thermal.greenhouseEvents, 'sensor');
+  assert.equal(h.dialogs[0].choices.length, 3);
+  assert.match(h.dialogs[0].text, /建议.*30/);
+  const repair = harness('repair');
+  await repair.act(repair.thermal.greenhouseEvents, 'sensor');
+  assert.deepEqual(JSON.parse(JSON.stringify(repair.dialogs[0].choices.map(choice => choice.id))), ['30']);
+});
+
+test('单击信号灯只提供等待绿灯，错误天桥入口和走完整路线约束保留', async () => {
+  const h = harness('cross'); h.context.draft.scene.signal = 'red'; h.answers.push('green');
+  await h.act(h.routes.crossingEvents, 'road-signal');
+  assert.equal(h.dialogs[0].choices.length, 1);
+  assert.equal(h.dialogs[0].choices[0].id, 'green');
+  assert.equal(h.context.draft.scene.signal, 'green');
+  const source = fs.readFileSync(path.join(base, 'engine/src/modules/lesson/routes.ts'), 'utf8');
+  assert.match(source, /advanceRoute\(/);
+  assert.match(source, /closedBridgeSelected\(/);
+  assert.match(source, /phase !== 'arrived'/);
+});
+
+test('现场核验只显示一条结果与下一步，不重复演出或让学生二次确认匹配', async () => {
+  for (const [id, eventId] of [['cross', 'road-verify'], ['minimum', 'energy-verify']]) {
+    const h = harness(id), values = id === 'cross' ? { facility: true } : { a: 3, b: 8 };
+    const result = rules.evaluate(id, h.context.draft.config, values);
+    h.context.draft.prediction = id === 'cross' ? 'bridge' : 'a';
+    h.context.draft.scene = { ...h.context.draft.scene, actions: [id === 'cross' ? 'observe' : 'collect', 'predict', 'route'], phase: 'arrived', ticket: result };
+    await h.act(id === 'cross' ? h.routes.crossingEvents : h.routes.energyEvents, eventId);
+    assert.equal(h.dialogs.length, 1, id);
+    assert.match(h.dialogs[0].text, /下一步/, id);
+    assert.equal(h.calls.filter(call => call.method === 'experiment').length, 1, id);
+    assert.equal(h.context.runs.length, 1, id);
+    assert.equal(h.context.draft.scene.ticket, undefined, id);
+  }
+});
+
+test('负责人先完成当前现场，再换未正确核验的一种；改程序后不能借旧记录跳验收', async () => {
+  for (const id of ['cross', 'minimum']) {
+    const h = harness(id), events = id === 'cross' ? h.routes.crossingEvents : h.routes.energyEvents;
+    const eventId = id === 'cross' ? 'road-guide' : 'energy-guide';
+    if (id === 'cross') h.context.draft.scene.facility = false;
+    else h.context.draft.scene.pair = 'pair-b';
+    await h.act(events, eventId);
+    assert.equal(h.dialogs[0].choices[0].id, 'continue', id);
+    h.dialogs.length = 0;
+    h.context.runs.push(run(id, h.context.draft.config, id === 'cross' ? { facility: false } : { a: 9, b: 2 }));
+    h.answers.push('next-case');
+    await h.act(events, eventId);
+    assert.equal(h.dialogs[0].choices.length, 1, id);
+    assert.equal(h.dialogs[0].choices[0].id, 'next-case', id);
+    assert.equal(id === 'cross' ? h.context.draft.scene.facility : h.context.draft.scene.pair, id === 'cross' ? true : 'pair-a');
+    h.context.runs.push(run(id, h.context.draft.config, id === 'cross' ? { facility: true } : { a: 3, b: 8 }));
+    h.dialogs.length = 0;
+    await h.act(events, eventId);
+    assert.equal(h.dialogs[0].name, '验收负责人', id);
+    h.context.draft.config = { ...h.context.draft.config, yes: id === 'cross' ? 'crossing' : 'b' };
+    assert.equal(h.runtime.canReview(), false, id);
+  }
+});
+
+test('温室验收仍要求当前程序29、30、31均正确，返修还必须保留原故障', () => {
+  for (const id of ['sale', 'repair']) {
+    const h = harness(id), fixed = { model: 'ventilation', operator: '>=', yes: 'on', no: 'off' };
+    h.context.draft.config = fixed;
+    h.context.runs = [29, 30].map(temperature => run(id, fixed, { temperature }));
+    assert.equal(h.runtime.canReview(), false, id);
+    h.context.runs.push(run(id, fixed, { temperature: 31 }));
+    assert.equal(h.runtime.canReview(), id === 'sale', id);
+    if (id === 'repair') {
+      h.context.runs.unshift(run(id, { model: 'ventilation', operator: '>=', yes: 'off', no: 'on' }, { temperature: 30 }, false));
+      assert.equal(h.runtime.canReview(), true);
+    }
+    h.context.evidenceStart = h.context.runs.length - 1;
+    assert.equal(h.runtime.canReview(), false, id);
+  }
+});
+
+test('锁定错误程序核验后控制台重新打开编辑器，随后某次正确也不能掩盖原错误', async () => {
+  for (const [id, consoleId, verifyId] of [['cross', 'road-console', 'road-verify'], ['minimum', 'energy-console', 'energy-verify']]) {
+    const h = harness(id), events = id === 'cross' ? h.routes.crossingEvents : h.routes.energyEvents;
+    h.context.draft.config.yes = id === 'cross' ? 'crossing' : 'b';
+    h.context.draft.flow = { diamond: id === 'cross' ? 'bridge-q' : 'lt', yes: h.context.draft.config.yes, no: h.context.draft.config.no, locked: true };
+    h.context.draft.prediction = h.context.draft.config.yes;
+    const values = id === 'cross' ? { facility: true } : { a: 3, b: 8 };
+    h.context.draft.scene = { ...h.context.draft.scene, actions: [id === 'cross' ? 'observe' : 'collect', 'predict', 'route'], phase: 'arrived', ticket: rules.evaluate(id, h.context.draft.config, values) };
+    await h.act(events, verifyId);
+    assert.equal(h.context.runs[0].correct, false, id);
+    assert.equal(h.context.draft.flow.locked, true, id);
+    assert.equal(h.context.draft.scene.measured, false, id);
+    await h.act(events, consoleId);
+    assert.equal(h.guis.length, 1, `${id}错误图核验后可以重新选卡`);
+    assert.equal(h.guis[0].data.measured, false, id);
+    h.context.runs.push(run(id, h.context.draft.config, id === 'cross' ? { facility: false } : { a: 9, b: 2 }));
+    await h.act(events, consoleId);
+    assert.equal(h.guis.length, 2, `${id}当前方案中的早先错误仍需修订`);
+    h.context.draft.config.yes = id === 'cross' ? 'bridge' : 'a';
+    assert.equal(h.runtime.currentRuns().length, 0, `${id}修正后不再借用旧方案证据`);
+  }
+});

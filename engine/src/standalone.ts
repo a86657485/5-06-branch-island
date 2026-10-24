@@ -6,7 +6,7 @@ import { Direction } from '@rpgjs/common';
 import startServer from "./server";
 import configClient from "./config/config.client";
 import { createApp } from 'vue';
-import { dispose, getContext, ready, request, subscribeContext } from './classroom-bridge';
+import { dispose, getContext, ready, request, subscribeContext, setArtifactBarrier } from './classroom-bridge';
 import FlowPanel from './gui/FlowPanel.vue';
 import { createIdleTimer } from '../../public/idle-timer.mjs';
 import { currentFocus, gotoTitle } from '../../public/focus.mjs';
@@ -19,6 +19,7 @@ let heldDirection: Direction | undefined;
 let movementFrame = 0;
 let dialogOpen = false;
 let auxiliaryBusy = false;
+let autoWalking = false;
 let processPanelOpen = false;
 const controls = document.getElementById('engine-controls');
 const status = document.getElementById('engine-status');
@@ -35,7 +36,7 @@ function stopMovement() {
 }
 
 function canControl() {
-  return !!engine && !dialogOpen && !auxiliaryBusy && status?.hidden !== false && !engine.stopProcessingInput;
+  return !!engine && !dialogOpen && !auxiliaryBusy && !autoWalking && status?.hidden !== false && !engine.stopProcessingInput;
 }
 
 function moveWhileHeld() {
@@ -52,34 +53,6 @@ function showStatus(message: string, startup = false) {
   if (reloadButton) reloadButton.hidden = !startup;
   if (dismissButton) dismissButton.hidden = startup;
   if (status) status.hidden = false;
-}
-
-for (const button of controls?.querySelectorAll<HTMLButtonElement>('[data-direction]') ?? []) {
-  button.addEventListener('pointerdown', event => {
-    event.preventDefault();
-    if (!canControl()) return;
-    stopMovement();
-    button.setPointerCapture(event.pointerId);
-    button.setAttribute('aria-pressed', 'true');
-    heldDirection = button.dataset.direction as Direction;
-    noteActivity();
-    moveWhileHeld();
-  });
-  button.addEventListener('pointerup', stopMovement);
-  button.addEventListener('pointercancel', stopMovement);
-  button.addEventListener('lostpointercapture', stopMovement);
-  button.addEventListener('keydown', event => {
-    if (![' ', 'Enter'].includes(event.key) || event.repeat || !canControl()) return;
-    event.preventDefault();
-    event.stopPropagation();
-    stopMovement();
-    heldDirection = button.dataset.direction as Direction;
-    button.setAttribute('aria-pressed', 'true');
-    moveWhileHeld();
-  });
-  button.addEventListener('keyup', event => {
-    if ([' ', 'Enter'].includes(event.key)) { event.preventDefault(); stopMovement(); }
-  });
 }
 
 document.getElementById('engine-action')?.addEventListener('click', () => {
@@ -248,9 +221,15 @@ function paintFocus(focus = lessonFocus()) {
   }
   paintDots(hostOverlay ? [] : (focus.dots || []));
   paintPanelFocus(focus);
+  const hints=getContext()?.support?.hints||[];
+  const hintButton=document.getElementById('engine-hint') as HTMLButtonElement|null;
+  if(hintButton){hintButton.textContent=`通关法宝 ${Math.max(0,5-hints.length)}/5`;hintButton.disabled=hints.length>=5||auxiliaryBusy;}
+  const undo=document.getElementById('engine-undo') as HTMLButtonElement|null;
+  if(undo)undo.disabled=!getContext()?.undoAvailable||autoWalking;
   const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
   if (goto) {
-    goto.disabled = !focus.goto;
+    goto.disabled = !focus.goto || autoWalking;
+    goto.textContent=autoWalking?'正在走向任务点…':'下一步 · 去现场并开始';
     goto.title = gotoTitle(focus, processPanelOpen);
     goto.classList.toggle('focus-target', focusStrength >= 2 && focus.goto);
   }
@@ -262,6 +241,7 @@ function syncIdle(paused = dialogOpen || auxiliaryBusy || document.hidden) {
   idle.setPaused(paused || focus.pause);
   paintFocus(focus);
 }
+window.addEventListener('lesson-walking',event=>{autoWalking=!!(event as CustomEvent).detail?.moving;paintFocus();});
 window.addEventListener('lesson-process-panel', event => {
   processPanelOpen = !!(event as CustomEvent<{ open: boolean }>).detail?.open;
   paintFocus();
@@ -300,11 +280,20 @@ document.getElementById('engine-goto')?.addEventListener('click', () => {
   window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { ...focus.target, goto: true } }));
   void request('navHelp', { levelId: context?.levelId, mapId: focus.target.mapId || '', step: focus.step, focusId: focus.id, trigger: 'goto', strength: 0, idleMs: 0 }).catch(() => undefined);
 });
-document.getElementById('engine-hint')?.addEventListener('click', () => {
-  if (!canControl()) return;
-  stopMovement();
-  noteActivity();
-  void request('conceptHint', { levelId: getContext()?.levelId }).catch(error => showStatus(error instanceof Error ? error.message : '求助暂时没有打开。'));
+document.getElementById('engine-hint')?.addEventListener('click', async () => {
+  if(!canControl() || auxiliaryBusy)return;
+  stopMovement();noteActivity();auxiliaryBusy=true;paintFocus();
+  try{
+    const focus=lessonFocus();
+    const value=await request<any>('toolHint',{step:{phase:'world',key:focus.id}});
+    showStatus(value.hint.action+'\n为什么：'+value.hint.why);
+  }catch(error){showStatus(error instanceof Error?error.message:'法宝暂未确认，次数没有扣。');}
+  finally{auxiliaryBusy=false;paintFocus();}
+});
+document.getElementById('engine-undo')?.addEventListener('click',async()=>{
+ if(!canControl())return;
+ stopMovement();
+ try{await request('undo');syncIdle();}catch(error){showStatus(error instanceof Error?error.message:'请再点一次撤回。');}
 });
 document.getElementById('engine-help')?.addEventListener('click', () => {
   const focus = lessonFocus();
@@ -333,13 +322,14 @@ if (!previewing) start().catch(error => {
 window.addEventListener('pagehide', () => { stopMovement(); dispose(); }, { once: true });
 
 let artifactQueue = Promise.resolve();
+setArtifactBarrier(()=>artifactQueue);
 window.addEventListener('lesson-artifact', event => {
   if (window.parent === window) return;
   let patch: Record<string, unknown>;
   try { patch = toPlain((event as CustomEvent<Record<string, unknown>>).detail || {}); }
   catch (error) {
     console.warn('流程图没有保存', error);
-    showStatus('流程图没有保存，请再点一次卡片和空格。');
+    showStatus('刚才的选择没有保存，请再点一次卡片。');
     return;
   }
   const context = getContext();

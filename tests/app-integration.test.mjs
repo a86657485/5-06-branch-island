@@ -6,6 +6,8 @@ import rules from '../public/rules.js';
 import adventure from '../public/adventure-rules.js';
 import { STATIONS, createPatrol, markStory, storyKey, storyScript, stationUnlocked, storyChangesLearning } from '../public/patrol.mjs';
 import { pointsLabel } from '../public/scoreboard.mjs';
+import { captureEdit, restoreEdit } from '../public/task-history.mjs';
+import { toolHint } from '../public/task-guidance.mjs';
 
 function appHarness(rpg = false) {
  const nodes = new Map();
@@ -15,7 +17,7 @@ function appHarness(rpg = false) {
   SyncQueue:class {constructor(){this.events=[];}pending(){return 0;}add(e){events.push(e);}async flush(){}},reconcileState:(_local,remote)=>remote,
   createIdleTimer:()=>({configure(){},setPaused(){},tick(){},reset(){},strength(){return 0}}),
   currentFocus:()=>({id:'guide',step:'1',hint:'先听园艺员说任务。',strong:'走到发光的圆圈上按 E。',thinking:false,goto:true,gotoReason:'',pause:false,kind:'map',target:{stationId:'sale',mapId:'greenhouse',x:1,y:1}}),
-  STATIONS, createPatrol, markStory, storyKey, storyScript, stationUnlocked, storyChangesLearning, pointsLabel,
+  STATIONS, createPatrol, markStory, storyKey, storyScript, stationUnlocked, storyChangesLearning, pointsLabel, captureEdit, restoreEdit, toolHint,
   createParkScene:host=>{ const scene={host,destroy(){host.onChange({scene:{version:1,x:20,y:30}});},refresh(){}};scenes.push(scene);return scene; },
   createRpgScene:host=>{const scene={engine:'rpgjs',host,destroy(){},refresh(){},navigate(id){this.host=host.forLevel(id);}};scenes.push(scene);return scene;}
  });
@@ -77,6 +79,8 @@ test('RPGJS 在选择时保存首预测，核验不重复记预测，验收后�
  assert.equal(h.events.filter(event=>event.type==='prediction').length,2);
  for(const temperature of [29,31])host.onExperiment({input:{temperature},prediction:temperature<30?'off':'on',sceneEvidence:{version:1,station:'sale',actorId:`sensor${temperature}`,actions:['measure','predict','ticket','gate'],destination:temperature<30?'off':'on',prediction:temperature<30?'off':'on'}});
  host.onReason('boundary');assert.equal(host.onComplete({deferRender:true}).passed,true);
+ assert.equal(host.onComplete({deferRender:true}).passed,true);
+ assert.equal(s.points,25,'repeated acceptance must not award station points twice');
  host.onNext();assert.equal(h.scenes.length,1);assert.equal(h.scenes[0].host.levelId,'repair');assert.equal(s.points,25);
 });
 

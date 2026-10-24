@@ -1,6 +1,6 @@
 export type BridgeMethod =
   | 'change' | 'predict' | 'experiment' | 'reason' | 'complete'
-  | 'next' | 'flow' | 'help' | 'checkpoint' | 'evaluate' | 'navHelp' | 'conceptHint';
+  | 'next' | 'flow' | 'help' | 'checkpoint' | 'evaluate' | 'navHelp' | 'conceptHint' | 'toolHint' | 'undo';
 
 export interface LessonContext {
   levelId: string;
@@ -110,7 +110,11 @@ export function getContext(): LessonContext | undefined {
   return context;
 }
 
+let artifactBarrier: () => Promise<unknown> = () => Promise.resolve();
+export function setArtifactBarrier(wait: () => Promise<unknown>) { artifactBarrier = wait; }
+
 export async function request<T = unknown>(method: BridgeMethod, payload: unknown = {}): Promise<T> {
+  if(method === 'toolHint')await artifactBarrier();
   await ready();
   if (disposed) throw new Error('园区已关闭。');
   const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;

@@ -87,3 +87,17 @@ test('普通409冲突继续保留，不能被当作旧题库错误归档', async
   queue.add({studentId:'one',round:1,eventId:'keep',type:'quiz',payload:{}});
   await queue.flush();assert.equal(queue.pending(),1);assert.deepEqual(queue.archived(),[]);
 });
+
+test('较旧保存回应不回滚已确认的法宝次数和答案支持证据', () => {
+  const a = { key: 'a', levelId: 'sale', action: '选择条件', why: '条件能判断真假', at: '2026-10-24T00:00:00.000Z' };
+  const b = { key: 'b', levelId: 'repair', action: '交换出口', why: '保持原规则', at: '2026-10-24T00:01:00.000Z' };
+  const local = { drafts: { sale: {} }, support: { hints: [a, b] }, conceptHints: [{ levelId: 'repair', evidenceKind: 'tool_hint', key: 'b', at: b.at }], levels: { repair: { hinted: true } } };
+  const remote = { drafts: { sale: {} }, support: { hints: [a] }, conceptHints: [], levels: { repair: { hinted: false } } };
+  const result = sync.reconcileState(local, remote);
+  assert.deepEqual(result.support.hints, [a, b]);
+  assert.equal(result.levels.repair.hinted, true);
+  assert.equal(result.conceptHints.length, 1);
+  const noSupport = sync.reconcileState(local, { drafts: {}, levels: {} }, false);
+  assert.deepEqual(noSupport.support.hints, [a, b]);
+  assert.equal(noSupport.levels.repair.hinted, true);
+});

@@ -1,4 +1,12 @@
 export function reconcileState(local, remote, preserveDrafts = true) {
+  const hints = new Map();
+  for (const hint of [...(local?.support?.hints || []), ...(remote?.support?.hints || [])]) hints.set(`${hint.levelId}:${hint.key}`, hint);
+  const conceptHints = new Map();
+  for (const hint of [...(local?.conceptHints || []), ...(remote?.conceptHints || [])]) conceptHints.set(`${hint.levelId}:${hint.evidenceKind}:${hint.key || hint.level}:${hint.at}`, hint);
+  const levels = { ...(remote?.levels || {}) };
+  for (const [id, level] of Object.entries(local?.levels || {})) if (level?.hinted) levels[id] = { ...(levels[id] || {}), hinted: true };
+  for (const hint of hints.values()) levels[hint.levelId] = { ...(levels[hint.levelId] || {}), hinted: true };
+  remote = { ...remote, support: { hints: [...hints.values()] }, conceptHints: [...conceptHints.values()], levels };
   if (!preserveDrafts || !local?.drafts) return { ...remote, drafts: preserveDrafts ? local?.drafts : remote.drafts };
   const drafts = { ...(remote.drafts || {}) };
   for (const [id, draft] of Object.entries(local.drafts)) {

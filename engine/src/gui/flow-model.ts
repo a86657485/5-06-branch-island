@@ -170,3 +170,47 @@ export function thermalTrials(config: { operator?: string; yes?: string; no?: st
     return { temperature, condition, branch, output, fan: output === 'on' ? '启动' : '关闭', correct: output === expected };
   });
 }
+
+/** 面板只显示当前一步；选择是否正确仍交给原流程图和现场核验规则。 */
+export function guidedPanelStep(state: {
+  mode: string; flow: Flow; sentence: Sentence; predictions: Predictions;
+  diagnosed?: boolean; diagnose?: string; slot?: 'diamond' | 'yes' | 'no' | '';
+}): { phase: 'original' | 'diagnose' | 'flow' | 'lock' | 'sentence' | 'predict' | 'run'; slot?: 'diamond' | 'yes' | 'no'; temperature?: 29 | 30 | 31 | null } {
+  if (state.mode === 'repair' && !state.diagnosed) return { phase: 'original' };
+  if (state.mode === 'repair' && state.flow.preset && !state.diagnose) return { phase: 'diagnose' };
+  const slot = state.slot || (!state.flow.locked ? nextSlot(state.flow) : '');
+  if (slot) return { phase: 'flow', slot };
+  if (!state.flow.locked) return { phase: 'lock' };
+  if (!state.sentence.locked) return { phase: 'sentence' };
+  if ((state.mode === 'sale' || state.mode === 'repair') && !state.predictions.locked) {
+    return { phase: 'predict', temperature: ([29, 30, 31] as const).find(t => state.predictions[t] !== 'on' && state.predictions[t] !== 'off') ?? null };
+  }
+  return { phase: 'run' };
+}
+
+/** 由学生自己的图同步成句，仍使用原 lockSentence 核对。 */
+export function sentenceFromFlow(mode: string, flow: Flow): Sentence {
+  return { slots: mode === 'cross' ? ['if', flow.diamond, 'else', flow.yes] : ['if', flow.diamond, 'then', flow.yes, 'else', flow.no], locked: false };
+}
+
+export type PanelEdit = {
+  flow: Flow; sentence: Sentence; predictions: Predictions; diagnose: string;
+  slot: 'diamond' | 'yes' | 'no' | ''; config: Record<string, unknown> | null;
+};
+
+/** 撤回只恢复编辑草稿，现场记录、法宝次数、分数和场景版本均不在快照中。 */
+export function panelEditSnapshot(state: PanelEdit): PanelEdit {
+  return {
+    flow: { ...state.flow }, sentence: { ...state.sentence, slots: [...state.sentence.slots] },
+    predictions: { ...state.predictions }, diagnose: state.diagnose, slot: state.slot,
+    config: state.config ? { ...state.config } : null
+  };
+}
+
+export function cardsForSlot(mode: string, slot: 'diamond' | 'yes' | 'no') {
+  return cardsFor(mode).filter(card => card.kind === (slot === 'diamond' ? 'condition' : 'action'));
+}
+
+export function canUseTool(support?: { remaining?: number }, busy = false) {
+  return !busy && typeof support?.remaining === 'number' && support.remaining > 0;
+}
