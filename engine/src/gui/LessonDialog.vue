@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { DialogChoice } from './ask';
-import { DIALOG_DISMISS_EVENTS, dialogCloseValue } from './dialog-policy';
+import { DIALOG_DISMISS_EVENTS, dialogCloseValue, dialogTaskStep } from './dialog-policy';
+import { getContext, request, subscribeContext } from '../classroom-bridge';
+import { canUseTool } from './flow-model';
 
 const props = defineProps<{
   dialogId: number;
@@ -15,9 +17,18 @@ const props = defineProps<{
 const close = inject<(name: string, data?: unknown) => void>('rpgGuiClose');
 const panel = ref<HTMLElement>();
 const submitted = ref(false);
+const support = ref(getContext()?.support);
+const toolBusy = ref(false);
+const undoBusy = ref(false);
+const undoAvailable = ref(!!getContext()?.undoAvailable);
+const toolAnswer = ref<{ action: string; why: string } | null>(null);
+const toolError = ref('');
+let unsubscribe: (() => void) | undefined;
 
 watch(() => props.dialogId, async () => {
   submitted.value = false;
+  toolAnswer.value = null;
+  toolError.value = '';
   await nextTick();
   panel.value?.focus();
 });
@@ -26,6 +37,34 @@ function finish(value: string | null) {
   if (submitted.value) return;
   submitted.value = true;
   close?.('lesson-dialog', value);
+}
+
+async function useTool() {
+  if (!canUseTool(support.value, toolBusy.value)) return;
+  toolBusy.value = true;
+  toolError.value = '';
+  const dialogId = props.dialogId;
+  try {
+    const context = getContext();
+    const temperature = ['sale', 'repair'].includes(context?.levelId || '') ? context?.draft?.scene?.temperatureCase : undefined;
+    const step = dialogTaskStep((props.choices || []).map(choice => choice.id), temperature, props.name);
+    const result = await request<{ hint: { action: string; why: string }; remaining: number; used: number }>('toolHint', { step });
+    support.value = { ...support.value, remaining: result.remaining, used: result.used };
+    if (props.dialogId === dialogId) toolAnswer.value = result.hint;
+  } catch (error) { toolError.value = error instanceof Error ? error.message : '法宝暂时没打开，请再试一次。'; }
+  finally { toolBusy.value = false; }
+}
+
+async function undo() {
+  if (undoBusy.value || !undoAvailable.value) return;
+  undoBusy.value = true;
+  toolError.value = '';
+  try {
+    const result = await request<{ undone: boolean }>('undo');
+    if (result.undone) finish(null);
+    else toolError.value = '没有可撤回的步骤了。';
+  } catch (error) { toolError.value = error instanceof Error ? error.message : '还没撤回，请再试一次。'; }
+  finally { undoBusy.value = false; }
 }
 
 function levelChanged() {
@@ -55,6 +94,7 @@ function keyboard(event: KeyboardEvent) {
 }
 
 onMounted(async () => {
+  unsubscribe = subscribeContext(context => { support.value = context.support; undoAvailable.value = !!context.undoAvailable; });
   window.dispatchEvent(new CustomEvent('lesson-dialog-state', { detail: { open: true } }));
   window.addEventListener('keydown', keyboard, true);
   for (const name of DIALOG_DISMISS_EVENTS) window.addEventListener(name, levelChanged);
@@ -62,6 +102,7 @@ onMounted(async () => {
   panel.value?.focus();
 });
 onBeforeUnmount(() => {
+  unsubscribe?.();
   window.removeEventListener('keydown', keyboard, true);
   for (const name of DIALOG_DISMISS_EVENTS) window.removeEventListener(name, levelChanged);
   window.dispatchEvent(new CustomEvent('lesson-dialog-state', { detail: { open: false } }));
@@ -71,11 +112,15 @@ onBeforeUnmount(() => {
 <template>
   <div class="dialog-shade" @pointerdown.stop @click.stop>
     <section ref="panel" class="lesson-dialog" role="dialog" aria-modal="true" :aria-label="title || name" tabindex="-1">
-      <button class="dialog-close" aria-label="关闭对话，继续探索" @click="finish(null)">×</button>
+      <button class="dialog-undo" type="button" :disabled="undoBusy || toolBusy || !undoAvailable" @click="undo">撤回上一步</button>
+      <button class="dialog-tool" type="button" :disabled="!canUseTool(support, toolBusy)" @click="useTool">通关法宝 · 还剩 {{ support?.remaining ?? '—' }} 次</button>
+      <button class="dialog-close" data-focus="story-skip" aria-label="跳过剧情" @click="finish(null)">×</button>
       <p class="dialog-speaker">{{ name }}</p>
       <h2 v-if="title">{{ title }}</h2>
       <p class="dialog-text">{{ text }}</p>
       <p v-if="hint" class="dialog-hint">{{ hint }}</p>
+      <aside v-if="toolAnswer" class="dialog-tool-answer" role="status"><button type="button" aria-label="关闭法宝提示" @click="toolAnswer = null">×</button><strong>下一步：{{ toolAnswer.action }}</strong><p>为什么：{{ toolAnswer.why }}</p></aside>
+      <p v-if="toolError" class="dialog-hint" role="status">{{ toolError }}</p>
       <div v-if="choices?.length" class="dialog-choices">
         <button v-for="choice in choices" :key="choice.id" :disabled="submitted" @click="finish(choice.id)">{{ choice.label }}</button>
       </div>
@@ -88,7 +133,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .dialog-shade { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: clamp(10px, 2.5vw, 28px); background: linear-gradient(transparent 20%, #102e2c55); pointer-events: auto; }
 .lesson-dialog { position: relative; width: min(760px, 100%); max-height: 88%; overflow: auto; padding: 25px 28px 18px; border: 3px solid #184c3b; border-radius: 20px; background: #fffaf0; color: #1a3a31; box-shadow: 0 12px 0 #10342844, 0 20px 50px #061e2b55; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; outline: none; }
-.dialog-speaker { margin: 0 48px 12px 0; font-size: 17px; font-weight: 800; color: #22694d; }
+.dialog-speaker { margin: 34px 48px 12px 0; font-size: 17px; font-weight: 800; color: #22694d; }
 h2 { margin: 0 40px 12px 0; font-size: 22px; }
 .dialog-text { margin: 0; white-space: pre-line; font-size: clamp(16px, 1.65vw, 20px); line-height: 1.65; }
 .dialog-hint { margin: 14px 0 0; padding: 10px 14px; border-left: 4px solid #c5a048; background: #f4ebd4; font-size: 15px; line-height: 1.5; }
@@ -101,4 +146,12 @@ button:focus-visible { outline: 3px solid #1175bb; outline-offset: 3px; }
 .dialog-return { margin-top: 18px; }
 .dialog-footnote { margin: 12px 0 0; color: #627468; font-size: 12px; }
 @media (max-width: 600px) { .lesson-dialog { padding: 18px 17px 12px; border-radius: 15px; } .dialog-choices { grid-template-columns: 1fr; gap: 7px; margin-top: 12px; } .dialog-choices button { padding: 9px 12px; min-height: 44px; font-size: 15px; } .dialog-speaker { margin-bottom: 7px; } }
+.dialog-tool { position: absolute; right: 64px; top: 12px; min-height: 40px; border: 2px solid #73957a; border-radius: 10px; padding: 6px 10px; background: #fffef8; color: #163e31; font-size: 14px; }
+.dialog-tool:disabled { opacity: .55; }
+.dialog-tool-answer { position: relative; padding: 12px 46px 12px 14px; margin-top: 12px; border: 2px solid #ba8b28; border-radius: 12px; background: #fff3cf; line-height: 1.6; }
+.dialog-tool-answer p { margin: 6px 0 0; }
+.dialog-tool-answer button { position: absolute; top: 6px; right: 8px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: #f2dfab; color: #163e31; font-size: 24px; }
+.dialog-undo { position: absolute; right: 260px; top: 12px; min-height: 40px; border: 2px solid #73957a; border-radius: 10px; padding: 6px 10px; background: #fffef8; color: #163e31; font-size: 14px; }
+.dialog-undo:disabled { opacity: .55; }
+@media (max-width: 440px) { .dialog-undo { right: auto; left: 16px; top: 58px; } .dialog-speaker { margin-top: 82px; } }
 </style>

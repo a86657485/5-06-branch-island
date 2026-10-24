@@ -104,7 +104,7 @@ test('大于和小于等于在 30℃写出核验行，动作卡不能改程序',
   assert.equal(rules.evaluate('sale', atMost.config, { temperature: 30 }).output, 'off');
 });
 
-test('路口求助不给答案，绿灯卡不能执行，封闭时走天桥算受阻', () => {
+test('操作帮助与答案法宝分开，绿灯卡不能执行，封闭时走天桥算受阻', () => {
   const app = fs.readFileSync(new URL('../public/app.mjs', import.meta.url), 'utf8');
   const help = app.slice(app.indexOf('onHelp()'), app.indexOf('onNavHelp'));
   assert.match(help, /怎么操作/);
@@ -122,7 +122,9 @@ test('路口求助不给答案，绿灯卡不能执行，封闭时走天桥算�
     level: { valid: false }
   });
   assert.equal(step10.step, '10');
-  assert.equal(step10.goto, false);
+  assert.equal(step10.goto, true);
+  assert.equal(step10.target.place, 'bridgeEast');
+  assert.match(step10.strong, /沿路线行走/);
 });
 
 test('从入口走到返修再换三次图，关闭对话不写完成或证据', () => {
@@ -132,8 +134,9 @@ test('从入口走到返修再换三次图，关闭对话不写完成或证据',
     mapFor('cross', { facility: false }),
     mapFor('cross', { facility: true })
   ];
-  assert.deepEqual(maps, ['greenhouse', 'workshop', 'crossing', 'crossing-east']);
-  assert.equal(new Set(maps).size, 4);
+  assert.deepEqual(maps, ['greenhouse', 'greenhouse', 'crossing', 'crossing-east']);
+  assert.equal(mapFor('sale', {}), mapFor('repair', {}));
+  assert.equal(new Set(maps).size, 3);
   for (const signal of ['escape', 'return', 'map']) {
     assert.equal(dialogCloseValue(signal), null);
     assert.equal(dialogCloseWritesEvidence(), false);

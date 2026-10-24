@@ -6,18 +6,20 @@ import { Direction } from '@rpgjs/common';
 import startServer from "./server";
 import configClient from "./config/config.client";
 import { createApp } from 'vue';
-import { dispose, getContext, ready, request, subscribeContext } from './classroom-bridge';
+import { dispose, getContext, ready, request, subscribeContext, setArtifactBarrier } from './classroom-bridge';
 import FlowPanel from './gui/FlowPanel.vue';
 import { createIdleTimer } from '../../public/idle-timer.mjs';
 import { currentFocus, gotoTitle } from '../../public/focus.mjs';
 import { emptyFlow, repairPreset } from './gui/flow-model';
 import { toPlain } from './gui/plain';
+import { focusFootprint } from './focus-marker';
 
 let engine: RpgClientEngine | undefined;
 let heldDirection: Direction | undefined;
 let movementFrame = 0;
 let dialogOpen = false;
 let auxiliaryBusy = false;
+let autoWalking = false;
 let processPanelOpen = false;
 const controls = document.getElementById('engine-controls');
 const status = document.getElementById('engine-status');
@@ -34,7 +36,7 @@ function stopMovement() {
 }
 
 function canControl() {
-  return !!engine && !dialogOpen && !auxiliaryBusy && status?.hidden !== false && !engine.stopProcessingInput;
+  return !!engine && !dialogOpen && !auxiliaryBusy && !autoWalking && status?.hidden !== false && !engine.stopProcessingInput;
 }
 
 function moveWhileHeld() {
@@ -51,34 +53,6 @@ function showStatus(message: string, startup = false) {
   if (reloadButton) reloadButton.hidden = !startup;
   if (dismissButton) dismissButton.hidden = startup;
   if (status) status.hidden = false;
-}
-
-for (const button of controls?.querySelectorAll<HTMLButtonElement>('[data-direction]') ?? []) {
-  button.addEventListener('pointerdown', event => {
-    event.preventDefault();
-    if (!canControl()) return;
-    stopMovement();
-    button.setPointerCapture(event.pointerId);
-    button.setAttribute('aria-pressed', 'true');
-    heldDirection = button.dataset.direction as Direction;
-    noteActivity();
-    moveWhileHeld();
-  });
-  button.addEventListener('pointerup', stopMovement);
-  button.addEventListener('pointercancel', stopMovement);
-  button.addEventListener('lostpointercapture', stopMovement);
-  button.addEventListener('keydown', event => {
-    if (![' ', 'Enter'].includes(event.key) || event.repeat || !canControl()) return;
-    event.preventDefault();
-    event.stopPropagation();
-    stopMovement();
-    heldDirection = button.dataset.direction as Direction;
-    button.setAttribute('aria-pressed', 'true');
-    moveWhileHeld();
-  });
-  button.addEventListener('keyup', event => {
-    if ([' ', 'Enter'].includes(event.key)) { event.preventDefault(); stopMovement(); }
-  });
 }
 
 document.getElementById('engine-action')?.addEventListener('click', () => {
@@ -116,8 +90,9 @@ const idle = createIdleTimer({
     void request('navHelp', { levelId: context?.levelId, mapId: focus.target.mapId || context?.draft?.rpg?.mapId || '', step: focus.step, focusId: focus.id, trigger: 'idle', strength: detail.strength, idleMs: detail.idleMs }).catch(() => undefined);
   }
 });
+let hostOverlay = '';
 function lessonFocus(context = getContext()) {
-  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level, draft: context?.draft, panelOpen: !!document.querySelector('.studio'), runs: context?.runs, evidenceStart: context?.evidenceStart });
+  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level, draft: context?.draft, panelOpen: !!document.querySelector('.studio'), runs: context?.runs, evidenceStart: context?.evidenceStart, overlay: hostOverlay || undefined });
 }
 function noteActivity() {
   idle.reset();
@@ -137,20 +112,24 @@ function mapViewport() {
   viewportCache = findViewport((engine as any)?.canvasApp?.stage);
   return viewportCache;
 }
-function projectTarget(target: { x?: number, y?: number, mapId?: string }) {
+function projectTarget(target: { x?: number, y?: number, mapId?: string, place?: string }) {
   const canvas = document.querySelector('#rpg canvas') as HTMLCanvasElement | null;
-  const x = Number(target?.x);
-  const y = Number(target?.y);
-  if (!canvas || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const footprint = focusFootprint(target);
+  if (!canvas || !footprint) return null;
   const rect = canvas.getBoundingClientRect();
   const viewport = mapViewport();
   let sx = rect.left + rect.width / 2;
   let sy = rect.top + rect.height / 2;
+  let scaleX = 1;
+  let scaleY = 1;
   if (viewport) {
-    const global = viewport.toGlobal({ x, y });
+    const global = viewport.toGlobal({ x: footprint.x, y: footprint.y });
     if (Number.isFinite(global?.x) && Number.isFinite(global?.y)) {
       sx = rect.left + Number(global.x);
       sy = rect.top + Number(global.y);
+      const unit = viewport.toGlobal({ x: footprint.x + 1, y: footprint.y + 1 });
+      scaleX = Math.abs(unit.x - global.x);
+      scaleY = Math.abs(unit.y - global.y);
     }
   }
   const margin = 48;
@@ -166,7 +145,10 @@ function projectTarget(target: { x?: number, y?: number, mapId?: string }) {
     x: Math.min(maxX, Math.max(minX, sx)),
     y: Math.min(maxY, Math.max(minY, sy)),
     offscreen,
-    arrow: offscreen ? arrow : '↓'
+    arrow: offscreen ? arrow : '→',
+    ringWidth: footprint.radiusX * 2 * scaleX,
+    ringHeight: footprint.radiusY * 2 * scaleY,
+    halfWidth: footprint.halfWidth * scaleX
   };
 }
 function projectWorld(target: { x?: number, y?: number }) {
@@ -212,6 +194,7 @@ function paintDots(dots: Array<{ x: number, y: number }> = []) {
 }
 function paintFocus(focus = lessonFocus()) {
   if (new URLSearchParams(location.search).has('preview')) return;
+  if (hostOverlay && focusMarker) focusMarker.hidden = true;
   const focusStrength = idle.strength();
   if (taskHint) {
     taskHint.textContent = focusStrength ? focus.strong : focus.hint;
@@ -222,22 +205,31 @@ function paintFocus(focus = lessonFocus()) {
   }
   if (focusMarker && focusLabel) {
     const point = projectTarget(focus.target || {});
-    focusMarker.hidden = !point;
+    focusMarker.hidden = !!hostOverlay || !point;
     focusMarker.dataset.strength = String(focusStrength);
     focusMarker.classList.toggle('edge', !!point?.offscreen);
     focusMarker.classList.toggle('tap-hand', focusStrength >= 2 && focus.kind === 'map' && !point?.offscreen);
     if (point) {
       focusMarker.style.left = `${point.x}px`;
       focusMarker.style.top = `${point.y}px`;
+      focusMarker.style.setProperty('--ring-width', `${point.ringWidth}px`);
+      focusMarker.style.setProperty('--ring-height', `${point.ringHeight}px`);
+      focusMarker.style.setProperty('--target-half-width', `${point.halfWidth}px`);
       if (focusArrow) focusArrow.textContent = point.arrow;
     }
     focusLabel.textContent = point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '';
   }
-  paintDots(focus.dots || []);
+  paintDots(hostOverlay ? [] : (focus.dots || []));
   paintPanelFocus(focus);
+  const hints=getContext()?.support?.hints||[];
+  const hintButton=document.getElementById('engine-hint') as HTMLButtonElement|null;
+  if(hintButton){hintButton.textContent=`通关法宝 ${Math.max(0,5-hints.length)}/5`;hintButton.disabled=hints.length>=5||auxiliaryBusy;}
+  const undo=document.getElementById('engine-undo') as HTMLButtonElement|null;
+  if(undo)undo.disabled=!getContext()?.undoAvailable||autoWalking;
   const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
   if (goto) {
-    goto.disabled = !focus.goto;
+    goto.disabled = !focus.goto || autoWalking;
+    goto.textContent=autoWalking?'正在走向任务点…':'下一步 · 去现场并开始';
     goto.title = gotoTitle(focus, processPanelOpen);
     goto.classList.toggle('focus-target', focusStrength >= 2 && focus.goto);
   }
@@ -249,9 +241,19 @@ function syncIdle(paused = dialogOpen || auxiliaryBusy || document.hidden) {
   idle.setPaused(paused || focus.pause);
   paintFocus(focus);
 }
+window.addEventListener('lesson-walking',event=>{autoWalking=!!(event as CustomEvent).detail?.moving;paintFocus();});
 window.addEventListener('lesson-process-panel', event => {
   processPanelOpen = !!(event as CustomEvent<{ open: boolean }>).detail?.open;
   paintFocus();
+});
+window.addEventListener('message', event => {
+  const message = event.data;
+  if (!message || message.type !== 'rpgjs-overlay') return;
+  hostOverlay = message.open ? (message.kind || 'overlay') : '';
+  if (hostOverlay) stopMovement();
+  if (controls) controls.inert = !!hostOverlay || dialogOpen;
+  if (focusMarker && hostOverlay) focusMarker.hidden = true;
+  syncIdle(dialogOpen || auxiliaryBusy || document.hidden || !!hostOverlay);
 });
 window.addEventListener('lesson-dialog-state', event => {
   dialogOpen = !!(event as CustomEvent<{ open: boolean }>).detail.open;
@@ -260,6 +262,10 @@ window.addEventListener('lesson-dialog-state', event => {
   syncIdle();
 });
 window.addEventListener('lesson-map-changed', () => { stopMovement(); syncIdle(true); window.setTimeout(() => syncIdle(), 800); });
+window.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || window.parent === window) return;
+  window.parent.postMessage({ type: 'rpgjs-overlay-close' }, window.location.origin);
+});
 function focusFrame() {
   idle.tick();
   paintFocus();
@@ -274,11 +280,20 @@ document.getElementById('engine-goto')?.addEventListener('click', () => {
   window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { ...focus.target, goto: true } }));
   void request('navHelp', { levelId: context?.levelId, mapId: focus.target.mapId || '', step: focus.step, focusId: focus.id, trigger: 'goto', strength: 0, idleMs: 0 }).catch(() => undefined);
 });
-document.getElementById('engine-hint')?.addEventListener('click', () => {
-  if (!canControl()) return;
-  stopMovement();
-  noteActivity();
-  void request('conceptHint', { levelId: getContext()?.levelId }).catch(error => showStatus(error instanceof Error ? error.message : '求助暂时没有打开。'));
+document.getElementById('engine-hint')?.addEventListener('click', async () => {
+  if(!canControl() || auxiliaryBusy)return;
+  stopMovement();noteActivity();auxiliaryBusy=true;paintFocus();
+  try{
+    const focus=lessonFocus();
+    const value=await request<any>('toolHint',{step:{phase:'world',key:focus.id}});
+    showStatus(value.hint.action+'\n为什么：'+value.hint.why);
+  }catch(error){showStatus(error instanceof Error?error.message:'法宝暂未确认，次数没有扣。');}
+  finally{auxiliaryBusy=false;paintFocus();}
+});
+document.getElementById('engine-undo')?.addEventListener('click',async()=>{
+ if(!canControl())return;
+ stopMovement();
+ try{await request('undo');syncIdle();}catch(error){showStatus(error instanceof Error?error.message:'请再点一次撤回。');}
 });
 document.getElementById('engine-help')?.addEventListener('click', () => {
   const focus = lessonFocus();
@@ -307,13 +322,14 @@ if (!previewing) start().catch(error => {
 window.addEventListener('pagehide', () => { stopMovement(); dispose(); }, { once: true });
 
 let artifactQueue = Promise.resolve();
+setArtifactBarrier(()=>artifactQueue);
 window.addEventListener('lesson-artifact', event => {
   if (window.parent === window) return;
   let patch: Record<string, unknown>;
   try { patch = toPlain((event as CustomEvent<Record<string, unknown>>).detail || {}); }
   catch (error) {
     console.warn('流程图没有保存', error);
-    showStatus('流程图没有保存，请再点一次卡片和空格。');
+    showStatus('刚才的选择没有保存，请再点一次卡片。');
     return;
   }
   const context = getContext();

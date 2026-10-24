@@ -40,6 +40,8 @@ function ensureState(state) {
   state.awards ||= {};
   state.navHelp ||= [];
   state.conceptHints ||= [];
+  state.support ||= { hints: [] };
+  state.support.hints ||= [];
   for (const level of Object.values(state.levels || {})) {
     if (!level || typeof level !== 'object') continue;
     level.submissions ??= 0;
@@ -224,7 +226,8 @@ function createService(options = {}) {
   function requireOpen(state, id) {
     const index = rules.levels.findIndex(level => level.id === id);
     if (index < 0) fail(400, '找不到这个任务');
-    if (rules.levels.slice(0,index).some(level => !state.levels[level.id].completed)) fail(409, '请先完成前面的主线任务');
+    if (rules.levels[index].required === false) return;
+    if (rules.levels.slice(0, index).some(level => level.required !== false && !state.levels[level.id].completed)) fail(409, '请先完成前面的主线任务');
   }
     const draftConfigKey = (id,config) => JSON.stringify(rules.normalizeConfig(id,config,true));
   function isVisitDefault(id, config) {
@@ -264,7 +267,7 @@ function createService(options = {}) {
     const round = roundOf(student);
     if (body.round !== round) fail(409, '记录属于其他课次，请刷新课堂');
     if (typeof body.eventId !== 'string' || !body.eventId || body.eventId.length > 120) fail(400, '记录标识不完整');
-    if (!['draft','run','prediction','complete','quiz','nav_help','concept_hint'].includes(body.type)) fail(400, '记录类型不正确');
+    if (!['draft','run','prediction','complete','quiz','nav_help','concept_hint','tool_hint'].includes(body.type)) fail(400, '记录类型不正确');
     if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) fail(400, '记录内容不正确');
     const previous = db.prepare('SELECT result FROM events WHERE studentId=? AND round=? AND eventId=?').get(student.id,round,body.eventId);
     if (previous) { const kept = recordFor(student.id); return envelope(student.id, kept, JSON.parse(previous.result)); }
@@ -283,6 +286,20 @@ function createService(options = {}) {
       state.navHelp.push(entry);
       if (state.navHelp.length > 300) state.navHelp.splice(0, state.navHelp.length - 300);
       result = { saved: true };
+    } else if (body.type === 'tool_hint') {
+      requireOpen(state, id);
+      if (!payload.step || typeof payload.step !== 'object' || Array.isArray(payload.step)) fail(400, '请选择当前任务步骤');
+      const hint = checkedRule(() => require('./public/task-guidance.mjs').toolHint(id, state.drafts[id] || {}, payload.step));
+      const kept = state.support.hints.find(entry => entry.levelId === id && entry.key === hint.key);
+      if (!kept && state.support.hints.length >= 5) fail(409, '这节课的5次通关法宝已用完，已经看过的提示仍可重看。', 'TOOL_HINT_LIMIT');
+      if (!kept) {
+        const at = now();
+        state.support.hints.push({ ...hint, levelId: id, at });
+        state.conceptHints.push({ levelId: id, level: 3, evidenceKind: 'tool_hint', key: hint.key, at });
+        state.levels[id].hinted = true;
+      }
+      const used = state.support.hints.length;
+      result = { hint: { key: hint.key, action: hint.action, why: hint.why }, used, remaining: Math.max(0, 5 - used), reused: !!kept };
     } else if (body.type === 'concept_hint') {
       requireOpen(state, id);
       const levelNo = Number(payload.level);
@@ -291,8 +308,7 @@ function createService(options = {}) {
       state.levels[id].hinted = true;
       result = { saved: true, hinted: true };
     } else if (body.type === 'draft' && id === 'intro') {
-      state.intro = sanitizeIntro(payload);
-      result = { saved: true };
+      result = { saved: true, ignored: true };
     } else if (body.type === 'quiz' || (body.type === 'draft' && id === 'quiz')) {
       const gate = examGateFor(student.id, record);
       if (!state.quizOpenedAt) fail(409, '完成温室、返修和路口三站的当前验证后再进入考核');

@@ -1,25 +1,119 @@
+import { Components, EventMode } from '@rpgjs/server';
 import layout from '../../tiled/layout.json';
-import { event,ctx,scene,input,rpc,patchScene,clearPending,say,configure,review,record,portal } from './runtime';
-function events(repair:boolean){
- const p=layout[repair?'workshop':'greenhouse'].positions;
- const place=(id:string,event:any)=>({id,x:p[id][0],y:p[id][1],event});
- return [
- place('guide',event(repair?'维修工程师':'温室管理员',repair?'mechanic':'gardener',async player=>{
- const choice=await say(player,repair?'维修委托':'园艺员',repair?'旧程序用“温度<30°C”判断：成立关机，否则启动。有人把判断改成了“温度≥30°C”，却没改两个出口。请先用30°C看到故障，再修复并复验29、30、31°C。':'温室试运行规则：达到30°C启动风机，低于30°C关闭。请走到温度探头采样，到控制柜设置判断和两个分支，先预测再执行，到核验仪观察。29、30、31°C都要测试。',[{id:'accept',label:'接受委托，去读取温度'},{id:'review',label:'根据运行记录汇报验收'}]);
- if(choice==='accept'&&scene().phase==='start')await patchScene(player,{phase:'assigned'});if(choice==='review')await review(player);
- })),
- place('sensor',event('温度探头','sensor',async player=>{
- if(scene().phase==='start'){await say(player,'温度探头','先与管理员交谈，了解设备任务。');return;}
- const choice=await say(player,'温度探头',`当前试验温度${input().temperature}°C。选择一个采样情境。温度数据为教学仿真。`,[29,30,31].map(t=>({id:String(t),label:`采样 ${t}°C`})));
- if(!choice)return;const t=Number(choice);await clearPending(player,{temperatureCase:t,actorId:`sensor${t}`});
- await patchScene(player,{phase:'measured',measured:true,actions:[repair?'inspect':'measure']});
- await say(player,'读数已采集',`探头读数：${t}°C。请走到控制柜，判断条件是否成立。`);
- })),
- place('control',event('规则控制柜','control',configure)),
- place('fan',{...event('通风风机','fan-off',async player=>{await say(player,'通风风机',`风机目前${scene().deviceOutput==='on'?'正在转动':'处于关闭状态'}。请在控制柜运行程序，再到核验仪观察本次结果。`);}),onChanges(player:any){this.setGraphic(player.getVariable('deviceOutput')==='on'?'fan-on':'fan-off');}}),
- place('verify',event('现场核验仪','monitor',async player=>{await record(player,'gate');})),
- place('portal',portal())
- ];
+import { event,ctx,scene,input,patchScene,clearPending,say,configure,review,record,portal,currentRuns,canReview } from './runtime';
+import { actorIdOf, planGreenhouseSync } from './greenhouse-cast';
+import { faultSeen } from '../../gui/flow-model';
+import { stationBrief } from '../../../../public/task-guidance.mjs';
+
+const positions = layout.greenhouse.positions;
+const place = (id: string, station: any) => ({ id, x: positions[id][0], y: positions[id][1], event: station });
+const repairing = () => ctx().levelId === 'repair';
+
+function guideLabel(repair: boolean) {
+  return repair ? '维修员老修' : '园艺员阿绿';
 }
-export const greenhouseEvents=events(false);
-export const workshopEvents=events(true);
+
+const labelPlace: Record<string, { marginBottom: number, marginLeft: number, width: number }> = {
+  guide: { marginBottom: 8, marginLeft: 0, width: 88 },
+  sensor: { marginBottom: 8, marginLeft: 0, width: 80 },
+  fan: { marginBottom: 8, marginLeft: 0, width: 80 },
+  control: { marginBottom: 8, marginLeft: 0, width: 96 },
+  verify: { marginBottom: 4, marginLeft: 0, width: 96 },
+  portal: { marginBottom: 8, marginLeft: 0, width: 64 }
+};
+
+function paintLabel(target: any, label: string, graphic: string) {
+  target.name = label;
+  target.setGraphic?.(graphic);
+  if (actorIdOf(target.id) === 'verify') {
+    target.setComponentsTop?.([]);
+    target.setComponentsBottom?.(Components.text(label, { fill: '#163e31', stroke: '#fffaf0', fontSize: 15 }), { width: 96, height: 18, marginLeft: 0, marginBottom: 36 });
+    return;
+  }
+  const place = labelPlace[actorIdOf(target.id)] || { marginBottom: 8, marginLeft: 0, width: 80 };
+  target.setComponentsTop?.(Components.text(label, { fill: '#163e31', fontSize: 15 }), place);
+}
+
+const guide = {
+  ...event('园艺员阿绿', 'gardener', async player => {
+    const repair = repairing();
+    if(canReview())return review(player);
+    const brief=stationBrief(ctx().levelId),first=!scene().phase||scene().phase==='start';
+    const next=repair?(!faultSeen(ctx().runs)?'先到探头读取30℃，预测原程序的动作，再运行并核验。':'故障已经记录好了。先到控制柜修好条件和出口，再重新读取29、30、31℃复验。'):'到探头采样，再去控制柜设置或检查程序。29、30、31℃都要核验。';
+    const choice=await say(player,guideLabel(repair),`${brief.problem}\n${brief.purpose}\n${next}`, [{id:first?'accept':'continue',label:first?'领取这项委托':'继续现场调试'}]);
+    if(choice==='accept')await patchScene(player,{phase:'assigned'});
+  }),
+  onChanges(player: any) {
+    const repair = player.getVariable('lessonLevel') === 'repair';
+    paintLabel(this, guideLabel(repair), repair ? 'mechanic' : 'gardener');
+  }
+};
+
+/** 温室一张图同时承接风机调试和控制器返修。返修不再换到车间，也不传送。 */
+export const greenhouseEvents = [
+  place('guide', guide),
+  place('sensor', event('温度探头', 'sensor', async player => {
+    if (scene().phase === 'start') { await say(player, '温度探头', '先与管理员交谈，了解设备任务。'); return; }
+    if(scene().ticket){await say(player,'温度探头','本次风机已经运行，先去核验仪保存结果，再采下一个温度。');return;}
+    const original=repairing()&&!faultSeen(ctx().runs),temperatures=original?[30]:[29,30,31];
+    const recommended=original?30:([29,30,31].find(t=>!currentRuns().some(run=>run.input?.temperature===t&&run.correct))||29);
+    const choice = await say(player, '温度探头', original?'先用30℃看看原程序为什么没有按告示启动风机。点一次采样，把这个故障留作比较。':`建议先测${recommended}℃：看看当前程序在这个温度会走哪条分支。你也可以选另外一个温度。数据是教学仿真。`, temperatures.map(t => ({ id: String(t), label: `采样 ${t}℃${t===recommended?'（建议）':''}` })));
+    if (!choice) return;
+    const t = Number(choice);
+    const repair = repairing();
+    await clearPending(player, { temperatureCase: t, actorId: `sensor${t}` });
+    await patchScene(player, { phase: 'measured', measured: true, actions: [repair ? 'inspect' : 'measure'] });
+    await say(player, '读数已采集', `探头读数：${t}°C。请走到控制柜，判断条件是否成立。`);
+  })),
+  place('control', event('规则控制柜', 'control', configure)),
+  place('fan', { ...event('通风风机', 'fan-off', async player => { await say(player, '通风风机', `风机目前${scene().deviceOutput === 'on' ? '正在转动' : '处于关闭状态'}。请在控制柜运行程序，再到核验仪观察本次结果。`); }), onChanges(player: any) { this.setGraphic(player.getVariable('deviceOutput') === 'on' ? 'fan-on' : 'fan-off'); } }),
+  place('verify', event('现场核验仪', 'monitor', async player => { await record(player, 'gate'); })),
+  place('portal', portal())
+];
+
+const clientFlush = new WeakMap<object, string>();
+
+/** 登录、刷新、切站都把温室角色摆全，并按当前站换外观。 */
+export async function ensureGreenhouseActors(map: any, player: any, levelId: string) {
+  if (!map || map.id !== 'greenhouse' || !player) return;
+  const visible = (map.getEvents?.() || []).filter((item: any) => map.isEventVisibleForPlayer?.(item, player) !== false);
+  const placed = new Map(greenhouseEvents.map(item => [item.id, item]));
+  const plan = planGreenhouseSync(visible.map((item: any) => ({
+    id: item.id,
+    x: typeof item.x === 'function' ? item.x() : item.x,
+    y: typeof item.y === 'function' ? item.y() : item.y
+  })), levelId, player.getVariable?.('deviceOutput') === 'on');
+  for (const actor of plan) {
+    let target = visible.find((item: any) => actorIdOf(item.id) === actor.id);
+    if (!target && actor.create && map.createDynamicEvent) {
+      const source = placed.get(actor.id);
+      try {
+        await map.createDynamicEvent(
+          { id: actor.id, x: actor.x, y: actor.y, event: source?.event },
+          { mode: EventMode.Scenario, scenarioOwnerId: player.id }
+        );
+      } catch (error) {
+        console.warn('温室角色没有摆上', actor.id, error);
+      }
+      target = (map.getEvents?.() || []).find((item: any) => actorIdOf(item.id) === actor.id && map.isEventVisibleForPlayer?.(item, player) !== false);
+    }
+    if (!target) continue;
+    if (actor.move && target.teleport) await target.teleport({ x: actor.x, y: actor.y });
+    paintLabel(target, actor.label, actor.graphic);
+  }
+  // 角色进客户端靠 player.syncChanges()。进图时地图流先于场景角色发出，区块中心不变时不会再推事件，
+  // through 的角色也不在第一次空间查询里。公开接口没有“补发当前视野事件”，所以同一位玩家在这张图上
+  // 只用 teleport 挪 1 像素再回到原位，让这一次位置同步把角色快照带出去。
+  const flushKey = `${player.id || ''}:${map.id}`;
+  if (clientFlush.get(player) !== flushKey && typeof player.teleport === 'function' && typeof player.x === 'function') {
+    clientFlush.set(player, flushKey);
+    const x = player.x();
+    const y = player.y();
+    await player.teleport({ x: x + 1, y });
+    await player.teleport({ x, y });
+  }
+  player.syncChanges?.();
+}
+
+/** 车间图不再注册。文件留着，避免旧引用缺符号。 */
+export const workshopEvents: any[] = [];

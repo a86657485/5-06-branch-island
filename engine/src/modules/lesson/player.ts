@@ -2,10 +2,13 @@ import layout from '../../tiled/layout.json';
 import { Direction } from '@rpgjs/common';
 import { type RpgPlayer, type RpgPlayerHooks } from '@rpgjs/server';
 import { ready,subscribeContext,getContext } from '../../classroom-bridge';
+import { clickWaypoints, movementTarget } from './click-path';
 import { rpc,ctx } from './runtime';
 import { checkRoute } from './routes';
 import { mapForContext,registerActivePlayer,clearActivePlayer } from './active-player';
 import { standBeside } from './approach';
+import { ensureGreenhouseActors } from './thermal';
+import { currentFocus } from '../../../../public/focus.mjs';
 const spawn=Object.fromEntries(Object.entries(layout).map(([id,m])=>[id,{x:m.positions.start[0],y:m.positions.start[1]}]));
 const mapFor=mapForContext;
 type Runtime={map:string,lastSave:number,active:RpgPlayer,unsub?:()=>void,changing:boolean,checkpointTimer?:ReturnType<typeof setTimeout>,enter:(c:any)=>Promise<void>};
@@ -13,24 +16,57 @@ type Runtime={map:string,lastSave:number,active:RpgPlayer,unsub?:()=>void,changi
 const sessions=new Map<string,Runtime>();
 const directions = { up: Direction.Up, down: Direction.Down, left: Direction.Left, right: Direction.Right };
 let pendingApproach: { mapId: string, direction: Direction } | null = null;
+let navigation = 0;
 if (typeof window !== 'undefined') window.addEventListener('lesson-goto', event => {
- const detail = (event as CustomEvent<{ goto?: boolean, x?: number, y?: number, mapId?: string, place?: string }>).detail || {};
- const x = detail.x;
- const y = detail.y;
- if (!detail.goto || typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) return;
- const runtime = [...sessions.values()].find(item => item.map === detail.mapId) || [...sessions.values()][0];
- const player = runtime?.active;
- if (!player || !runtime || runtime.changing || runtime.map !== detail.mapId) return;
- const positions = layout[runtime.map]?.positions || {};
- const others = Object.entries(positions).filter(([id]) => id !== detail.place && id !== 'start').map(([, point]) => { const pair = point as number[]; return { x: pair[0], y: pair[1] }; });
- const stand = standBeside({ x, y }, { x: player.x(), y: player.y() }, others);
- const direction = directions[stand.direction];
- pendingApproach = { mapId: runtime.map, direction };
- const context = getContext();
- if (context?.draft) context.draft.rpg = { version: 1, engine: 'rpgjs', mapId: runtime.map, position: { x: stand.x, y: stand.y }, direction: stand.direction };
- player.setVariable('focusTarget', detail.place || '');
- void player.changeMap(runtime.map, { x: stand.x, y: stand.y }).then(() => { holdFacing(player, direction, stand); void saveCheckpoint(runtime, player); }).catch(error => console.warn('前往下一目标未完成', error));
+ const detail = (event as CustomEvent<{goto?:boolean,x?:number,y?:number,mapId?:string,place?:string}>).detail || {};
+ if(!detail.goto || !Number.isFinite(detail.x) || !Number.isFinite(detail.y))return;
+ const runtime=[...sessions.values()].find(item=>item.map===detail.mapId);
+ if(!runtime || runtime.changing || runtime.active.getVariable('lessonBusy'))return;
+ const token=++navigation;
+ void clickToTarget(runtime,detail as {x:number,y:number,mapId:string,place:string},token).catch(error=>{
+  window.dispatchEvent(new CustomEvent('lesson-bridge-error',{detail:error instanceof Error?error.message:'请再点一次下一步。'}));
+ }).finally(()=>window.dispatchEvent(new CustomEvent('lesson-walking',{detail:{moving:false}})));
 });
+async function clickToTarget(runtime:Runtime,target:{x:number,y:number,mapId:string,place:string},token:number){
+ const player=runtime.active;
+ const levelId=ctx().levelId;
+ const positions=layout[runtime.map]?.positions || {};
+ const others=Object.entries(positions).filter(([id])=>id!==target.place && id!=='start').map(([,point])=>({x:(point as number[])[0],y:(point as number[])[1]}));
+ const stand=standBeside(target,{x:player.x(),y:player.y()},others);
+ const context=ctx();
+ const points=clickWaypoints({x:player.x(),y:player.y()},{...stand,place:target.place},{levelId,scene:context.draft.scene});
+ const returning=levelId==='cross' && player.x()>600 && target.x<590;
+ if(returning){player.setVariable('returnToWest',true);if(!context.draft.scene.facility)await rpc('change',{patch:{scene:{...context.draft.scene,signal:'green'}}});player.syncChanges();}
+ player.directionFixed=false;player.setVariable('faceLock','');
+ window.dispatchEvent(new CustomEvent('lesson-walking',{detail:{moving:true}}));
+ try{
+  for(const point of points){
+   if(token!==navigation || ctx().levelId!==levelId || runtime.map!==target.mapId)return;
+   player.moveTo(movementTarget(point,player.hitbox()));
+   // RPGJS moveTo defaults to a 48px arrival radius; devices need a closer approach.
+   for(const movement of player.getActiveMovements()){
+    const seek=movement as {setParameters?:(speed?:number,radius?:number,weight?:number,arrival?:number)=>void};
+    if(typeof seek.setParameters==='function')seek.setParameters(undefined,undefined,undefined,8);
+   }
+   const begun=Date.now();
+   while(Math.hypot(player.x()-point.x,player.y()-point.y)>14){
+    if(token!==navigation || ctx().levelId!==levelId || runtime.map!==target.mapId)return;
+    if(Date.now()-begun>12000){console.warn('点击导航未抵达',JSON.stringify({position:{x:player.x(),y:player.y()},point}));throw new Error('这段路暂时受阻，请再点下一步。');}
+    await new Promise(resolve=>setTimeout(resolve,40));
+   }
+   player.clearMovements();
+   await checkRoute(player);
+  }
+  const walked=levelId==='cross' && ctx().draft.scene.ticket && (ctx().draft.scene.actions||[]).includes('route');
+  if(walked && ['bridgeEast','crossingEast','bridgeWest','crossingWest'].includes(target.place))return;
+  holdFacing(player,directions[stand.direction],{x:player.x(),y:player.y()});
+  await saveCheckpoint(runtime,player);
+  const events=player.getCurrentMap()?.getEvents() || [];
+  const hit=events.filter((item:any)=>typeof item.execMethod==='function' && Math.hypot(item.x()-target.x,item.y()-target.y)<24).sort((a:any,b:any)=>Math.hypot(a.x()-target.x,a.y()-target.y)-Math.hypot(b.x()-target.x,b.y()-target.y))[0];
+  if(hit?.execMethod)await hit.execMethod('onAction',[player,{}]);
+ }finally{player.clearMovements();if(returning)player.setVariable('returnToWest',false);}
+}
+
 function holdFacing(player: RpgPlayer, direction: Direction, at: { x: number, y: number }) {
  player.changeDirection(direction);
  player.directionFixed = true;
@@ -45,10 +81,11 @@ async function saveCheckpoint(runtime:Runtime,player:RpgPlayer){
 }
 export const player:RpgPlayerHooks={
  async onConnected(player){
- await ready();player.name='设备调试员';player.setGraphic('engineer');player.setHitbox(24,24);
+ await ready();player.name='园区巡检员';player.setGraphic('engineer');player.setHitbox(24,24);
  if(!ctx().draft.scene){const c=ctx(),s={version:1,x:400,y:420,facing:'down',phase:'start',measured:false,actions:[],visited:[],actorId:c.levelId==='cross'?'cross-open':c.levelId==='minimum'?'pair-a':'sensor30',temperatureCase:30,facility:true,pair:'pair-a',collected:[],signal:'red'};await rpc('change',{patch:{scene:s}});}
  const runtime:Runtime={map:'',lastSave:0,active:player,changing:false,enter:async()=>{}};sessions.set(player.id,runtime);
  runtime.enter=async c=>{
+ if(runtime.active){runtime.active.setVariable('lessonLevel',c.levelId||'');const here=runtime.active.getCurrentMap?.();if(here){await ensureGreenhouseActors(here,runtime.active,c.levelId||'');runtime.active.syncChanges();}}
  if(!c.draft.scene){const s={version:1,x:400,y:420,facing:'down',phase:'start',measured:false,actions:[],visited:[],actorId:c.levelId==='cross'?'cross-open':c.levelId==='minimum'?'pair-a':'sensor30',temperatureCase:30,facility:true,pair:'pair-a',collected:[],signal:'red'};await rpc('change',{patch:{scene:s}});return;}
  const map=mapFor(c);if(runtime.map===map||runtime.changing)return;runtime.changing=true;
  try{runtime.map=map;const saved=c.draft.rpg;const pos=saved?.mapId===map?saved.position:spawn[map];await runtime.active.changeMap(map,pos);}
@@ -58,15 +95,35 @@ export const player:RpgPlayerHooks={
  runtime.unsub=subscribeContext(c=>{void runtime.enter(c);});await runtime.enter(ctx());
  window.addEventListener('pagehide',()=>{runtime.unsub?.();clearTimeout(runtime.checkpointTimer);clearActivePlayer(player.id);sessions.delete(player.id);},{once:true});
  },
- onJoinMap(player,map){
+ async onJoinMap(player,map){
  const runtime=sessions.get(player.id);if(!runtime)return;clearTimeout(runtime.checkpointTimer);runtime.active=player;runtime.map=map.id;registerActivePlayer(player,map.id);
  window.dispatchEvent(new CustomEvent('lesson-map-changed'));
  map.setAutoTick(true);
  player.setHitbox(24,24);
  const saved=ctx().draft.rpg;if(saved?.mapId===map.id){const direction=directions[saved.direction as keyof typeof directions];if(direction)player.changeDirection(direction);}
  if(pendingApproach?.mapId===map.id)holdFacing(player,pendingApproach.direction,{x:player.x(),y:player.y()});
- player.setVariable('lessonBusy',false);player.setVariable('deviceOutput',ctx().draft.scene?.deviceOutput||'off');player.syncChanges();
+ const levelId=ctx().levelId||'';
+ player.setVariable('lessonLevel',levelId);player.setVariable('lessonBusy',false);player.setVariable('deviceOutput',ctx().draft.scene?.deviceOutput||'off');
+ await ensureGreenhouseActors(map,player,levelId);player.syncChanges();
  if(mapFor(ctx())!==map.id)void runtime.enter(ctx());
+ },
+ async onInput(player, input){
+  const action=(input as {action?:string,input?:string})?.action ?? (input as {input?:string})?.input ?? input;
+  if(action!=='action' || player.getVariable('lessonBusy'))return;
+  const here=player.getCurrentMap(); if(!here?.getEvents)return;
+  const events=here.getEvents() as Array<{id?:string,x:()=>number,y:()=>number,execMethod?:Function}>;
+  const nearest=events
+    .map(item=>({item,d:Math.hypot(item.x()-player.x(), item.y()-player.y())}))
+    .filter(entry=>entry.d<=48 && typeof entry.item.execMethod==='function')
+    .sort((a,b)=>a.d-b.d)[0]?.item;
+  if(nearest){ await nearest.execMethod?.('onAction',[player,input]); return; }
+  const context=getContext(); if(!context)return;
+  const focus=currentFocus({levelId:context.levelId,scene:context.draft?.scene,draft:context.draft,level:context.level});
+  const target=focus?.target as {x?:number,y?:number}|undefined;
+  if(typeof target?.x!=='number' || typeof target?.y!=='number')return;
+  if(Math.hypot(player.x()-target.x, player.y()-target.y)>56)return;
+  const hit=events.find(item=>Math.hypot(item.x()-target.x!, item.y()-target.y!)<20);
+  if(hit?.execMethod)await hit.execMethod('onAction',[player,input]);
  },
  async onMove(player){
  const runtime=sessions.get(player.id);if(!runtime||runtime.changing||mapFor(ctx())!==runtime.map||!getContext()?.draft.scene)return;
