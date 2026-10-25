@@ -60,3 +60,17 @@
 .check-row small{display:block;color:#55718a;font-size:12px}
 .exam-card{width:min(1080px,100%);background:#f4f8fb}
 @media(max-width:750px){.topbar.slim{height:auto;flex-wrap:wrap;padding:8px}.route-ribbon{order:3;width:100%;overflow:auto}.stage-full .rpg-frame{min-height:0;height:100%}}
+
+/* 先学卡只解释方法，关闭后回到原来的现场或面板。 */
+.learn-card { width:min(930px,96vw); padding:26px; }
+.learn-card h2 { margin:6px 46px 12px 0; }
+.learn-mission { font-size:18px; line-height:1.65; margin:0 0 14px; }
+.learn-columns { display:grid; grid-template-columns:minmax(180px, .85fr) minmax(260px, 1.15fr); gap:22px; align-items:center; }
+.learn-columns figure { margin:0; text-align:center; padding:10px; border-radius:12px; background:#fff; }
+.learn-columns img { display:block; max-width:100%; height:230px; object-fit:contain; margin:auto; }
+.learn-columns figcaption { margin-top:7px; font-size:13px; color:#53665d; }
+.learn-columns ol { margin:0; padding-left:26px; font-size:19px; line-height:1.6; }
+.learn-columns li { padding:5px 0; }
+.learn-success { padding:11px 14px; border-radius:10px; background:#e8f1e7; line-height:1.6; font-size:16px; }
+.learn-footnote { font-size:13px; }
+@media(max-width:650px){.learn-card{padding:20px 16px;}.learn-columns{grid-template-columns:1fr;gap:10px;}.learn-columns img{height:155px;}.learn-columns ol{font-size:17px;}.learn-mission{font-size:16px;}}

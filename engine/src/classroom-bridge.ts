@@ -1,6 +1,6 @@
 export type BridgeMethod =
   | 'change' | 'predict' | 'experiment' | 'reason' | 'complete'
-  | 'next' | 'flow' | 'help' | 'checkpoint' | 'evaluate' | 'navHelp' | 'conceptHint' | 'toolHint' | 'undo';
+  | 'next' | 'flow' | 'help' | 'checkpoint' | 'evaluate' | 'navHelp' | 'conceptHint' | 'toolHint' | 'undo' | 'learn';
 
 export interface LessonContext {
   levelId: string;

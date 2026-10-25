@@ -23,7 +23,7 @@ const BRIEFS = {
 };
 const SYMBOLS = { '<': '＜', '>': '＞', '<=': '≤', '>=': '≥' };
 const OPERATORS = { ge30: '>=', lt30: '<', gt30: '>', le30: '<=', lt: '<', gt: '>' };
-const PHASES = ['flow', 'predict', 'diagnose', 'sentence', 'world', 'reason'];
+const PHASES = ['flow', 'predict', 'diagnose', 'sentence', 'world', 'reason', 'confirm', 'confirm-predictions', 'run'];
 const WORLD_FOCI = ['guide', 'sensor', 'control', 'fan', 'verify', 'portal', 'monitor', 'batteryA', 'batteryB', 'observe', 'signal', 'bridgeWest', 'bridgeEast', 'crossingWest', 'crossingEast'];
 
 export function stationBrief(levelId) {
@@ -99,7 +99,7 @@ function worldHint(levelId, draft, focus) {
   const scene = draft.scene || {}, actions = scene.actions || [];
   if (levelId === 'cross' && focus === 'signal') return { action: '点“等待绿灯，准备通行”，绿灯亮后再过街。', why: '红灯不通行。程序选中人行横道后，还要等绿灯。' };
   if (scene.ticket) {
-    if (levelId === 'minimum' && !actions.includes('route')) return { action: `点电池${scene.ticket.output === 'a' ? 'A' : 'B'}的接入口，接入选中电池。`, why: '先执行程序选中的支路，再核验结果。' };
+    if (levelId === 'minimum' && !actions.includes('route')) return { action: `点电池${(program(draft)[scene.ticket.branch] || scene.ticket.output) === 'a' ? 'A' : 'B'}的接入口，接入选中电池。`, why: '先执行程序选中的支路，再核验结果。' };
     if (levelId === 'cross' && !actions.includes('route')) return { action: scene.ticket.output === 'bridge' ? '点天桥入口，沿程序选中的路线检查。' : '点信号灯等绿灯，再沿人行横道检查。', why: '一次判断只检查选中的这一条路线。' };
     return { action: '点现场核验仪，比较这次结果。', why: '程序已运行，要检查实际结果是否合约定。' };
   }
@@ -140,11 +140,19 @@ export function toolHint(levelId, draft = {}, step = {}) {
     config,
     flow: { diamond: flow.diamond || '', yes: flow.yes || '', no: flow.no || '', locked: !!flow.locked, preset: !!flow.preset },
     ...(phase === 'sentence' ? { sentence: draft.sentence?.slots || [] } : {}),
+    ...(phase === 'run' ? { measured: !!scene.measured } : {}),
     ...(phase === 'world' ? { world: { phase: scene.phase || '', measured: !!scene.measured, actions: scene.actions || [], output: scene.ticket?.output || '', visited: scene.visited || [], collected: scene.collected || [], signal: scene.signal || '', prediction: draft.prediction || '', diagnosed: draft.diagnoseAnswer || '' } } : {})
   };
   const key = `${levelId}|${phase}|${slot}|${phase === 'predict' ? input.temperature ?? '' : step.key || ''}|${JSON.stringify(snapshot)}`;
   let content;
-  if (phase === 'flow') content = flowHint(levelId, draft, slot);
+  if (phase === 'confirm') content = {action:'点“确认这份程序”。',why:'先确认判断和两边动作，再去检验。'};
+  else if (phase === 'confirm-predictions') content = {action:'点“记下预测，下一步”。',why:'先留下你的判断，再看实际结果。'};
+  else if (phase === 'run') content = !scene.measured
+    ? {action:`点“保存修改，去读取${['sale','repair'].includes(levelId)?'温度':'现场数据'}”。`,why:'先取得这次输入，才能检验程序。'}
+    : ['sale','repair'].includes(levelId)
+      ? {action:'点“执行本次温度，去现场看结果”。',why:'用已读取的温度，检验刚才的预测。'}
+      : {action:'点“保存程序，回现场先预测”。',why:'先预测这一组，再运行并核验。'};
+  else if (phase === 'flow') content = flowHint(levelId, draft, slot);
   else if (phase === 'predict') content = predictionHint(levelId, draft, input);
   else if (phase === 'diagnose') content = { action: '选“错在出口”：把两个动作与判断条件配合起来。', why: '30℃时条件成立，却走到了关闭风机的出口。' };
   else if (phase === 'sentence') content = { action: `读出：如果${conditionLabel(levelId, config.operator)}，就${outputLabel(levelId, config.yes)}，否则${outputLabel(levelId, config.no)}。`, why: '句子和图说同一个规则。否则对应条件不成立的那一条。' };
@@ -161,5 +169,34 @@ export function toolHint(levelId, draft = {}, step = {}) {
           : { action: '选“先比电量，哪块少就先给哪块充”。', why: '谁电量低会变化，要先比较才能决定。' };
   }
   else content = worldHint(levelId, draft, step.key || '');
-  return { key, ...content };
+  return { key, ...content, conceptual: !['confirm','confirm-predictions','run'].includes(phase), target: assistedTarget(levelId, draft, step) };
+}
+
+/** 仅在学生主动取得帮助之后，用于定位建议；本函数不操作页面或填写答案。 */
+export function assistedTarget(levelId, draft = {}, step = {}) {
+ stationBrief(levelId);
+ const phase=step.phase||'world',config=program(draft),flow=draft.flow||{},scene=draft.scene||{};
+ if(phase==='confirm')return {focusKey:'flow-lock'};
+ if(phase==='confirm-predictions')return {focusKey:'predict-lock'};
+ if(phase==='run')return {focusKey:'run-next'};
+ if(phase==='flow'){
+  const chosen=OPERATORS[flow.diamond]||config.operator;
+  const operator=levelId==='minimum'?(['<','>'].includes(chosen)?chosen:'<'):['<','>='].includes(chosen)?chosen:'>=';
+  const slot=step.slot||['diamond','yes','no'].find(name=>!flow[name])||'diamond';
+  if(slot==='diamond')return {cardId:levelId==='cross'?'bridge-q':levelId==='minimum'?(operator==='>'?'gt':'lt'):operator==='<'?'lt30':'ge30'};
+  const yes=levelId==='cross'?'bridge':levelId==='minimum'?(operator==='<'?'a':'b'):operator==='<'?'off':'on';
+  const no=levelId==='cross'?'crossing':levelId==='minimum'?(operator==='<'?'b':'a'):operator==='<'?'on':'off';
+  return {cardId:slot==='no'?no:yes};
+ }
+ if(phase==='predict'){
+  if(!config.yes||!config.no)return {focusKey:'control'};
+  const input=currentInput(levelId,draft,step),left=levelId==='minimum'?input.a:input.temperature,right=levelId==='minimum'?input.b:30;
+  const holds=levelId==='cross'?input.facility:config.operator==='<'?left<right:config.operator==='>'?left>right:config.operator==='<='?left<=right:left>=right;
+  return {choiceId:holds?config.yes:config.no};
+ }
+ if(phase==='reason')return {choiceId:levelId==='sale'?'boundary':levelId==='cross'?'one':levelId==='minimum'?'compare':config.operator==='<'&&config.yes==='off'&&config.no==='on'?'symbol':'swap'};
+ if(phase==='diagnose')return {choiceId:'exit'};
+ if(phase==='sentence')return {focusKey:'sentence-confirm'};
+ if(scene.ticket&&levelId==='minimum'&&!(scene.actions||[]).includes('route'))return {focusKey:(config[scene.ticket.branch]||scene.ticket.output)==='b'?'batteryB':'batteryA'};
+ return {focusKey:WORLD_FOCI.includes(step.key)?step.key:'control'};
 }

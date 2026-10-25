@@ -1,3 +1,6 @@
+import {learnCard} from '../public/learn-card.mjs';
+import * as learningFlow from '../public/learning-flow.mjs';
+import {recordScaffold,currentScaffold} from '../public/scaffold.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -7,22 +10,26 @@ import adventure from '../public/adventure-rules.js';
 import { STATIONS, createPatrol, markStory, storyKey, storyScript, stationUnlocked, storyChangesLearning } from '../public/patrol.mjs';
 import { pointsLabel } from '../public/scoreboard.mjs';
 import { captureEdit, restoreEdit } from '../public/task-history.mjs';
-import { toolHint } from '../public/task-guidance.mjs';
+import { stationBrief, toolHint } from '../public/task-guidance.mjs';
 
-function appHarness(rpg = false) {
+function appHarness(rpg = false, demo = false) {
  const nodes = new Map();
  const node = key => { if (!nodes.has(key)) nodes.set(key, { innerHTML:'', textContent:'', hidden:false, classList:{add(){},remove(){},toggle(){}}, addEventListener(){}, showModal(){},close(){}, querySelector(){return null;}, querySelectorAll(){return [];} }); return nodes.get(key); };
  const storage = new Map(), scenes = [], events = [];
- const context = vm.createContext({ window:{BranchRules:rules,AdventureRules:adventure,addEventListener(){}}, location:{search:rpg?'':'?engine=legacy'},document:{querySelector:node,querySelectorAll:()=>[],addEventListener(){}},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},URLSearchParams,AbortSignal,Date,JSON,crypto:{randomUUID:()=>`event-${events.length}`},setInterval(){},setTimeout(){},console,
+ const context = vm.createContext({ window:{BranchRules:rules,AdventureRules:adventure,addEventListener(){}}, location:{search:demo?'?demo=1':rpg?'':'?engine=legacy'},document:{querySelector:node,querySelectorAll:()=>[],addEventListener(){}},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},URLSearchParams,AbortSignal,Date,JSON,crypto:{randomUUID:()=>`event-${events.length}`},setInterval(){},setTimeout(){},console,
   SyncQueue:class {constructor(){this.events=[];}pending(){return 0;}add(e){events.push(e);}async flush(){}},reconcileState:(_local,remote)=>remote,
   createIdleTimer:()=>({configure(){},setPaused(){},tick(){},reset(){},strength(){return 0}}),
   currentFocus:()=>({id:'guide',step:'1',hint:'先听园艺员说任务。',strong:'走到发光的圆圈上按 E。',thinking:false,goto:true,gotoReason:'',pause:false,kind:'map',target:{stationId:'sale',mapId:'greenhouse',x:1,y:1}}),
-  STATIONS, createPatrol, markStory, storyKey, storyScript, stationUnlocked, storyChangesLearning, pointsLabel, captureEdit, restoreEdit, toolHint,
+  STATIONS, createPatrol, markStory, storyKey, storyScript, stationUnlocked, storyChangesLearning, pointsLabel, captureEdit, restoreEdit, toolHint, learnCard, recordScaffold, currentScaffold, stationBrief,
   createParkScene:host=>{ const scene={host,destroy(){host.onChange({scene:{version:1,x:20,y:30}});},refresh(){}};scenes.push(scene);return scene; },
   createRpgScene:host=>{const scene={engine:'rpgjs',host,destroy(){},refresh(){},navigate(id){this.host=host.forLevel(id);}};scenes.push(scene);return scene;}
  });
- let source = fs.readFileSync(new URL('../public/app.mjs',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace(/boot\(\)\.catch[\s\S]*$/,'');
- source += `\nglobalThis.testApp={render,renderTask,destroyScene,draft,quizDraft,attach,goToTask,closeExam,setState(s){state=s;user={id:'student-a',classId:'501',name:'同学甲'};},setCurrent(id){current=id;},getState(){return state;},getStation(){return {current,lastStation};},setQuizVersion(v){quizVersion=v;},setUser(u){user=u;}};`;
+ let source = fs.readFileSync(new URL('../public/app.mjs',import.meta.url),'utf8');
+ // 这些新增依赖按真实import提供，避免VM替缺失导入兜底。
+ const learningImports=source.match(/import \{([^}]+)\} from '\.\/learning-flow\.mjs';/)[1].split(',').map(name=>name.trim());
+ for(const name of learningImports)context[name]=learningFlow[name];
+ source=source.replace(/^import .*;\n/gm,'').replace(/boot\(\)\.catch[\s\S]*$/,'');
+ source += `\nglobalThis.testApp={render,renderTask,destroyScene,draft,quizDraft,attach,goToTask,closeExam,showLearnCard:(...args)=>typeof showLearnCard==='function'?showLearnCard(...args):false,closeLearnCard:()=>{if(typeof closeLearnCard==='function')closeLearnCard();},getStory:()=>storySession,setState(s){state=s;user={id:'student-a',classId:'501',name:'同学甲'};},setCurrent(id){current=id;},getState(){return state;},getStation(){return {current,lastStation};},setQuizVersion(v){quizVersion=v;},setUser(u){user=u;}};`;
  vm.runInContext(source,context);
  return {app:context.testApp,scenes,events,storage,node};
 }
@@ -151,4 +158,44 @@ test('开考前能看到缺的站，回到该站按钮可以点',()=>{
  assert.match(html,/考核还没开放/);
  assert.match(h.node('#app').innerHTML,/id="exam-overlay"/);
  assert.match(h.node('#app').innerHTML,/巡检单/);
+});
+
+test('三站后默认进检测，选做需主动选择',()=>{
+ const h=appHarness(true),s=state();h.app.setState(s);h.app.setCurrent('cross');h.app.renderTask(2);
+ assert.equal(h.scenes[0].host.onNext().levelId,'quiz');
+ assert.equal(h.scenes[0].host.onNext({optional:true}).levelId,'minimum');
+});
+test('先学卡可立即关闭和重看，不清学习记录或替代完成',()=>{
+ const h=appHarness(true),s=state();s.points=25;s.runs.sale=[{test:'kept'}];h.app.setState(s);h.app.renderTask(0);
+ assert.equal(h.app.showLearnCard('sale',true).opened,true);
+ assert.match(h.node('#learn-content').innerHTML,/教材第37页/);
+ h.app.closeLearnCard();assert.equal(h.node('#learn-overlay').hidden,true);
+ assert.equal(h.app.showLearnCard('sale',false).opened,false);
+ assert.equal(h.app.showLearnCard('sale',true).opened,true);
+ assert.equal(s.points,25);assert.equal(s.runs.sale.length,1);assert.equal(s.levels.sale?.completed,undefined);
+});
+test('引擎已有验收反馈时不再叠一个宿主结果剧情',()=>{
+ const h=appHarness(true),s=state(),config={model:'ventilation',operator:'>=',yes:'on',no:'off'};
+ s.drafts.sale={config,input:{temperature:30},reason:'boundary'};s.runs.sale=[29,30,31].map(temperature=>({config,input:{temperature},...rules.evaluate('sale',config,{temperature})}));
+ h.app.setState(s);h.app.renderTask(0);assert.equal(h.scenes[0].host.onComplete({deferRender:true}).passed,true);
+ assert.equal(h.app.getStory(),null);
+});
+
+test('三站完成后重新登录默认打开基础检测，储能仍是可选入口',()=>{
+ const h=appHarness(true),s=state();
+ for(const id of ['sale','repair','cross'])s.levels[id]={completed:true,valid:true};
+ h.app.attach({student:{id:'student-a',classId:'501',name:'同学甲'},round:1,state:s});
+ assert.equal(h.app.getStation().current,'quiz');
+ assert.equal(h.scenes.at(-1)?.host.levelId==='minimum',false);
+});
+
+test('找确认按钮的法宝照计次数，但不把自选程序标成概念帮助',async()=>{
+ const h=appHarness(true,true),s=state();h.app.setState(s);h.app.renderTask(0);
+ const host=h.scenes.at(-1).host;
+ const operation=await host.onToolHint({step:{phase:'confirm'}});
+ assert.equal(operation.used,1);
+ assert.notEqual(s.levels.sale?.hinted,true);
+ const concept=await host.onToolHint({step:{phase:'flow',slot:'diamond'}});
+ assert.equal(concept.used,2);
+ assert.equal(s.levels.sale.hinted,true);
 });

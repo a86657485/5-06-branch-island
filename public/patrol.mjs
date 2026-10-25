@@ -1,5 +1,4 @@
 /** 巡检主线：固定 S1→S2→S3。跳过剧情只记叙事，不写学习达成。 */
-import { stationBrief } from './task-guidance.mjs';
 
 export const ROUTE = ['sale', 'repair', 'cross'];
 
@@ -14,13 +13,13 @@ export const STORIES = {
   brief: {
     npc: '调度员阿派',
     image: '/assets/story/ill-brief.png',
-    lines: ['今天你是园区巡检员。', '路线：温室→返修→路口。', '打开巡检单，从第一站开始！']
+    lines: ['今天你是园区巡检员。', '先看知识卡，再从温室开始。']
   },
   sale: {
     opening: {
       npc: '园艺员阿绿',
       image: '/assets/story/ill-wilt.png',
-      lines: ['温室好热！菜苗都蔫了！', stationBrief('sale').purpose, stationBrief('sale').success, '设备怎样‘看情况’决定这一次做哪件事？']
+      lines: ['温室好热！菜苗都蔫了！', '设备怎样‘看情况’决定这一次做哪件事？']
     },
     result_ok: {
       npc: '园艺员阿绿',
@@ -37,7 +36,7 @@ export const STORIES = {
     opening: {
       npc: '维修员老修',
       image: '/assets/story/ill-fault.png',
-      lines: Object.values(stationBrief('repair'))
+      lines: ['风机到30℃还不转。', '帮老修留下故障，再动手修。']
     },
     result_ok: {
       npc: '维修员老修',
@@ -54,7 +53,7 @@ export const STORIES = {
     opening: {
       npc: '巡检员小巡',
       image: '/assets/story/ill-queue.png',
-      lines: Object.values(stationBrief('cross'))
+      lines: ['导行屏指错路，大家停在路边。', '帮小巡看清现场，调好指路规则。']
     },
     result_ok: {
       npc: '巡检员小巡',
@@ -71,7 +70,7 @@ export const STORIES = {
     opening: {
       npc: '储能柜小电',
       image: '/assets/story/ill-energy.png',
-      lines: [stationBrief('minimum').problem, '选做哦，做完随时可走。', stationBrief('minimum').purpose, stationBrief('minimum').success]
+      lines: ['帮小电比较电量，再选一块先充。', '选做哦，做完随时可走。']
     },
     result_ok: {
       npc: '储能柜小电',

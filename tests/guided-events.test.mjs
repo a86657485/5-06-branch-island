@@ -11,7 +11,7 @@ const base = path.resolve(import.meta.dirname, '..');
 const model = require('../engine/src/gui/flow-model.ts');
 const experiment = require('../engine/src/modules/lesson/experiment.ts');
 const layout = JSON.parse(fs.readFileSync(path.join(base, 'engine/src/tiled/layout.json'), 'utf8'));
-function compile(file, imports) {
+function compile(file, imports, extras = {}) {
   const source = fs.readFileSync(path.join(base, file), 'utf8');
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
   const module = { exports: {} };
@@ -19,13 +19,13 @@ function compile(file, imports) {
     if (Object.hasOwn(imports, name)) return imports[name];
     if (name.endsWith('task-guidance.mjs')) return require('../public/task-guidance.mjs');
     throw new Error(`Unexpected dependency ${name}`);
-  }, console, setTimeout, clearTimeout, localStorage: { getItem: () => null, setItem() {}, removeItem() {} } });
+  }, ...extras, console, setTimeout, clearTimeout, localStorage: { getItem: () => null, setItem() {}, removeItem() {} } });
   return module.exports;
 }
 function harness(id = 'sale') {
   const config = id === 'repair' ? { model: 'ventilation', operator: '>=', yes: 'off', no: 'on' } : id === 'cross' ? { yes: 'bridge', no: 'crossing' } : id === 'minimum' ? { operator: '<', yes: 'a', no: 'b' } : { model: 'ventilation', operator: '>=', yes: 'on', no: 'off' };
   const context = { levelId: id, draft: { config, scene: { version: 1, phase: 'assigned', measured: true, actions: [id === 'repair' ? 'inspect' : id === 'cross' ? 'observe' : id === 'minimum' ? 'collect' : 'measure'], visited: [], temperatureCase: 30, facility: true, pair: 'pair-a', actorId: id === 'repair' ? 'sensor30' : id === 'cross' ? 'cross-open' : id === 'minimum' ? 'pair-a' : 'sensor30' } }, runs: [], level: {}, evidenceStart: 0, reasons: [{ value: 'boundary', label: '比较边界' }] };
-  const dialogs = [], calls = [], guis = [], answers = [];
+  const dialogs = [], calls = [], guis = [], answers = [], feedbacks = [];
   const variables = new Map();
   const player = { id: 'test-player', syncChanges() {}, getVariable: key => variables.get(key), setVariable: (key, value) => variables.set(key, value), gui: name => ({ open: async data => { guis.push({ name, data }); return null; } }), x: () => 450, y: () => 340 };
   const runtime = compile('engine/src/modules/lesson/runtime.ts', {
@@ -42,12 +42,12 @@ function harness(id = 'sale') {
     './experiment': experiment,
     '../../gui/flow-model': model,
     './active-player': { waitForActivePlayer: async () => player, mapForContext: () => 'test-map' }
-  });
+  }, { window: { dispatchEvent: event => feedbacks.push(event.detail) }, CustomEvent: class { constructor(type, options) { this.type=type; this.detail=options.detail; } } });
   const imports = { './runtime': runtime, '../../gui/flow-model': model, '../../tiled/layout.json': layout, '@rpgjs/common': { Direction: { Right: 'right' } }, '@rpgjs/server': { EventMode: { Scenario: 'Scenario' }, Components: { text: text => ({ text }) } }, './route-progress.mjs': require('../engine/src/modules/lesson/route-progress.mjs'), './greenhouse-cast': { actorIdOf: id => id, planGreenhouseSync: () => [] } };
   const thermal = compile('engine/src/modules/lesson/thermal.ts', imports);
   const routes = compile('engine/src/modules/lesson/routes.ts', imports);
   const act = async (events, eventId) => events.find(item => item.id === eventId).event.onAction(player);
-  return { context, runtime, thermal, routes, dialogs, calls, guis, answers, player, variables, act };
+  return { context, runtime, thermal, routes, dialogs, calls, guis, answers, feedbacks, player, variables, act };
 }
 function run(id, config, input, correct = true) { return { config: { ...config }, input, correct, ...(id === 'cross' ? { scene: { outcome: correct ? 'arrived' : 'blocked' } } : {}) }; }
 
@@ -58,9 +58,9 @@ test('返修第一次在原30℃程序上先预测、再次点击才运行，不
   assert.equal(h.calls.filter(call => call.method === 'predict').length, 1);
   assert.equal(h.context.draft.scene.ticket, undefined);
   assert.match(h.dialogs[0].text, /30/);
-  assert.match(h.dialogs[0].text, /≥|>=/);
-  assert.match(h.dialogs[0].text, /成立.*关闭/);
-  assert.match(h.dialogs[0].text, /不成立.*启动/);
+  assert.match(h.dialogs[0].program.condition, /≥|>=/);
+  assert.equal(h.dialogs[0].program.yes, '关闭风机');
+  assert.equal(h.dialogs[0].program.no, '启动风机');
   await h.runtime.configure(h.player);
   assert.equal(h.context.draft.scene.ticket.output, 'off');
   assert.equal(h.context.draft.scene.ticket.correct, false);
@@ -90,10 +90,10 @@ test('路口和储能控制台只打开当前一步：画图、预测、运行�
     await h.act(events, eventId);
     assert.equal(h.calls.filter(call => call.method === 'predict').length, 1, id);
     assert.equal(h.context.draft.scene.ticket, undefined, id);
-    const before = h.dialogs.length;
+    const before = h.feedbacks.length;
     await h.act(events, eventId);
     assert.ok(h.context.draft.scene.ticket, id);
-    assert.equal(h.dialogs.length - before, 1, `${id}一次运行只给一条执行结果`);
+    assert.equal(h.feedbacks.length - before, 1, `${id}一次运行只给一条现场短反馈`);
   }
 });
 
@@ -105,7 +105,7 @@ test('四站负责人初次只给领取委托，未跑齐不提供验收捷径',
     await h.act(events, eventId);
     assert.equal(h.dialogs[0].choices.length, 1, id);
     assert.equal(h.dialogs[0].choices[0].id, 'accept', id);
-    assert.match(h.dialogs[0].text, /温室|控制器|导行屏|电池/, id);
+    assert.match(h.dialogs[0].text, /准备|先|开始|委托|巡检|规则|温室|控制器|导行屏|电池/, id);
     assert.equal(h.calls.some(call => call.method === 'complete'), false, id);
   }
 });
@@ -114,7 +114,7 @@ test('传感器建议首个尚未正确核验温度，返修故障首次只给30
   const h = harness('sale'); h.context.runs.push(run('sale', h.context.draft.config, { temperature: 29 }));
   await h.act(h.thermal.greenhouseEvents, 'sensor');
   assert.equal(h.dialogs[0].choices.length, 3);
-  assert.match(h.dialogs[0].text, /建议.*30/);
+  assert.match(h.dialogs[0].text, /试读30|建议.*30/);
   const repair = harness('repair');
   await repair.act(repair.thermal.greenhouseEvents, 'sensor');
   assert.deepEqual(JSON.parse(JSON.stringify(repair.dialogs[0].choices.map(choice => choice.id))), ['30']);
@@ -139,8 +139,9 @@ test('现场核验只显示一条结果与下一步，不重复演出或让学�
     h.context.draft.prediction = id === 'cross' ? 'bridge' : 'a';
     h.context.draft.scene = { ...h.context.draft.scene, actions: [id === 'cross' ? 'observe' : 'collect', 'predict', 'route'], phase: 'arrived', ticket: result };
     await h.act(id === 'cross' ? h.routes.crossingEvents : h.routes.energyEvents, eventId);
-    assert.equal(h.dialogs.length, 1, id);
-    assert.match(h.dialogs[0].text, /下一步/, id);
+    assert.equal(h.dialogs.length, 0, id);
+    assert.equal(h.feedbacks.length, 1, id);
+    assert.match(h.feedbacks[0].text, /换一种|负责人|再读/, id);
     assert.equal(h.calls.filter(call => call.method === 'experiment').length, 1, id);
     assert.equal(h.context.runs.length, 1, id);
     assert.equal(h.context.draft.scene.ticket, undefined, id);
@@ -208,5 +209,17 @@ test('锁定错误程序核验后控制台重新打开编辑器，随后某次�
     assert.equal(h.guis.length, 2, `${id}当前方案中的早先错误仍需修订`);
     h.context.draft.config.yes = id === 'cross' ? 'bridge' : 'a';
     assert.equal(h.runtime.currentRuns().length, 0, `${id}修正后不再借用旧方案证据`);
+  }
+});
+
+ test('四站预测同屏展示当前条件和两边动作，关闭不代答', async () => {
+  for (const id of ['sale','repair','cross','minimum']) {
+    const h=harness(id);
+    await h.runtime.predict(h.player);
+    const dialog=h.dialogs[0];
+    assert.ok(dialog.program?.condition,id);
+    assert.ok(dialog.program?.yes && dialog.program?.no,id);
+    assert.notEqual(dialog.program.yes,dialog.program.no,id);
+    assert.equal(h.calls.length,0,id);
   }
 });

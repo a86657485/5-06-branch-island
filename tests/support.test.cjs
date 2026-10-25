@@ -121,7 +121,7 @@ test('旧状态补充法宝默认值时保留原始预测、运行与积分，�
   db.close();
   await c.restart();
   const restored = await c.api('/api/state?studentId=s1');
-  assert.deepEqual(restored.state.support, { hints: [] });
+  assert.deepEqual(restored.state.support, { hints: [], scaffolds: [] });
   assert.deepEqual(restored.state.predictions, original.predictions);
   assert.deepEqual(restored.state.runs, original.runs);
   assert.equal(restored.state.points, 25);
@@ -151,4 +151,19 @@ test('教师展开证据显示全课法宝用量、本站提示和解析，正�
   assert.ok(expanded.includes(saved.result.hint.why));
   student.state.support.hints[0].action = '<img src=x onerror=alert(1)>';
   assert.ok(context.evidenceRows([student], true).includes('&lt;img src=x onerror=alert(1)&gt;'));
+});
+
+test('找确认按钮仍占法宝次数，学生独立规则证据不受概念帮助标记污染', async t => {
+  const c=await setup(t);
+  const answer=await c.event('tool_hint','sale',{step:{phase:'confirm'}});
+  assert.equal(answer.result.used,1);
+  assert.equal(answer.state.support.hints[0].conceptual,false);
+  assert.equal(answer.state.levels.sale.hinted,false);
+  assert.equal(answer.state.conceptHints.length,0);
+  const config={model:'ventilation',operator:'>=',yes:'on',no:'off'};
+  await c.event('draft','sale',{config});
+  for(const temperature of [29,30,31])await c.event('run','sale',{config,input:{temperature}});
+  const accepted=await c.event('complete','sale',{config,reason:'boundary'});
+  assert.equal(accepted.result.passed,true);
+  assert.equal(accepted.result.attemptKind,'first');
 });

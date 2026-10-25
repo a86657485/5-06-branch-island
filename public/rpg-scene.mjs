@@ -1,5 +1,5 @@
 const copy = value => JSON.parse(JSON.stringify(value));
-const methods = new Set(['change','predict','experiment','reason','complete','next','flow','help','checkpoint','evaluate','navHelp','conceptHint','toolHint','undo']);
+const methods = new Set(['change','predict','experiment','reason','complete','next','flow','help','checkpoint','evaluate','navHelp','conceptHint','toolHint','undo','learn']);
 
 export function createRpgScene(initialHost) {
   const { root } = initialHost;
@@ -13,7 +13,7 @@ export function createRpgScene(initialHost) {
   const frame = root.querySelector('iframe');
   const status = root.querySelector('#rpg-status');
   const fallbackMessage = root.querySelector('#rpg-fallback');
-  const context = () => copy({ levelId:host.levelId, draft:host.getDraft(), runs:host.getRuns(), level:host.getLevel() || {}, evidenceStart:host.getEvidenceStart(), demo:!!host.demo, support:(()=>{const hints=host.getSupport?.()?.hints||[];return {hints,used:hints.length,remaining:Math.max(0,5-hints.length)};})(), undoAvailable:!!host.getUndoAvailable?.(), reasons:(host.reasons || []).map(r=>Array.isArray(r)?{value:r[0],label:r[1]}:r) });
+  const context = () => copy({ levelId:host.levelId, draft:host.getDraft(), runs:host.getRuns(), level:host.getLevel() || {}, scaffold:host.getScaffold?.()||null, evidenceStart:host.getEvidenceStart(), demo:!!host.demo, support:(()=>{const hints=host.getSupport?.()?.hints||[];return {hints,used:hints.length,remaining:Math.max(0,5-hints.length)};})(), undoAvailable:!!host.getUndoAvailable?.(), reasons:(host.reasons || []).map(r=>Array.isArray(r)?{value:r[0],label:r[1]}:r) });
   const post = data => { if (!disposed) frame.contentWindow?.postMessage({ ...data, sessionId },origin); };
   const failed = () => {
     if (disposed || ready) return;
@@ -51,8 +51,9 @@ export function createRpgScene(initialHost) {
           case 'experiment': value = host.onExperiment(data); break;
           case 'reason': value = host.onReason(data.value ?? data.reason); break;
           case 'complete': value = host.onComplete({deferRender:true}); break;
-          case 'next': value = host.onNext(); break;
+          case 'next': value = host.onNext(data); break;
           case 'flow': value = host.onFlow(); break;
+          case 'learn': value = host.onLearn?.(); break;
           case 'help': value = host.onHelp(); break;
           case 'checkpoint': value = host.onChange({rpg:data.rpg || data}); break;
           case 'navHelp': value = host.onNavHelp?.(data); break;

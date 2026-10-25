@@ -1,9 +1,8 @@
 import { Components, EventMode } from '@rpgjs/server';
 import layout from '../../tiled/layout.json';
-import { event,ctx,scene,input,patchScene,clearPending,say,configure,review,record,portal,currentRuns,canReview } from './runtime';
+import { event,ctx,scene,input,patchScene,clearPending,say,configure,review,record,portal,currentRuns,canReview,feedback } from './runtime';
 import { actorIdOf, planGreenhouseSync } from './greenhouse-cast';
 import { faultSeen } from '../../gui/flow-model';
-import { stationBrief } from '../../../../public/task-guidance.mjs';
 
 const positions = layout.greenhouse.positions;
 const place = (id: string, station: any) => ({ id, x: positions[id][0], y: positions[id][1], event: station });
@@ -38,9 +37,9 @@ const guide = {
   ...event('园艺员阿绿', 'gardener', async player => {
     const repair = repairing();
     if(canReview())return review(player);
-    const brief=stationBrief(ctx().levelId),first=!scene().phase||scene().phase==='start';
-    const next=repair?(!faultSeen(ctx().runs)?'先到探头读取30℃，预测原程序的动作，再运行并核验。':'故障已经记录好了。先到控制柜修好条件和出口，再重新读取29、30、31℃复验。'):'到探头采样，再去控制柜设置或检查程序。29、30、31℃都要核验。';
-    const choice=await say(player,guideLabel(repair),`${brief.problem}\n${brief.purpose}\n${next}`, [{id:first?'accept':'continue',label:first?'领取这项委托':'继续现场调试'}]);
+    const first=!scene().phase||scene().phase==='start';
+    const next=repair?(!faultSeen(ctx().runs)?'先读30℃，猜猜旧程序会做什么。运行后，到核验仪看故障。':'故障已留下，先改条件和两边动作。再测29、30、31℃。'):'先去探头读温度。29、30、31℃都要检验。';
+    const choice=await say(player,guideLabel(repair),first?'准备好了吗？先点探头读温度。':next, [{id:first?'accept':'continue',label:first?'领取这项委托':'继续现场调试'}]);
     if(choice==='accept')await patchScene(player,{phase:'assigned'});
   }),
   onChanges(player: any) {
@@ -54,19 +53,19 @@ export const greenhouseEvents = [
   place('guide', guide),
   place('sensor', event('温度探头', 'sensor', async player => {
     if (scene().phase === 'start') { await say(player, '温度探头', '先与管理员交谈，了解设备任务。'); return; }
-    if(scene().ticket){await say(player,'温度探头','本次风机已经运行，先去核验仪保存结果，再采下一个温度。');return;}
+    if(scene().ticket){await say(player,'温度探头','风机已经运行。先去核验仪，再采下个温度。');return;}
     const original=repairing()&&!faultSeen(ctx().runs),temperatures=original?[30]:[29,30,31];
     const recommended=original?30:([29,30,31].find(t=>!currentRuns().some(run=>run.input?.temperature===t&&run.correct))||29);
-    const choice = await say(player, '温度探头', original?'先用30℃看看原程序为什么没有按告示启动风机。点一次采样，把这个故障留作比较。':`建议先测${recommended}℃：看看当前程序在这个温度会走哪条分支。你也可以选另外一个温度。数据是教学仿真。`, temperatures.map(t => ({ id: String(t), label: `采样 ${t}℃${t===recommended?'（建议）':''}` })));
+    const choice = await say(player, '温度探头', original?'先采样30℃，保留旧程序。运行后，看看风机为什么没转。':`试读${recommended}℃，看看会走哪条路。这里用的是模拟温度。`, temperatures.map(t => ({ id: String(t), label: `采样 ${t}℃${t===recommended?'（建议）':''}` })));
     if (!choice) return;
     const t = Number(choice);
     const repair = repairing();
     await clearPending(player, { temperatureCase: t, actorId: `sensor${t}` });
     await patchScene(player, { phase: 'measured', measured: true, actions: [repair ? 'inspect' : 'measure'] });
-    await say(player, '读数已采集', `探头读数：${t}°C。请走到控制柜，判断条件是否成立。`);
+    feedback(`读到${t}℃。下一步去控制柜。`);
   })),
   place('control', event('规则控制柜', 'control', configure)),
-  place('fan', { ...event('通风风机', 'fan-off', async player => { await say(player, '通风风机', `风机目前${scene().deviceOutput === 'on' ? '正在转动' : '处于关闭状态'}。请在控制柜运行程序，再到核验仪观察本次结果。`); }), onChanges(player: any) { this.setGraphic(player.getVariable('deviceOutput') === 'on' ? 'fan-on' : 'fan-off'); } }),
+  place('fan', { ...event('通风风机', 'fan-off', async player => { await say(player, '通风风机', `风机${scene().deviceOutput === 'on' ? '正在转动' : '处于关闭状态'}。运行后，去核验仪比较。`); }), onChanges(player: any) { this.setGraphic(player.getVariable('deviceOutput') === 'on' ? 'fan-on' : 'fan-off'); } }),
   place('verify', event('现场核验仪', 'monitor', async player => { await record(player, 'gate'); })),
   place('portal', portal())
 ];

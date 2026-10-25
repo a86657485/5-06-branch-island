@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { cardsFor, lockSentence, sentenceFromFlow, type Flow, type Sentence } from './flow-model';
 
-const props = defineProps<{ mode: string; flow: Flow; sentence?: Sentence; focusStrength?: number }>();
+const props = defineProps<{ mode: string; flow: Flow; sentence?: Sentence; focusStrength?: number; assistedConfirm?: boolean }>();
 const emit = defineEmits<{ save: [Sentence]; locked: [Sentence] }>();
 const message = ref('');
 const sentenceLine = computed(() => {
@@ -22,7 +22,7 @@ function lock() {
     <p class="sentence-line">{{ sentenceLine }}</p>
     <p class="sentence-note">这句话由你刚才选的卡片组成。想改安排，可以点“重新选卡”。</p>
     <p v-if="message" class="studio-message" role="status">{{ message }}</p>
-    <button type="button" class="studio-lock" data-focus="sentence-lock" @click="lock">我看懂了，下一步</button>
+    <button type="button" class="studio-lock" :class="{ 'answer-demo': assistedConfirm }" data-focus="sentence-lock" @click="lock">我看懂了，下一步</button>
   </section>
 </template>
 
@@ -32,4 +32,5 @@ function lock() {
 .sentence-note { font-size: 14px; line-height: 1.5; }
 .studio-lock { min-height: 44px; padding: 10px 18px; border: 2px solid #1c624d; border-radius: 10px; background: #1c624d; color: white; font: inherit; font-weight: 750; }
 .studio-message { margin: 8px 0; }
+.answer-demo{outline:4px solid #ba8b28;outline-offset:3px;}
 </style>

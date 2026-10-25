@@ -107,7 +107,8 @@ test('sentence support explains the student program without filling or changing 
   const result = hint('sale', a, { phase: 'sentence' });
   assert.match(result.action, /如果.*否则/);
   assert.deepEqual(a, before);
-  assert.deepEqual(Object.keys(result), ['key', 'action', 'why']);
+  assert.deepEqual(Object.keys(result), ['key', 'action', 'why', 'conceptual', 'target']);
+  assert.deepEqual(result.target, { focusKey: 'sentence-confirm' });
 });
 
 test('end-of-station help explains the existing reason choices, including the alternate repair', () => {
@@ -128,4 +129,9 @@ test('explanations use short sentences; unsupported exam hints are rejected', ()
   }
   assert.throws(() => hint('quiz', draft(), { phase: 'predict' }), /探究|站点/);
   assert.throws(() => hint('sale', draft(), { phase: 'exam' }), /步骤/);
+});
+
+test('确认和运行提示属于操作帮助，判断答案才是概念帮助',()=>{
+ for(const phase of ['confirm','confirm-predictions','run'])assert.equal(guidance.toolHint('sale',{}, {phase}).conceptual,false,phase);
+ assert.equal(guidance.toolHint('sale',{}, {phase:'flow',slot:'diamond'}).conceptual,true);
 });

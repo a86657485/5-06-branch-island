@@ -40,9 +40,9 @@
       #focus-marker.edge .focus-arrow { right:auto; left:0; top:0; width:auto; font-size:42px; transform:translate(-50%,-50%); animation:none; }
       #path-dots { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
       .path-dot { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: #e39b00; border: 3px solid #173b31; box-shadow: 0 0 0 3px #fff6; }
-      #engine-task-hint[data-strength="1"], #engine-task-hint[data-strength="2"], #engine-goto.focus-target { outline:4px solid #ffcf5a; animation:focus-pulse 1s ease-in-out infinite; }
+      #engine-goto.focus-target { outline:4px solid #ffcf5a; animation:focus-pulse 1s ease-in-out infinite; }
       .card-tray.focus-target, .flow-slot.focus-target, .studio.focus-target, .studio-tabs button.focus-target { outline: 4px solid #e39b00; outline-offset: 4px; }
-      .predict-option.focus-target, .predict-row.next button { outline: 3px solid #1175bb; outline-offset: 2px; }
+      .predict-table.focus-target { outline: 3px solid #1175bb; outline-offset: 4px; }
       @keyframes focus-pulse { 50% { outline-color:#147d78; border-color:#fff; } }
       @keyframes focus-feet-pulse { 0%,100% { transform:translate(-50%,-50%) scale(1); opacity:.6; } 50% { transform:translate(-50%,-50%) scale(1.12); opacity:.85; } }
       @keyframes focus-side-nudge { 50% { transform:translateX(4px); } }
@@ -53,15 +53,23 @@
       #engine-status button { min-height: 44px; padding: 8px 20px; border: 0; border-radius: 9px; color: white; background: #1c624d; }
       @media (max-width: 600px) { .engine-pad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 44px); gap: 3px; left: 10px; bottom: 10px; } .engine-pad-caption { display: none; } .engine-tools { top: 8px; right: 8px; gap: 5px; } .engine-tools button { font-size: 12px; padding: 6px 10px; } #engine-controls #engine-action { right: 12px; bottom: 20px; width: 72px; height: 62px; font-size: 17px; } }
     #engine-goto { position:fixed;right:20px;bottom:24px;min-width:240px;min-height:56px;background:#1c624d!important;color:white!important;font-size:19px!important;box-shadow:0 4px 18px #153b3266;} #engine-goto:disabled {opacity:.65;} #engine-status p {white-space:pre-line;} @media(max-width:600px){#engine-goto{right:12px;bottom:16px;min-width:200px;font-size:16px!important;}}
-    </style>
+    #engine-feedback{position:absolute;left:16px;bottom:22px;max-width:calc(100% - 300px);padding:10px 14px;border-radius:12px;background:#fffaf0f2;color:#173b31;font-size:17px;line-height:1.5;z-index:85;pointer-events:none;}
+#engine-assistance{position:absolute;left:16px;bottom:90px;max-width:min(560px,calc(100% - 32px));padding:14px 46px 14px 16px;border:2px solid #ba8b28;border-radius:14px;background:#fff3cffa;color:#173b31;font-size:17px;line-height:1.5;z-index:90;}
+#engine-assistance p{white-space:pre-line;margin:6px 0 0;}#engine-assistance-close{position:absolute;top:6px;right:8px;width:32px;height:32px;border:0;border-radius:50%;background:#f2dfab;color:#173b31;font-size:25px;}
+#focus-marker.assisted-marker .focus-ring{border-color:#ba8b28;box-shadow:0 0 0 5px #fbbf2440;}
+@media(max-width:600px){#engine-feedback{bottom:78px;left:10px;max-width:calc(100% - 20px);font-size:15px;}#engine-assistance{left:10px;bottom:130px;font-size:15px;}.engine-tools{flex-wrap:wrap;justify-content:flex-end;max-width:100%;}}
+</style>
   </head>
   <body>
     <div id="rpg"><div id="vue-gui-overlay"></div></div>
     <p id="engine-task-hint" role="status" hidden></p>
+    <p id="engine-feedback" role="status" hidden></p>
+    <aside id="engine-assistance" role="status" hidden><button id="engine-assistance-close" type="button" aria-label="关闭帮助提示">×</button><strong>探究帮助</strong><p></p></aside>
     <div id="path-dots" hidden></div>
     <div id="focus-marker" hidden><span class="focus-ring" aria-hidden="true"></span><span class="focus-arrow" aria-hidden="true">→</span><span id="focus-label">下一目标</span></div>
     <div id="engine-controls" aria-label="园区操作" hidden>
       <nav class="engine-tools" aria-label="探究帮助">
+        <button id="engine-learn" type="button">回顾知识</button>
         <button id="engine-flow" type="button">查看流程</button>
         <button id="engine-help" type="button">操作帮助</button>
         <button id="engine-undo" type="button" disabled>↶ 撤回上一步</button>

@@ -101,3 +101,12 @@ test('较旧保存回应不回滚已确认的法宝次数和答案支持证据',
   assert.deepEqual(noSupport.support.hints, [a, b]);
   assert.equal(noSupport.levels.repair.hinted, true);
 });
+
+test('纯操作法宝同步保留次数，不产生概念帮助标记；旧记录按概念帮助保留',()=>{
+ const hint={key:'confirm',levelId:'sale',conceptual:false};
+ const result=sync.reconcileState({support:{hints:[hint]},levels:{}},{support:{hints:[]},levels:{}});
+ assert.equal(result.support.hints.length,1);
+ assert.notEqual(result.levels.sale?.hinted,true);
+ const legacy=sync.reconcileState({support:{hints:[{key:'legacy',levelId:'sale'}]}},{levels:{}});
+ assert.equal(legacy.levels.sale.hinted,true);
+});

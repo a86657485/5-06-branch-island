@@ -7,6 +7,7 @@ const { isIP } = require('node:net');
 const { DatabaseSync } = require('node:sqlite');
 const rules = require('./public/rules.js');
 const adventure = require('./public/adventure-rules.js');
+const { recordScaffold } = require('./public/scaffold.mjs');
 const quizApi = require('./quiz.cjs');
 const { questions, version:quizVersion } = quizApi;
 const BASE = __dirname;
@@ -42,6 +43,7 @@ function ensureState(state) {
   state.conceptHints ||= [];
   state.support ||= { hints: [] };
   state.support.hints ||= [];
+  state.support.scaffolds ||= [];
   for (const level of Object.values(state.levels || {})) {
     if (!level || typeof level !== 'object') continue;
     level.submissions ??= 0;
@@ -295,11 +297,13 @@ function createService(options = {}) {
       if (!kept) {
         const at = now();
         state.support.hints.push({ ...hint, levelId: id, at });
-        state.conceptHints.push({ levelId: id, level: 3, evidenceKind: 'tool_hint', key: hint.key, at });
-        state.levels[id].hinted = true;
+        if(hint.conceptual!==false){
+          state.conceptHints.push({ levelId: id, level: 3, evidenceKind: 'tool_hint', key: hint.key, at });
+          state.levels[id].hinted = true;
+        }
       }
       const used = state.support.hints.length;
-      result = { hint: { key: hint.key, action: hint.action, why: hint.why }, used, remaining: Math.max(0, 5 - used), reused: !!kept };
+      result = { hint: { key: hint.key, action: hint.action, why: hint.why, conceptual: hint.conceptual, target: hint.target }, used, remaining: Math.max(0, 5 - used), reused: !!kept };
     } else if (body.type === 'concept_hint') {
       requireOpen(state, id);
       const levelNo = Number(payload.level);
@@ -366,7 +370,8 @@ function createService(options = {}) {
       if (!state.drafts[id]?.config || draftConfigKey(id,state.drafts[id].config) === rules.configKey(id,config)) useConfig(record,id,config);
       if (config.model === 'ventilation' && (config.operator === '>' || config.operator === '<=') && payload.input?.temperature === 30 && !evaluated.correct) evaluated.mCodes = ['M3'];
       state.runs[id].push({ config, input: payload.input, ...evaluated, ...(scene ? { scene } : {}), at: now() });
-      result = evaluated;
+      const scaffold = recordScaffold(state,id,{kind:'run',input:payload.input,config,result:evaluated,eventKey:body.eventId,at:now()});
+      result = scaffold ? { ...evaluated, scaffold } : evaluated;
     } else if (body.type === 'prediction') {
       const choices = id === 'cross' ? ['bridge','crossing'] : id === 'minimum' ? ['a','b'] : payload.config?.model === 'ventilation' ? ['on','off'] : ['5','10'];
       if (!choices.includes(payload.value)) fail(400, '请选择本次输出预测');
@@ -382,6 +387,10 @@ function createService(options = {}) {
         useConfig(record,id,config);
         result = rules.validateComplete(id,config,state.runs[id],payload.reason,state.levels[id].evidenceStart || 0);
         state.levels[id].submissions = (state.levels[id].submissions || 0) + 1;
+        const correctReason = id === 'repair' && config.model === 'ventilation' && config.operator === '<' && config.yes === 'off' && config.no === 'on' ? 'symbol' : rules.solutions[id].reason;
+        const testsSatisfied = rules.validateComplete(id,config,state.runs[id],correctReason,state.levels[id].evidenceStart || 0).passed;
+        const scaffold = recordScaffold(state,id,{kind:'reason',input:state.drafts[id]?.input || {},config,result,testsSatisfied,eventKey:body.eventId,at:now()});
+        if(scaffold)result = { ...result, scaffold };
         state.levels[id].valid = result.passed;
         if (result.passed) {
           const level = state.levels[id];

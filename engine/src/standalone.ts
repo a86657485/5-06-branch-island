@@ -25,6 +25,9 @@ const controls = document.getElementById('engine-controls');
 const status = document.getElementById('engine-status');
 const statusText = document.getElementById('engine-status-text');
 const reloadButton = document.getElementById('engine-reload') as HTMLButtonElement | null;
+const feedbackLine=document.getElementById('engine-feedback');
+const assistanceCard=document.getElementById('engine-assistance');
+let activeWorldHelp: {stepKey:string,target?:{focusKey?:string},origin?:string,level?:number}|null=null;
 const dismissButton = document.getElementById('engine-dismiss') as HTMLButtonElement | null;
 
 function stopMovement() {
@@ -63,14 +66,14 @@ document.getElementById('engine-action')?.addEventListener('click', () => {
   engine!.processAction('action', { direction });
 });
 
-for (const method of ['help', 'flow'] as const) {
+for (const method of ['help', 'flow', 'learn'] as const) {
   document.getElementById(`engine-${method}`)?.addEventListener('click', async () => {
     if (!canControl()) return;
     stopMovement();
     auxiliaryBusy = true;
     const previousBlock = engine!.stopProcessingInput;
     engine!.stopProcessingInput = true;
-    try { await request(method, { levelId: getContext()?.levelId }); }
+    try { if(method==='learn')await request('learn');else await request(method, { levelId: getContext()?.levelId }); }
     catch (error) { showStatus(error instanceof Error ? error.message : '暂未打开，请重试。'); }
     finally { engine!.stopProcessingInput = previousBlock; auxiliaryBusy = false; }
   });
@@ -168,17 +171,26 @@ function projectWorld(target: { x?: number, y?: number }) {
 function paintPanelFocus(focus: { kind?: string, id?: string }) {
   document.querySelectorAll('.card-tray.focus-target, .flow-slot.focus-target, .studio.focus-target, .predict-option.focus-target, .studio-tabs .focus-target, .studio-lock.focus-target, .predict-table.focus-target').forEach(node => node.classList.remove('focus-target'));
   if (focus.kind !== 'panel' || !focus.id) return;
-  if (focus.id === 'predict-row-next' && document.querySelector('[data-focus="predict-lock"].next')) {
-    document.querySelector('[data-focus="predict-lock"]')?.classList.add('focus-target');
-    return;
-  }
-  document.querySelector(`[data-focus="${focus.id}"]`)?.classList.add('focus-target');
-  if (focus.id === 'predict-row-next') document.querySelectorAll('.predict-row.next button').forEach(node => node.classList.add('focus-target'));
-  if (focus.id === 'slot-next' || focus.id === 'sentence-slot-next') {
-    const region = focus.id === 'sentence-slot-next' ? '[data-region="sentence-cards"]' : '[data-region="flow-cards"]';
-    document.querySelector(region)?.classList.add('focus-target');
-  }
+  const id=focus.id==='sentence-slot-next'?'sentence-lock':focus.id;
+  document.querySelector(`[data-focus="${id}"]`)?.classList.add('focus-target');
 }
+function worldStep(){const focus=lessonFocus();return JSON.stringify([getContext()?.levelId,focus.id,focus.step]);}
+function clearAssistance(){activeWorldHelp=null;if(assistanceCard)assistanceCard.hidden=true;focusMarker?.classList.remove('assisted-marker');}
+function showAssistance(detail:any){
+ if(!assistanceCard)return;
+ activeWorldHelp={stepKey:worldStep(),target:detail.target,origin:detail.origin,level:detail.level};
+ const title=assistanceCard.querySelector('strong'),text=assistanceCard.querySelector('p');
+ if(title)title.textContent=detail.origin==='tool'?'法宝示范':'探究帮助';
+ if(text)text.textContent=[detail.action,detail.why || detail.text].filter(Boolean).join('\n');
+ assistanceCard.hidden=false;
+}
+window.addEventListener('lesson-feedback',event=>{
+ const detail=(event as CustomEvent).detail || {};
+ if(feedbackLine){feedbackLine.textContent=detail.text || '';feedbackLine.hidden=!detail.text;}
+ if(detail.level>0)showAssistance({...detail,origin:'scaffold'});
+});
+document.getElementById('engine-assistance-close')?.addEventListener('click',clearAssistance);
+
 function paintDots(dots: Array<{ x: number, y: number }> = []) {
   if (!pathDots) return;
   pathDots.replaceChildren();
@@ -196,10 +208,11 @@ function paintFocus(focus = lessonFocus()) {
   if (new URLSearchParams(location.search).has('preview')) return;
   if (hostOverlay && focusMarker) focusMarker.hidden = true;
   const focusStrength = idle.strength();
+  if(activeWorldHelp && activeWorldHelp.stepKey!==worldStep())clearAssistance();
   if (taskHint) {
     taskHint.textContent = focusStrength ? focus.strong : focus.hint;
     taskHint.hidden = false;
-    taskHint.dataset.strength = String(focusStrength);
+    taskHint.dataset.strength = focus.kind==='panel'?'0':String(focusStrength);
     taskHint.classList.toggle('focus-target', true);
     taskHint.classList.toggle('tap-hand', focusStrength >= 2 && focus.goto);
   }
@@ -217,7 +230,9 @@ function paintFocus(focus = lessonFocus()) {
       focusMarker.style.setProperty('--target-half-width', `${point.halfWidth}px`);
       if (focusArrow) focusArrow.textContent = point.arrow;
     }
-    focusLabel.textContent = point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '';
+    const showingTarget=!!activeWorldHelp && activeWorldHelp.target?.focusKey===focus.target?.place;
+    focusMarker.classList.toggle('assisted-marker',showingTarget);
+    focusLabel.textContent = showingTarget?'法宝位置':point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '';
   }
   paintDots(hostOverlay ? [] : (focus.dots || []));
   paintPanelFocus(focus);
@@ -261,7 +276,7 @@ window.addEventListener('lesson-dialog-state', event => {
   if (controls) controls.inert = dialogOpen;
   syncIdle();
 });
-window.addEventListener('lesson-map-changed', () => { stopMovement(); syncIdle(true); window.setTimeout(() => syncIdle(), 800); });
+window.addEventListener('lesson-map-changed', () => { clearAssistance();if(feedbackLine)feedbackLine.hidden=true;stopMovement(); syncIdle(true); window.setTimeout(() => syncIdle(), 800); });
 window.addEventListener('keydown', event => {
   if (event.key !== 'Escape' || window.parent === window) return;
   window.parent.postMessage({ type: 'rpgjs-overlay-close' }, window.location.origin);
@@ -276,7 +291,7 @@ document.getElementById('engine-goto')?.addEventListener('click', () => {
   const context = getContext();
   const focus = lessonFocus(context);
   if (!canControl() || !focus.goto) return;
-  noteActivity();
+  noteActivity();clearAssistance();if(feedbackLine)feedbackLine.hidden=true;
   window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { ...focus.target, goto: true } }));
   void request('navHelp', { levelId: context?.levelId, mapId: focus.target.mapId || '', step: focus.step, focusId: focus.id, trigger: 'goto', strength: 0, idleMs: 0 }).catch(() => undefined);
 });
@@ -284,9 +299,9 @@ document.getElementById('engine-hint')?.addEventListener('click', async () => {
   if(!canControl() || auxiliaryBusy)return;
   stopMovement();noteActivity();auxiliaryBusy=true;paintFocus();
   try{
-    const focus=lessonFocus();
+    const focus=lessonFocus(),requestedStep=worldStep();
     const value=await request<any>('toolHint',{step:{phase:'world',key:focus.id}});
-    showStatus(value.hint.action+'\n为什么：'+value.hint.why);
+    if(requestedStep===worldStep())showAssistance({...value.hint,origin:'tool'});
   }catch(error){showStatus(error instanceof Error?error.message:'法宝暂未确认，次数没有扣。');}
   finally{auxiliaryBusy=false;paintFocus();}
 });
@@ -300,6 +315,7 @@ document.getElementById('engine-help')?.addEventListener('click', () => {
   noteActivity();
   void request('navHelp', { levelId: getContext()?.levelId, mapId: focus.target.mapId || '', step: focus.step, focusId: focus.id, trigger: 'button', strength: 0, idleMs: 0 }).catch(() => undefined);
 });
+window.addEventListener('lesson-level-changed',()=>{clearAssistance();if(feedbackLine)feedbackLine.hidden=true;});
 window.addEventListener('lesson-bridge-error', event => showStatus((event as CustomEvent<string>).detail));
 window.addEventListener('blur', stopMovement);
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopMovement(); syncIdle(); });

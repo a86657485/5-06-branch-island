@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { getContext, request, subscribeContext } from '../classroom-bridge';
+import { assistedChoice, assistedField, assistedOperation, claimScaffold, scaffoldMatches, type Assistance, type AssistanceTarget } from './assisted-focus';
 import { stationBrief } from '../../../public/task-guidance.mjs';
 import { toPlain } from './plain';
 import SentencePanel from './SentencePanel.vue';
@@ -22,10 +23,12 @@ const history = ref<PanelEdit[]>([]);
 const message = ref('');
 const support = ref(getContext()?.support);
 const toolBusy = ref(false);
-const toolAnswer = ref<{ key: string; action: string; why: string } | null>(null);
+const toolAnswer = ref<({ key: string; action: string; why: string } & Assistance) | null>(null);
 const thermal = mode === 'sale' || mode === 'repair';
 const cards = computed(() => cardsFor(mode));
 const step = computed(() => guidedPanelStep({ mode, flow: board.value, sentence: sentence.value, predictions: predictions.value, diagnosed: props.diagnosed, diagnose: diagnose.value, slot: editingSlot.value }));
+const stepKey=computed(()=>JSON.stringify(step.value));
+watch(stepKey,()=>{toolAnswer.value=null;});
 const view = computed(() => step.value.phase === 'predict' ? 'predict' : step.value.phase === 'sentence' ? 'sentence' : 'flow');
 const slotName = computed(() => step.value.slot || '');
 const choices = computed(() => step.value.slot ? cardsForSlot(mode, step.value.slot) : []);
@@ -45,17 +48,37 @@ const dragPoint = ref<{ x: number; y: number } | null>(null);
 let drag: { id: string; x: number; y: number; moved: boolean } | null = null;
 let unsubscribe: (() => void) | undefined;
 
+function showScaffold(context: any) {
+ const help=context.scaffold;
+ if(!help || context.levelId!==mode || !scaffoldMatches(help,step.value))return;
+ const key=String(help.key || help.eventKey || help.at || JSON.stringify(help));
+ const target=help.target || {};
+ const phase=step.value.phase;
+ const matches=help.kind==='reason'?false:target.cardId?phase==='flow' && choices.value.some(card=>card.id===target.cardId):phase==='predict'||phase==='flow'||phase==='diagnose';
+ if(!matches)return;
+ if(!claimScaffold(`flow:${mode}`,key))return;
+ toolAnswer.value={key,action:help.action || help.lines?.[0] || '看看刚才的结果。',why:help.why || help.lines?.slice(1).join('') || help.message || '',origin:'scaffold',level:help.level,stepKey:stepKey.value,target};
+}
+function clearHelp(retire=false){
+ if(retire){const help=getContext()?.scaffold;if(help)claimScaffold(`flow:${mode}`,String(help.key || help.eventKey || help.at || JSON.stringify(help)));}
+ toolAnswer.value=null;
+}
+function highlightChoice(id:string){return assistedChoice(toolAnswer.value,stepKey.value,id);}
+function highlightOperation(key:string){return assistedOperation(toolAnswer.value,stepKey.value,key);}
+function highlightField(field:string){return assistedField(toolAnswer.value,stepKey.value,field);}
+async function reviewKnowledge(){try{await request('learn');}catch(error){message.value=error instanceof Error?error.message:'知识卡暂时没打开。';}}
 function cardLabel(id: string) { return cards.value.find(card => card.id === id)?.label || ''; }
 function publish(extra: Record<string, unknown> = {}) {
   window.dispatchEvent(new CustomEvent('lesson-artifact', { detail: toPlain({ flow: board.value, sentence: sentence.value, predictionsLocked: predictions.value, diagnoseAnswer: diagnose.value, panel: view.value, ...(lockedConfig.value ? { config: lockedConfig.value } : {}), ...extra }) }));
 }
 function remember() {
   history.value.push(panelEditSnapshot({ flow: board.value, sentence: sentence.value, predictions: predictions.value, diagnose: diagnose.value, slot: editingSlot.value, config: lockedConfig.value }));
-  toolAnswer.value = null;
+  clearHelp(true);
 }
 function undo() {
   const previous = history.value.pop();
   if (!previous || toolBusy.value) return;
+  clearHelp(true);
   board.value = previous.flow; sentence.value = previous.sentence; predictions.value = previous.predictions;
   diagnose.value = previous.diagnose; editingSlot.value = previous.slot; lockedConfig.value = previous.config;
   message.value = '已撤回上一步，可以重新选择。'; toolAnswer.value = null;
@@ -131,13 +154,16 @@ async function useTool() {
   toolBusy.value = true;
   try {
     const current = step.value;
-    const phase = current.phase === 'lock' ? { phase: 'flow', slot: 'diamond' } : current.phase === 'original' ? { phase: 'predict', temperature: 30 } : current.phase === 'run' ? { phase: 'world', key: 'control' } : current;
-    const result = await request<{ hint: { key: string; action: string; why: string }; remaining: number; used: number }>('toolHint', { step: phase });
-    toolAnswer.value = result.hint; support.value = { ...support.value, remaining: result.remaining, used: result.used };
+    const phase = current.phase === 'lock' ? { phase: 'confirm' } : current.phase === 'original' ? { phase: 'predict', temperature: 30 } : current.phase === 'predict' && current.temperature === null ? { phase: 'confirm-predictions' } : current;
+    const requestedStep=stepKey.value;
+    const result = await request<{ hint: { key: string; action: string; why: string; target?: AssistanceTarget }; remaining: number; used: number }>('toolHint', { step: phase });
+    if(requestedStep===stepKey.value)toolAnswer.value = {...result.hint,origin:'tool',stepKey:requestedStep};
+    support.value = { ...support.value, remaining: result.remaining, used: result.used };
   } catch (error) { message.value = error instanceof Error ? error.message : '法宝暂时没打开，请再试一次。'; }
   finally { toolBusy.value = false; }
 }
 function finish(action: string) {
+  clearHelp(true);
   publish({ panel: '' });
   close?.('flow-panel', { action, flow: toPlain(board.value), sentence: toPlain(sentence.value), predictions: toPlain(predictions.value) });
 }
@@ -150,7 +176,7 @@ onMounted(() => {
   if (board.value.locked && initial.ok && initial.config) lockedConfig.value = initial.config;
   if (board.value.locked && !sentence.value.locked) sentence.value = sentenceFromFlow(mode, board.value);
   if (props.preview === 'predict') { sentence.value = lockSentence(mode, sentenceFromFlow(mode, board.value), board.value).sentence; }
-  unsubscribe = subscribeContext(context => { support.value = context.support; });
+  unsubscribe = subscribeContext(context => { support.value = context.support; showScaffold(context); });
   publish(); window.addEventListener('keydown', onKey, true);
   void nextTick(() => document.querySelector<HTMLElement>('.studio')?.focus());
 });
@@ -161,19 +187,20 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
   <div class="studio-shade">
     <section class="studio" :class="{ 'studio-alarm': alarm }" role="dialog" aria-label="规则控制柜" tabindex="-1">
       <header class="guided-tools">
+        <button type="button" @click="reviewKnowledge">回顾知识</button>
         <button type="button" :disabled="!history.length || toolBusy" @click="undo">撤回上一步</button>
         <button type="button" :disabled="!canUseTool(support, toolBusy)" @click="useTool">通关法宝 · 还剩 {{ support?.remaining ?? '—' }} 次</button>
         <button type="button" class="guided-close" aria-label="关闭面板" @click="finish('close')">×</button>
       </header>
       <p class="studio-kicker">{{ mode === 'repair' ? '返修控制柜' : mode === 'cross' ? '导行屏' : mode === 'minimum' ? '配电柜' : '规则控制柜' }}</p>
       <p class="studio-order">{{ orderLine }}</p>
-      <h2 class="guided-step">{{ stepTitle }}</h2>
+      <h2 class="guided-step" :class="{ 'clue-focus': highlightField('reading') || highlightField('input') }">{{ stepTitle }}</h2>
       <aside v-if="toolAnswer" class="tool-answer" role="status">
-        <button type="button" aria-label="关闭法宝提示" @click="toolAnswer = null">×</button>
-        <strong>下一步：{{ toolAnswer.action }}</strong><p>为什么：{{ toolAnswer.why }}</p>
+        <button type="button" aria-label="关闭法宝提示" @click="clearHelp(false)">×</button>
+        <strong>{{ toolAnswer.origin === 'scaffold' ? '探究帮助：' : '法宝示范：' }}{{ toolAnswer.action }}</strong><p v-if="toolAnswer.why">为什么：{{ toolAnswer.why }}</p>
       </aside>
       <div v-if="step.phase === 'diagnose'" class="diagnose" data-focus="diagnose-cards">
-        <button v-for="item in [['condition','判断条件不合适'],['exit','两个动作接反了'],['none','程序没有问题']]" :key="item[0]" type="button" @click="selectDiagnosis(item[0])">{{ item[1] }}</button>
+        <button v-for="item in [['condition','判断条件不合适'],['exit','两个动作接反了'],['none','程序没有问题']]" :key="item[0]" type="button" :class="{ 'answer-demo': highlightChoice(item[0]) }" @click="selectDiagnosis(item[0])">{{ item[1] }}</button>
       </div>
       <div v-if="view === 'flow' && step.phase !== 'diagnose'" data-panel="flow">
         <div v-if="thermal" class="textbook" aria-label="教材式流程图">
@@ -181,7 +208,7 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
           <div class="tb-stem" aria-hidden="true"></div>
           <div class="tb-para" ><span>读取温度</span></div>
           <div class="tb-stem" aria-hidden="true"></div>
-          <button type="button" class="flow-slot tb-diamond" data-slot="diamond" :class="{ next: slotName === 'diamond' }" :data-focus="slotName === 'diamond' ? 'slot-next' : undefined" @dragover.prevent @drop="onDrop('diamond', $event)">
+          <button type="button" class="flow-slot tb-diamond" data-slot="diamond" :class="{ next: slotName === 'diamond', 'clue-focus': highlightField('condition') }" :data-focus="slotName === 'diamond' ? 'slot-next' : undefined" @dragover.prevent @drop="onDrop('diamond', $event)">
             <svg viewBox="0 0 200 120" aria-hidden="true"><polygon points="100,6 194,60 100,114 6,60" /></svg>
             <span>{{ cardLabel(board.diamond) || '空' }}</span>
           </button>
@@ -197,7 +224,7 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
             <text x="206" y="26">否</text>
           </svg>
           <div class="tb-actions">
-            <button v-for="slot in (['yes','no'] as const)" :key="slot" type="button" class="flow-slot tb-rect" :data-slot="slot" :class="{ next: slotName === slot }" :data-focus="slotName === slot ? 'slot-next' : undefined" @dragover.prevent @drop="onDrop(slot, $event)">{{ cardLabel(board[slot]) || '空' }}</button>
+            <button v-for="slot in (['yes','no'] as const)" :key="slot" type="button" class="flow-slot tb-rect" :data-slot="slot" :class="{ next: slotName === slot, 'clue-focus': slot === 'diamond' && highlightField('condition') }" :data-focus="slotName === slot ? 'slot-next' : undefined" @dragover.prevent @drop="onDrop(slot, $event)">{{ cardLabel(board[slot]) || '空' }}</button>
           </div>
           <svg class="tb-join" viewBox="0 0 320 36" aria-hidden="true">
             <path d="M78 2 L160 28 L242 2" fill="none" stroke="#184c3b" stroke-width="3" />
@@ -213,15 +240,16 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
         </div>
 
         <div v-if="step.phase === 'flow'" class="card-tray" data-region="flow-cards">
-          <button v-for="card in choices" :key="card.id" type="button" class="studio-card" draggable="true" @dragstart="$event.dataTransfer?.setData('text/plain', card.id)" @pointerdown="beginDrag(card.id, $event)" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="cancelDrag" @click="choose(card.id)">{{ card.label }}</button>
+          <button v-for="card in choices" :key="card.id" type="button" :class="{ 'answer-demo': highlightChoice(card.id) }" class="studio-card" draggable="true" @dragstart="$event.dataTransfer?.setData('text/plain', card.id)" @pointerdown="beginDrag(card.id, $event)" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="cancelDrag" @click="choose(card.id)">{{ card.label }}</button>
         </div>
         <p v-if="step.phase === 'flow'" class="guided-note">单击一张卡，就会放进亮着的格子。也可以拖进去。</p>
       </div>
-      <SentencePanel v-if="step.phase === 'sentence'" :mode="mode" :flow="board" :sentence="sentence" @locked="confirmSentence" />
+      <SentencePanel v-if="step.phase === 'sentence'" :mode="mode" :flow="board" :sentence="sentence" :assisted-confirm="highlightOperation('sentence-confirm')" @locked="confirmSentence" />
       <div v-if="step.phase === 'predict'" class="predict-table" data-focus="predict-row-next">
+        <p class="program-clue" :class="{ 'clue-focus': highlightField('condition') }">当前判断：{{ cardLabel(board.diamond) }}<br>是→{{ cardLabel(board.yes) }}；否→{{ cardLabel(board.no) }}</p>
         <div v-if="step.temperature" class="predict-row next">
-          <button type="button" class="predict-option" @click="predict('on')">我猜：启动风机</button>
-          <button type="button" class="predict-option" @click="predict('off')">我猜：关闭风机</button>
+          <button type="button" class="predict-option" :class="{ 'answer-demo': highlightChoice('on') }" @click="predict('on')">我猜：启动风机</button>
+          <button type="button" class="predict-option" :class="{ 'answer-demo': highlightChoice('off') }" @click="predict('off')">我猜：关闭风机</button>
         </div>
         <ol class="prediction-log"><li v-for="temperature in ([29,30,31] as const)" :key="temperature">{{ temperature }}℃：{{ predictions[temperature] === 'on' ? '我猜启动' : predictions[temperature] === 'off' ? '我猜关闭' : '还没猜' }}</li></ol>
       </div>
@@ -229,10 +257,10 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
       <p v-if="message" class="studio-message" role="status">{{ message }}</p>
       <div v-if="dragLabel && dragPoint" class="drag-ghost" :style="{ left: `${dragPoint.x}px`, top: `${dragPoint.y}px` }">{{ dragLabel }}</div>
       <div class="studio-actions">
-        <button v-if="step.phase === 'lock'" type="button" class="primary-next" data-focus="flow-lock" @click="lock">确认这份程序</button>
-        <button v-else-if="step.phase === 'predict' && step.temperature === null" type="button" class="primary-next" data-focus="predict-lock" @click="lockTable">记下预测，下一步</button>
+        <button v-if="step.phase === 'lock'" type="button" class="primary-next" data-focus="flow-lock" :class="{ 'answer-demo': highlightOperation('flow-lock') }" @click="lock">确认这份程序</button>
+        <button v-else-if="step.phase === 'predict' && step.temperature === null" type="button" class="primary-next" data-focus="predict-lock" :class="{ 'answer-demo': highlightOperation('predict-lock') }" @click="lockTable">记下预测，下一步</button>
         <button v-else-if="step.phase === 'original'" type="button" class="primary-next" @click="finish('close')">回现场，先预测原程序</button>
-        <button v-else-if="step.phase === 'run'" type="button" class="primary-next" @click="finish(thermal && measured !== false ? 'run' : 'close')">{{ measured === false ? '保存修改，去读取温度' : thermal ? '执行本次温度，去现场看结果' : '保存程序，回现场先预测' }}</button>
+        <button v-else-if="step.phase === 'run'" type="button" class="primary-next" data-focus="run-next" :class="{ 'answer-demo': highlightOperation('run-next') }" @click="finish(thermal && measured !== false ? 'run' : 'close')">{{ measured === false ? (thermal ? '保存修改，去读取温度' : '保存修改，去读取现场数据') : thermal ? '执行本次温度，去现场看结果' : '保存程序，回现场先预测' }}</button>
         <button v-if="(step.phase === 'lock' || step.phase === 'sentence' || step.phase === 'run') && !(mode === 'repair' && !diagnosed)" type="button" class="edit-program" @click="editFlow">重新选卡</button>
       </div>
     </section>
@@ -267,7 +295,7 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
 .tb-actions { display: flex; justify-content: center; gap: 28px; width: 100%; }
 .tb-rect { min-width: 128px; min-height: 44px; border: 3px solid #184c3b; border-radius: 2px; background: #fff; padding: 6px 10px; }
 .drag-ghost { position: fixed; z-index: 4000; transform: translate(-50%, -130%); pointer-events: none; background: #fffef8; border: 2px solid #184c3b; border-radius: 10px; padding: 8px 10px; font-weight: 700; }
-.predict-row.next button { outline: 3px solid #1175bb; outline-offset: 2px; }
+.predict-table.focus-target { outline: 3px solid #1175bb; outline-offset: 4px; }
 .studio-lock.next, .studio-lock.focus-target { outline: 4px solid #e39b00; outline-offset: 3px; }
 .flow-slot b, .flow-slot span { display: block; }
 .card-tray { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0; padding: 6px; border: 2px solid #d7e2cc; border-radius: 12px; }
@@ -287,4 +315,6 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
 .studio-actions .primary-next { background: #1c624d; color: #fff; border-color: #1c624d; padding: 10px 18px; font-weight: 750; }
 .studio-actions .edit-program { padding: 8px 12px; font-size: 14px; }
 .prediction-log { display: flex; flex-wrap: wrap; gap: 8px 24px; padding-left: 22px; line-height: 1.8; }
+.answer-demo { outline:4px solid #ba8b28; outline-offset:3px; background:#fff3cf!important; } .clue-focus { outline:3px solid #1175bb; outline-offset:3px; }
+.program-clue{padding:10px 14px;border:1px solid #a4b69b;border-radius:10px;line-height:1.65;background:#f3f6ee;}
 </style>

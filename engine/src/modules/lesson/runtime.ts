@@ -1,8 +1,8 @@
 import { Components, EventMode, type EventDefinition, type RpgPlayer } from '@rpgjs/server';
 import { getContext, request, type BridgeMethod } from '../../classroom-bridge';
-import { ask, type DialogChoice } from '../../gui/ask';
+import { ask, type DialogChoice, type LessonDialogData } from '../../gui/ask';
 import { advance, resetTrial, evidenceFor } from './experiment';
-import { conditionLine, emptyFlow, emptyPredictions, emptySentence, faultSeen, repairPreset, repairSymbolHint } from '../../gui/flow-model';
+import { emptyFlow, emptyPredictions, emptySentence, faultSeen, repairPreset } from '../../gui/flow-model';
 import { waitForActivePlayer,mapForContext } from './active-player';
 export const ctx=()=> {const value=getContext();if(!value)throw new Error('课堂正在连接，请稍候。');return value;};
 export function scene():Record<string,any>{return ctx().draft.scene;}
@@ -22,7 +22,9 @@ function restoreScene(snapshot:{scene:any,sceneRev:number}){const draft=ctx().dr
 async function commitScene(player:RpgPlayer,next:Record<string,any>,extra:Record<string,any>={}){const snapshot=stageScene(next);try{const result=await rpc('change',{patch:{scene:next,input:inputFor(next),...extra}});player.syncChanges();return result;}catch(error){restoreScene(snapshot);throw error;}}
 export async function patchScene(player:RpgPlayer,patch:Record<string,any>){return commitScene(player,{...scene(),...patch});}
 export async function clearPending(player:RpgPlayer,patch:Record<string,any>={}){const s={...resetTrial(scene()),phase:'assigned',...patch};return commitScene(player,s,{prediction:''});}
-export async function say(player:RpgPlayer,name:string,text:string,choices?:DialogChoice[]){const id=ctx().levelId,mapId=mapForContext(ctx());const current=await waitForActivePlayer(player.id,mapId);if(ctx().levelId!==id||mapForContext(ctx())!==mapId)return null;const answer=await ask(current,{name,text,choices});return ctx().levelId===id&&mapForContext(ctx())===mapId?answer:null;}
+export function feedback(text:string,detail:Record<string,any>={}){if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('lesson-feedback',{detail:{...detail,text}}));}
+function supportDetail(scaffold:any){if(!scaffold)return {};const lines=scaffold.lines||[];return {...scaffold,action:scaffold.action||lines[0]||'先看看刚才的结果。',why:scaffold.why||lines.slice(1).join('')||'对照条件和现场结果，再试一次。'};}
+export async function say(player:RpgPlayer,name:string,text:string,choices?:DialogChoice[],hint?:string,extra:Pick<LessonDialogData,'program'>={}){const id=ctx().levelId,mapId=mapForContext(ctx());const current=await waitForActivePlayer(player.id,mapId);if(ctx().levelId!==id||mapForContext(ctx())!==mapId)return null;const answer=await ask(current,{name,text,choices,hint,...extra});return ctx().levelId===id&&mapForContext(ctx())===mapId?answer:null;}
 export function event(name:string,graphic:string,action:(player:RpgPlayer,event?:any)=>Promise<unknown>):EventDefinition{
  return {name,mode:EventMode.Scenario,onInit(){this.setGraphic(graphic);this.setHitbox(24,24);this.through=true;this.setComponentsTop(Components.text(name,{fill:'#163e31',fontSize:15,}));},async onAction(player:RpgPlayer){if(player.getVariable('lessonBusy'))return;player.setVariable('lessonBusy',true);try{await action(player,this);}catch(error){await say(player,name,error instanceof Error?error.message:'操作未完成，请重试。');}finally{player.setVariable('lessonBusy',false);}}};
 }
@@ -32,9 +34,11 @@ export async function predict(player:RpgPlayer){
  if(scene().ticket){await say(player,'控制柜','本次设备已执行。请先到核验点比较结果，再开始新测试。');return;}
  const id=ctx().levelId,config=ctx().draft.config||{},choices=outputChoices();
  const symbols:Record<string,string>={'>=':'≥','<':'＜','>':'＞','<=':'≤'};
- const condition=id==='cross'?'附近有可用天桥或地下通道吗':id==='minimum'?`电量A${symbols[config.operator]||config.operator}B吗`:`温度${symbols[config.operator]||config.operator}30℃吗`;
+ const condition=id==='cross'?'附近有可用设施吗':id==='minimum'?`电量A${symbols[config.operator]||config.operator}B吗`:`温度${symbols[config.operator]||config.operator}30℃吗`;
  const label=(value:string)=>choices.find(choice=>choice.id===value)?.label||'尚未设置';
- const value=await say(player,'先预测，再运行',`当前程序：判断“${condition}”；成立时${label(config.yes)}，不成立时${label(config.no)}。\n现场输入：${id==='cross'?(input().facility?'附近有可用天桥':'附近没有天桥'):id==='minimum'?`A剩余${input().a}%，B剩余${input().b}%`:`温度${input().temperature}℃`}。\n沿当前程序想一想：这次会执行哪项操作？`,choices);if(!value)return;
+ const prompt=id==='cross'?`这里${input().facility?'有':'没有'}可用设施。你预测会指哪条路？`:id==='minimum'?`A=${input().a}%，B=${input().b}%。你预测会选哪块？`:`现在是${input().temperature}℃。你预测风机会怎样？`;
+ const program={condition,yes:label(config.yes),no:label(config.no)};
+ const value=await say(player,'先预测，再运行',prompt,choices,undefined,{program});if(!value)return;
  await rpc('predict',{value,input:input(),config:ctx().draft.config});await patchScene(player,{...advance(scene(),'predict')});
 }
 export async function configure(player:RpgPlayer){
@@ -77,25 +81,32 @@ export async function apply(player:RpgPlayer){
  const s=thermal?advance(scene(),'ticket'):scene();
  await patchScene(player,{...s,ticket:{output:result.output,expected:result.expected,condition:result.condition,correct:result.correct,branch:result.branch},phase:'executed',...(thermal?{deviceOutput:result.output}:{})});
  player.setVariable('deviceOutput',result.output);player.syncChanges();
- await say(player,'程序已执行',`${result.trace.join('\n')}\n${thermal?'请走到核验仪旁比较任务目标。':'请按选中分支亲自完成操作，再去核验。'}`);return true;
+ const selected=ctx().draft.config[result.branch];
+ const message=thermal?`风机${result.output==='on'?'启动':'关闭'}了。去核验仪对照预测。`:ctx().levelId==='cross'?`程序选中了${result.output==='bridge'?'天桥':'人行横道'}。沿这一路去核验。`:`程序选中了电池${String(selected).toUpperCase()}。去接入它，再核验。`;
+ feedback(message);return true;
 }
 export async function record(player:RpgPlayer,finalStep:string,outcome?:string){
  const s=scene(),id=ctx().levelId;if(!s.ticket)throw new Error('当前还没有执行结果。先读取、预测并运行。');
  const next=advance(s,finalStep);const evidence=evidenceFor(id,next,s.ticket.output,ctx().draft.prediction,outcome);
  const result=await rpc('experiment',{input:input(),prediction:ctx().draft.prediction,sceneEvidence:evidence});
  if(!result)throw new Error('本次实验没有保存，请重试核验。');
- const hint=!result.correct&&input().temperature===30?repairSymbolHint(ctx().draft.config):'';
- let feedbackNext=result.correct?'到负责人那里换下一种现场，再读取、预测和运行。':'回控制柜检查条件和两个出口，再重新测试。';
- if(canReview())feedbackNext='本站需要的情况已经测齐，到负责人那里说明你的发现。';
- else if(result.correct&&(id==='sale'||id==='repair')){const temperature=[29,30,31].find(value=>!currentRuns().some(run=>run.input?.temperature===value&&run.correct));feedbackNext=`到温度探头${temperature?`采样${temperature}℃`:'重新读数'}，继续检验当前程序。`;}
- const message=`${outcome==='blocked'?'通道受阻，你留在安全侧。':''}条件${result.condition?'成立':'不成立'}，只执行${result.branch==='yes'?'成立':'不成立'}分支。${result.correct?'符合任务约定。':'这次结果与任务约定不符。'}${result.correct?'':`\n你的条件：${conditionLine(result)}`}${hint?`\n${hint}`:''}\n下一步：${feedbackNext}`;
+ let nextStep=result.correct?'换一种现场，再判断一次。':'回控制柜改一处，再重新测试。';
+ if(canReview())nextStep='测试齐了，去找负责人。';
+ else if(result.correct&&(id==='sale'||id==='repair')){const temperature=[29,30,31].find(value=>!currentRuns().some(run=>run.input?.temperature===value&&run.correct));nextStep=`再读${temperature||'一个新温度'}℃，检验另一种情况。`;}
+ const message=`${outcome==='blocked'?'通道受阻，先留在安全侧。':`条件${result.condition?'成立':'不成立'}，这次走“${result.branch==='yes'?'是':'否'}”出口。`}${nextStep}`;
  const clean:Record<string,any>={...s,actions:[],phase:'assigned',measured:false,lastFeedback:message,visited:[...new Set([...(s.visited||[]),'verified'])],...(id==='minimum'?{collected:[]}:{})};delete clean.ticket;
- await commitScene(player,clean,{prediction:''});await say(player,'现场核验',message);return result;
+ await commitScene(player,clean,{prediction:''});feedback(message,supportDetail(result.scaffold));return result;
 }
+
 export async function review(player:RpgPlayer){
  const reasons=ctx().reasons.map((r:any)=>Array.isArray(r)?{id:r[0],label:r[1]}:{id:r.value,label:r.label});
- const value=await say(player,'验收负责人','请结合自己的运行记录，说明判断条件与执行分支的关系。不同情况都需要测试。',reasons);if(!value)return;
+ const value=await say(player,'验收负责人','用刚才的记录，说明你为什么这样选。',reasons);if(!value)return;
  await rpc('reason',{value});const result=await rpc('complete');
- const next=await say(player,'验收记录',result.feedback,result.passed?[{id:'next',label:ctx().levelId==='minimum'?'进入独立检测':'领取下一站委托'}]:undefined);if(next==='next')await rpc('next');
+ if(!result.passed){feedback('这次还没验收通过。对照记录再试一次。',supportDetail(result.scaffold));return;}
+ const id=ctx().levelId;
+ const choices=id==='cross'?[{id:'next',label:'进入基础检测'},{id:'optional',label:'去储能柜选做'}]:[{id:'next',label:id==='minimum'?'进入基础检测':'领取下一站委托'}];
+ const next=await say(player,'验收记录',id==='cross'?'三站巡检完成。先进入基础检测。':id==='minimum'?'配电验证通过，选做加分已记录。':'本站验收通过。继续下一项委托。',choices);
+ if(next==='next')await rpc('next');else if(next==='optional')await rpc('next',{optional:true});
 }
+
 export function portal(){return event('下一站','portal',async player=>{if(ctx().levelId==='sale'){await say(player,'任务通道',ctx().level.completed?'返修就在这间温室。沿箭头走到维修员那里，不用传送。':'请先完成现场测试，并向负责人汇报。');return;}if(!ctx().level.completed){await say(player,'任务通道','请先完成现场测试，并向负责人汇报。');return;}const value=await say(player,'任务通道','本项委托已完成，继续下一项巡检。',[{id:'next',label:'出发'}]);if(value==='next')await rpc('next');});}
