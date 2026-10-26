@@ -4,9 +4,8 @@ import { EventMode, type EventDefinition, type RpgPlayer } from '@rpgjs/server';
 import { advanceRoute, bothRoadsVerified, closedBridgeSelected, routeMark } from './route-progress.mjs';
 import {
   apply, clearPending, configure, ctx, event, input, patchScene, predict,
-  record, review, say, scene, currentRuns, canReview, feedback, quickThermalRun
+  record, review, say, scene, currentRuns, canReview, feedback
 } from './runtime';
-import { faultSeen } from '../../gui/flow-model';
 
 const routeProgress = new WeakMap<RpgPlayer, ReturnType<typeof advanceRoute>>();
 const movingSave = new WeakSet<RpgPlayer>();
@@ -50,7 +49,16 @@ async function roadGuide(player: RpgPlayer, east = false) {
   const nextFacility=verified.length?([true,false].find(value=>!verified.some(run=>run.input?.facility===value))??scene().facility):scene().facility!==false;
   const change=!first&&nextFacility!==scene().facility;
   const returning=!first&&!change&&east&&!scene().ticket;
-  const choice=await say(player,'巡检员小巡',first?'游客不知该往哪走。请先观察设施，再替导行屏配好规则。':change?'这里已经测对。再检查另一种现场。':returning?'还要再验一次。先沿安全路线回到西岸。':'先观察，再到导行屏作预测。运行后，沿选中的路去核验。',[{id:first?'accept':change?'next-case':returning?'return':'continue',label:first?'领取巡检任务':change?(nextFacility?'检查有可用设施的路口':'检查没有可用设施的路口'):returning?'沿安全路线回西岸':'继续本次巡检'}]);
+  const choice=await say(
+    player,
+    '巡检员小巡',
+    first?'游客不知该往哪走。请先去【设施观察点】观察设施，再去【智能指路牌】替导行屏配好规则。':change?'太棒了！这里已经测对。现在我们再检查另一种现场情况吧！':returning?'还要再验一次。先沿安全路线回到西岸。':'第一步先去【设施观察点】观察，再到【智能指路牌】作预测。运行后，沿选中的路走去对岸【通行核验台】核验。',
+    [{
+      id:first?'accept':change?'next-case':returning?'return':'continue',
+      label:first?'👉 领取巡检任务（开始第1步）':change?(nextFacility?'👉 切换并检查：有可用设施的路口':'👉 切换并检查：没有可用设施的路口'):returning?'👉 沿安全路线回西岸':'👉 明白，继续本次巡检'
+    }],
+    first?'💡 领完任务后，先点上方【🔭 设施观察点】看看有没有天桥！':change?'💡 点下方按钮即可直接切换到第二种路口现场！':undefined
+  );
   if (choice === 'return') {
     player.setVariable('returnToWest', true);
     await patchScene(player, { ...(scene().facility ? {} : { signal: 'green' }) });
@@ -77,13 +85,17 @@ async function observeRoad(player: RpgPlayer) {
     phase: 'observed', actions: ['observe']
   });
   return say(player, '现场观察仪', facility
-    ? '附近有可用天桥。去导行屏判断这次怎么走。'
-    : '附近没有天桥或地下通道。看看导行屏的另一条安排。');
+    ? '🌉 观察结果：附近【有可用天桥】！下一步：请点【🪧 智能指路牌】装规则或判断这次怎么走。'
+    : '🚧 观察结果：附近【没有天桥或地下通道】！下一步：请点【🪧 智能指路牌】看看另一条路线安排。');
 }
 
 async function routeConsole(player: RpgPlayer) {
   if(!ctx().draft.flow?.locked||(!scene().ticket&&currentRuns().some(run=>!run.correct)))return configure(player);
-  if(scene().actions?.[1]!=='predict')return predict(player);
+  if(scene().actions?.[1]!=='predict'){
+    await predict(player);
+    if(ctx().draft.sentence?.locked && scene().actions?.[1]==='predict' && !scene().ticket)return apply(player);
+    return;
+  }
   return apply(player);
 }
 
@@ -99,14 +111,15 @@ async function bridgeEntrance(player: RpgPlayer) {
 }
 
 async function signalLamp(player: RpgPlayer) {
-  if(scene().signal==='green')return say(player,'人行信号灯','绿灯亮了。沿选中的人行横道到对岸核验。');
+  if(scene().signal==='green')return say(player,'人行信号灯','🟢 绿灯亮了！现在点对岸的【🖥️ 通行核验台】或顺着脚印沿斑马线走过去核验吧！');
   const choice = await say(player, '人行信号灯', scene().signal === 'green'
     ? '绿灯亮了。沿选中的人行横道到对岸核验。'
-    : '红灯时，先在安全侧停住。点下面的按钮，等绿灯亮起。', [
-      { id: 'green', label: '等待绿灯，准备通行' }
+    : '🔴 红灯时，先在安全侧停住。点下面的按钮，等绿灯亮起再安全过马路！', [
+      { id: 'green', label: '🚦 等待绿灯，准备通行（👆点这里）' }
     ]);
   if (choice !== 'green') return;
   await patchScene(player, { signal: 'green' });
+  feedback('🟢 绿灯亮啦！快点对岸【通行核验台】或自动前往走过斑马线！');
 }
 
 let visitorShape: {
@@ -243,7 +256,15 @@ async function energyGuide(player: RpgPlayer) {
   const verified=currentRuns().filter(run=>run.correct);
   const pair=verified.length?(verified.some(run=>run.input?.a<run.input?.b)?'pair-b':'pair-a'):(scene().pair||'pair-a');
   const change=!first&&pair!==(scene().pair||'pair-a');
-  const choice=await say(player,'储能柜小电',first?'只有一个优先充电口，我担心电量少的等太久。请先读两块电量。':change?'这一组已经测对。换另一组电量再试。':'先读两块电量，再让控制台比较。两组都要检验。',[{id:first?'accept':change?'next-case':'continue',label:first?'领取节能配电任务':change?(pair==='pair-b'?'换一组：A 9%，B 2%':'换一组：A 3%，B 8%'):'继续调试配电程序'}]);
+  const choice=await say(
+    player,
+    '储能柜小电',
+    first?'只有一个优先充电口，我担心电量少的等太久。请先去读两块电池的电量。':change?'这一组已经测对！现在换另一组电量再试一次吧。':'先依次点【A 电池支路】和【B 电池支路】读两块电量，再让【配电控制台】比较。两组都要检验。',
+    [{
+      id:first?'accept':change?'next-case':'continue',
+      label:first?'👉 领取节能配电任务（开始第1步）':change?(pair==='pair-b'?'👉 换一组：A 9%，B 2%（👆点我切换）':'👉 换一组：A 3%，B 8%（👆点我切换）'):'👉 继续调试配电程序'
+    }]
+  );
   if (choice === 'accept') {
     await patchScene(player, { phase: 'assigned' });return;
   }
@@ -261,7 +282,7 @@ async function battery(player: RpgPlayer, key: 'a' | 'b') {
     if (!current.actions.includes('route')) {
       await patchScene(player, { actions: [...current.actions, 'route'], phase: 'connected' });
     }
-    return feedback(`已接入${key.toUpperCase()}电池，剩余${values[key]}%。下一步去核验台。`);
+    return feedback(`🔌 已接入${key.toUpperCase()}电池，剩余${values[key]}%。下一步快点【充电核验台】保存结果！`);
   }
   const previous = current.measured || ctx().draft.prediction ? [] : (current.collected ?? []);
   const collected = [...new Set([...previous, key])];
@@ -270,12 +291,16 @@ async function battery(player: RpgPlayer, key: 'a' | 'b') {
     pair: current.pair ?? 'pair-a', actorId: current.pair ?? 'pair-a', collected, measured,
     actions: measured ? ['collect'] : [], phase: measured ? 'collected' : 'reading'
   });
-  return feedback(`读到${key.toUpperCase()}电量${values[key]}%。${measured ? '两块都读完了，去控制台比较。' : '再读另一块电池。'}`);
+  return feedback(`🔋 读到${key.toUpperCase()}电量${values[key]}%。${measured ? '两块都读完了，快点【配电控制台】比较电量！' : `下一步请点【${key === 'a' ? 'B' : 'A'} 电池支路】再读另一块电池。`}`);
 }
 
 async function energyConsole(player: RpgPlayer) {
   if(!ctx().draft.flow?.locked||(!scene().ticket&&currentRuns().some(run=>!run.correct)))return configure(player);
-  if(scene().actions?.[1]!=='predict')return predict(player);
+  if(scene().actions?.[1]!=='predict'){
+    await predict(player);
+    if(ctx().draft.sentence?.locked && scene().actions?.[1]==='predict' && !scene().ticket)return apply(player);
+    return;
+  }
   return apply(player);
 }
 
@@ -284,113 +309,6 @@ async function verifyEnergy(player: RpgPlayer) {
     return say(player, '充电核验台', '先读电量、预测并运行。接入选中的电池，再来核验。');
   }
   return record(player, 'verify');
-}
-
-export async function quickStep(player: RpgPlayer, mode?: string) {
-  const id = ctx().levelId, s = scene();
-  if (!s.phase || s.phase === 'start') {
-    await patchScene(player, { phase: 'assigned' });
-    feedback('已领取委托，开始现场实验。');
-    return;
-  }
-  if (canReview()) {
-    await review(player);
-    return;
-  }
-  if (id === 'sale' || id === 'repair') {
-    const repair = id === 'repair';
-    if (repair && !faultSeen(ctx().runs)) {
-      if (!s.measured) {
-        await clearPending(player, { temperatureCase: 30, actorId: 'sensor30' });
-        await patchScene(player, { phase: 'measured', measured: true, actions: ['inspect'] });
-      }
-      if (scene().actions?.[1] !== 'predict') {
-        await predict(player);
-        if (scene().actions?.[1] === 'predict') {
-          await apply(player);
-          if (scene().ticket) await record(player, 'gate');
-        }
-        return;
-      }
-      if (!scene().ticket) await apply(player);
-      if (scene().ticket) await record(player, 'gate');
-      return;
-    }
-    if (!ctx().draft.flow?.locked || (repair && !ctx().draft.diagnoseAnswer)) {
-      await configure(player);
-      return;
-    }
-    const targetTemp = (mode === 'temp-29' ? 29 : mode === 'temp-30' ? 30 : mode === 'temp-31' ? 31 : ([29, 30, 31] as const).find(t => !currentRuns().some(r => r.input?.temperature === t && r.correct)) || 30) as 29 | 30 | 31;
-    await quickThermalRun(player, targetTemp);
-    return;
-  }
-  if (id === 'cross') {
-    const verified = currentRuns().filter(run => run.correct && run.scene?.outcome === 'arrived');
-    const nextFacility = verified.length ? ([true, false].find(v => !verified.some(run => run.input?.facility === v)) ?? s.facility) : s.facility !== false;
-    if (verified.length && nextFacility !== s.facility && !s.ticket) {
-      routeProgress.delete(player);
-      player.setVariable('returnToWest', false);
-      await clearPending(player, { facility: nextFacility, actorId: nextFacility ? 'cross-open' : 'cross-closed', measured: true, phase: 'observed', actions: ['observe'], signal: 'red' });
-      feedback(nextFacility ? '已切到有天桥路口并完成观察！' : '已切到无天桥路口并完成观察！');
-      return;
-    }
-    if (!s.measured && !s.ticket) {
-      const facility = s.facility === true;
-      routeProgress.delete(player);
-      await clearPending(player, { facility, actorId: facility ? 'cross-open' : 'cross-closed', measured: true, phase: 'observed', actions: ['observe'] });
-    }
-    if (!ctx().draft.flow?.locked || (!s.ticket && currentRuns().some(run => !run.correct))) {
-      await configure(player);
-      return;
-    }
-    if (scene().actions?.[1] !== 'predict') {
-      await predict(player);
-      if (scene().actions?.[1] === 'predict') await apply(player);
-      return;
-    }
-    if (!scene().ticket) {
-      await apply(player);
-      return;
-    }
-    if (scene().ticket.output === 'crossing' && scene().signal !== 'green') {
-      await patchScene(player, { signal: 'green' });
-      feedback('绿灯已亮起，正在通行核验！');
-    }
-    return;
-  }
-  if (id === 'minimum') {
-    const verified = currentRuns().filter(run => run.correct);
-    const pair = verified.length ? (verified.some(run => run.input?.a < run.input?.b) ? 'pair-b' : 'pair-a') : (s.pair || 'pair-a');
-    if (verified.length && pair !== (s.pair || 'pair-a') && !s.ticket) {
-      await clearPending(player, { pair, actorId: pair, collected: ['a', 'b'], measured: true, actions: ['collect'], phase: 'collected' });
-      feedback(pair === 'pair-b' ? '已切到第二组（A=9%，B=2%）并读完电量！' : '已切到第一组（A=3%，B=8%）并读完电量！');
-      return;
-    }
-    if (!s.measured && !s.ticket) {
-      const curPair = s.pair ?? 'pair-a';
-      await clearPending(player, { pair: curPair, actorId: curPair, collected: ['a', 'b'], measured: true, actions: ['collect'], phase: 'collected' });
-    }
-    if (!ctx().draft.flow?.locked || (!s.ticket && currentRuns().some(run => !run.correct))) {
-      await configure(player);
-      return;
-    }
-    if (scene().actions?.[1] !== 'predict') {
-      await predict(player);
-      if (scene().actions?.[1] === 'predict') {
-        await apply(player);
-        if (scene().ticket) {
-          await patchScene(player, { actions: [...scene().actions, 'route'], phase: 'connected' });
-          await record(player, 'verify');
-        }
-      }
-      return;
-    }
-    if (!scene().ticket) await apply(player);
-    if (scene().ticket) {
-      if (!scene().actions.includes('route')) await patchScene(player, { actions: [...scene().actions, 'route'], phase: 'connected' });
-      await record(player, 'verify');
-    }
-  }
 }
 
 export const energyEvents = [

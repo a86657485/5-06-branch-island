@@ -37,31 +37,10 @@ export async function predict(player:RpgPlayer){
  const condition=id==='cross'?'附近有可用设施吗':id==='minimum'?`电量A${symbols[config.operator]||config.operator}B吗`:`温度${symbols[config.operator]||config.operator}30℃吗`;
  const label=(value:string)=>choices.find(choice=>choice.id===value)?.label||'尚未设置';
  const prompt=id==='cross'?`现场${input().facility?'有':'没有'}可用设施。按屏上程序，游客会走哪一路？`:id==='minimum'?`A电量${input().a}%，B电量${input().b}%。按程序，哪块先接入？`:id==='repair'?`${faultSeen(ctx().runs)?'修后探头':'旧板'}读到${input().temperature}℃。按屏上程序，风机会怎样？`:`探头读到${input().temperature}℃。按你设的程序，风机会怎样？`;
+ const hint=id==='cross'?'💡 顺着下方“当前程序”看：有天桥走“是”，没天桥走“否”。':id==='minimum'?'💡 顺着下方“当前程序”比一比 A 和 B 的数字大小，看成立还是不成立。':`💡 顺着下方“当前程序”看：${input().temperature}℃ 代入判断条件后成立吗？成立看“是”，不成立看“否”。`;
  const program={condition,yes:label(config.yes),no:label(config.no)};
- const value=await say(player,'先预测，再运行',prompt,choices,undefined,{program});if(!value)return;
+ const value=await say(player,'先预测，再运行',prompt,choices,hint,{program});if(!value)return;
  await rpc('predict',{value,input:input(),config:ctx().draft.config});await patchScene(player,{...advance(scene(),'predict')});
-}
-export async function quickThermalRun(player:RpgPlayer,temperature:29|30|31,predValue?:string){
- const id=ctx().levelId;if(!['sale','repair'].includes(id))return null;
- const repair=id==='repair';
- if(scene().ticket)await record(player,'gate');
- await clearPending(player,{temperatureCase:temperature,actorId:`sensor${temperature}`});
- await patchScene(player,{phase:'measured',measured:true,actions:[repair?'inspect':'measure']});
- const lockedPred=predValue||(ctx().draft.predictionsLocked?.[temperature] as string)||ctx().draft.prediction||((ctx().draft.config?.operator==='<'?temperature<30:ctx().draft.config?.operator==='>'?temperature>30:ctx().draft.config?.operator==='<='?temperature<=30:temperature>=30)?ctx().draft.config?.yes:ctx().draft.config?.no)||'on';
- await rpc('predict',{value:lockedPred,input:{temperature},config:ctx().draft.config});
- await patchScene(player,{...advance(scene(),'predict')});
- await apply(player);
- return record(player,'gate');
-}
-export async function quickThermalSweep(player:RpgPlayer,predictions?:Record<string,unknown>){
- const id=ctx().levelId;if(!['sale','repair'].includes(id))return;
- const temps:Array<29|30|31>=[29,30,31];
- for(const t of temps){
-  if(currentRuns().some(run=>run.input?.temperature===t&&run.correct))continue;
-  const p=predictions?.[t] as string|undefined;
-  const res=await quickThermalRun(player,t,p);
-  if(res&&res.correct===false)break;
- }
 }
 export async function configure(player:RpgPlayer){
  if(scene().ticket){await say(player,'本次结果待核验','本次程序已执行，请先走到核验点保存实际结果，再修改程序。');return;}
@@ -72,6 +51,30 @@ export async function configure(player:RpgPlayer){
   return scene().actions?.[1]==='predict'?apply(player):predict(player);
  }
  if(!scene().measured && id!=='cross'&&!ctx().runs.length&&!(scene().visited||[]).includes('verified')){await say(player,'控制柜','先读取现场输入。');return;}
+ const hasWrongRun=currentRuns().some(run=>!run.correct);
+ const readyForDirectRun=['sale','repair'].includes(id)&&(id!=='repair'||diagnosed)&&!!scene().measured&&!!ctx().draft.flow?.locked&&ctx().draft.flow?.preset!==true&&!!ctx().draft.predictionsLocked?.locked&&!hasWrongRun;
+ if(readyForDirectRun){
+  const temperature=input().temperature;
+  const pred=(ctx().draft.predictionsLocked?.[temperature] as string)||ctx().draft.prediction||'on';
+  const predLabel=pred==='on'?'启动风机':'关闭风机';
+  const choice=await say(
+   player,
+   '规则控制柜 · 启动实测',
+   `已采样 ${temperature}℃！你的规则芯片已装好，并且预测 ${temperature}℃ 时会【${predLabel}】。现在直接启动风机检验吗？`,
+   [
+    {id:'run-now',label:`🚀 立即用 ${temperature}℃ 启动实测（建议）`},
+    {id:'edit',label:'🔧 打开控制柜查看或修改规则'}
+   ],
+   '💡 规则芯片不用每次重装，点第一个按钮就能直接启动风机，再去【现场核验仪】看结果！'
+  );
+  if(!choice)return;
+  if(choice==='run-now'){
+   await rpc('predict',{value:pred,input:input(),config:ctx().draft.config});
+   if((scene().actions||[])[1]!=='predict')await patchScene(player,{...advance(scene(),'predict')});
+   await apply(player);
+   return;
+  }
+ }
  const mode=id==='repair'?'repair':id==='cross'?'cross':id==='minimum'?'minimum':'sale';
  const result=await player.gui('flow-panel').open({
   mode,
@@ -81,26 +84,23 @@ export async function configure(player:RpgPlayer){
   predictions:ctx().draft.predictionsLocked||emptyPredictions(),
   diagnoseAnswer:ctx().draft.diagnoseAnswer||'',
   diagnosed:mode!=='repair'||diagnosed
- },{waitingAction:true,blockPlayerInput:true}) as {action?:string,temperature?:29|30|31,predictions?:{locked?:boolean,[key:string]:unknown}} | null;
+ },{waitingAction:true,blockPlayerInput:true}) as {action?:string,predictions?:{locked?:boolean,[key:string]:unknown}} | null;
  if(!result||result.action==='close')return;
- if(result.action==='quick-temp'&&result.temperature){
-  await quickThermalRun(player,result.temperature,result.predictions?.[result.temperature] as string|undefined);
-  return;
- }
- if(result.action==='quick-sweep'){
-  await quickThermalSweep(player,result.predictions);
-  return;
- }
  if(result.action==='run'){
-  if(result.predictions?.locked&&['sale','repair'].includes(id)){
-   const temperature=input().temperature;
-   const value=result.predictions[temperature];
-   if(value){
-    await rpc('predict',{value,input:input(),config:ctx().draft.config});
-    if((scene().actions||[])[1]!=='predict')await patchScene(player,{...advance(scene(),'predict')});
+  if(['sale','repair'].includes(id)){
+   if(result.predictions?.locked){
+    const temperature=input().temperature;
+    const value=result.predictions[temperature];
+    if(value){
+     await rpc('predict',{value,input:input(),config:ctx().draft.config});
+     if((scene().actions||[])[1]!=='predict')await patchScene(player,{...advance(scene(),'predict')});
+    }
    }
+   await apply(player);
+  } else if(['cross','minimum'].includes(id)&&scene().measured){
+   if((scene().actions||[])[1]!=='predict')await predict(player);
+   if((scene().actions||[])[1]==='predict'&&!scene().ticket)await apply(player);
   }
-  await apply(player);
  }
 }
 export async function apply(player:RpgPlayer){
@@ -112,7 +112,7 @@ export async function apply(player:RpgPlayer){
  await patchScene(player,{...s,ticket:{output:result.output,expected:result.expected,condition:result.condition,correct:result.correct,branch:result.branch},phase:'executed',...(thermal?{deviceOutput:result.output}:{})});
  player.setVariable('deviceOutput',result.output);player.syncChanges();
  const selected=ctx().draft.config[result.branch];
- const message=thermal?`风机${result.output==='on'?'启动':'关闭'}了。去核验仪对照预测。`:ctx().levelId==='cross'?`程序选中了${result.output==='bridge'?'天桥':'人行横道'}。沿这一路去核验。`:`程序选中了电池${String(selected).toUpperCase()}。去接入它，再核验。`;
+ const message=thermal?`🌀 风机${result.output==='on'?'启动':'关闭'}了。下一步快去【现场核验仪】对照预测！`:ctx().levelId==='cross'?`🚦 程序选中了${result.output==='bridge'?'天桥':'人行横道'}。沿这一路去对岸【通行核验台】核验！`:`⚡ 程序选中了电池${String(selected).toUpperCase()}。先去点【${String(selected).toUpperCase()}电池支路】接入它，再去核验台！`;
  feedback(message);return true;
 }
 export async function record(player:RpgPlayer,finalStep:string,outcome?:string){
@@ -121,8 +121,9 @@ export async function record(player:RpgPlayer,finalStep:string,outcome?:string){
  const result=await rpc('experiment',{input:input(),prediction:ctx().draft.prediction,sceneEvidence:evidence});
  if(!result)throw new Error('本次实验没有保存，请重试核验。');
  let nextStep=result.correct?'换一种现场，再判断一次。':'回控制柜改一处，再重新测试。';
- if(canReview())nextStep='测试齐了，去找负责人。';
- else if(result.correct&&(id==='sale'||id==='repair')){const temperature=[29,30,31].find(value=>!currentRuns().some(run=>run.input?.temperature===value&&run.correct));nextStep=`再读${temperature||'一个新温度'}℃，检验另一种情况。`;}
+ if(canReview())nextStep='🎉 测试齐了，快去找负责人汇报验收！';
+ else if(result.correct&&(id==='sale'||id==='repair')){const temperature=[29,30,31].find(value=>!currentRuns().some(run=>run.input?.temperature===value&&run.correct));nextStep=`下一步去【温度探头】再读${temperature||'一个新温度'}℃，检验另一种情况。`;}
+ else if(id==='repair'&&!faultSeen(ctx().runs.slice(0,-1))&&faultSeen(ctx().runs)){nextStep='🔍 旧程序故障已抓出！快去【规则控制柜】诊断并修好程序！';}
  const selected=id==='minimum'?ctx().draft.config[result.branch]:result.output;
  const comparison=`与预测${ctx().draft.prediction===selected?'一致':'不同'}`;
  const actual=id==='cross'?`${outcome==='blocked'?'通道受阻，先留在安全侧':`实际沿${result.output==='bridge'?'天桥':'人行横道'}走到对岸`}；${comparison}，${result.correct?'符合':'不符合'}路口约定。`:id==='minimum'?`实际接入电池${String(selected).toUpperCase()}（${result.output}%）；${comparison}，${result.correct?'符合':'不符合'}低电量优先约定。`:`风机实际${result.output==='on'?'启动':'关闭'}；${comparison}，${result.correct?'符合':'不符合'}告示。`;
@@ -135,7 +136,8 @@ export async function review(player:RpgPlayer){
  const id=ctx().levelId;
  const reasons=ctx().reasons.map((r:any)=>Array.isArray(r)?{id:r[0],label:r[1]}:{id:r.value,label:r.label});
  const prompt=id==='sale'?'阿绿问：为何测试不能漏掉刚好30℃？':id==='repair'?'老修问：旧板30℃关闭，修后能开。你改了哪里，为何这样改？':id==='cross'?'小巡问：为何每次只走选中的一路？':'小电问：为何不能一直先接电池A？';
- const value=await say(player,'验收负责人',prompt,reasons);if(!value)return;
+ const hint=id==='sale'?'💡 提示：30℃ 是开与关的分界线（临界值），达到 30℃ 就要开风机，低于 30℃ 才关！':id==='repair'?'💡 提示：回想刚才你保留了“≥30℃”对调出口，还是把符号改成了“＜30℃”？选对应的那一项！':id==='cross'?'💡 提示：分支结构先做条件判断，每次只走符合当前现场条件的那一条路！':'💡 提示：哪块电池电量少是不固定的，必须先比较 A 和 B 的电量，剩得少的先充！';
+ const value=await say(player,'验收负责人',prompt,reasons,hint);if(!value)return;
  await rpc('reason',{value});const result=await rpc('complete');
  if(!result.passed){feedback('这次还没验收通过。对照记录再试一次。',supportDetail(result.scaffold));return;}
  const choices=id==='cross'?[{id:'next',label:'进入基础检测'},{id:'optional',label:'去储能柜选做'}]:[{id:'next',label:id==='minimum'?'进入基础检测':'领取下一站委托'}];

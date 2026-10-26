@@ -10,7 +10,7 @@ import { dispose, getContext, ready, request, subscribeContext, setArtifactBarri
 import FlowPanel from './gui/FlowPanel.vue';
 import { createIdleTimer } from '../../public/idle-timer.mjs';
 import { currentFocus, gotoTitle } from '../../public/focus.mjs';
-import { emptyFlow, repairPreset } from './gui/flow-model';
+import { emptyFlow, faultSeen, repairPreset } from './gui/flow-model';
 import { toPlain } from './gui/plain';
 import { focusFootprint } from './focus-marker';
 
@@ -73,6 +73,83 @@ function actorBadgeDefs(levelId: string, mapId: string): Array<{ place: string; 
   return [];
 }
 
+function focusActionCallout(levelId: string, place?: string, step?: string): string {
+  if (!place) return '';
+  if (place === 'guide') return step === '11' || step === 'done' ? '👈 第4步：点我汇报验收！' : '👈 第1步：点我领任务！';
+  if (place === 'sensor') return '👈 第2步：点我读温室温度！';
+  if (place === 'observe') return '👈 第2步：点我观察路口设施！';
+  if (place === 'batteryA' || place === 'batteryB') return step === '9' ? '👈 点我接入选中的电池！' : '👈 第2步：点我读电池电量！';
+  if (place === 'control') return levelId === 'cross' ? '👈 第3步：点我设指路规则！' : levelId === 'minimum' ? '👈 第3步：点我比较电量！' : '👈 第3步：点我装芯片/启动风机！';
+  if (place === 'signal') return '👈 先点我：等绿灯亮起！';
+  if (place === 'bridgeEast' || place === 'bridgeWest' || place === 'crossingEast' || place === 'crossingWest') return '👈 点我沿路线过马路！';
+  if (place === 'verify' || place === 'monitor') return '👈 第4步：点我核验本次结果！';
+  if (place === 'portal') return '👈 点我继续或找巡检员！';
+  return '👈 点我操作';
+}
+
+function computeStationSteps(context: any, focus: { id?: string; step?: string; target?: { place?: string } }) {
+  const levelId = context?.levelId || 'sale';
+  const scene = context?.draft?.scene || {};
+  const runs = (context?.runs || []).slice(context?.evidenceStart || 0);
+  const config = context?.draft?.config || {};
+  const validRuns = runs.filter((r: any) => r.correct && ['model', 'operator', 'yes', 'no'].every(k => r.config?.[k] === config[k]));
+  const started = !!scene.phase && scene.phase !== 'start';
+  const place = focus.target?.place || '';
+  let activeIdx = 1;
+  if (!started) activeIdx = 1;
+  else if (place === 'sensor' || place === 'observe' || ((place === 'batteryA' || place === 'batteryB') && focus.step !== '9')) activeIdx = 2;
+  else if (place === 'control' || focus.step === '3' || focus.step === '4' || focus.step === '5' || focus.step === '6' || focus.step === '7' || focus.step === '8') activeIdx = 3;
+  else activeIdx = 4;
+
+  if (levelId === 'sale') {
+    const doneTemps = new Set(validRuns.map((r: any) => r.input?.temperature)).size;
+    return {
+      activeIdx,
+      steps: [
+        `① 找阿绿领任务`,
+        `② 探头采样温度(${doneTemps}/3)`,
+        `③ 控制柜装规则并启动`,
+        `④ 核验仪看结果(${doneTemps}/3)`
+      ]
+    };
+  }
+  if (levelId === 'repair') {
+    const seenFault = faultSeen(context?.runs || []);
+    const doneTemps = new Set(validRuns.map((r: any) => r.input?.temperature)).size;
+    return {
+      activeIdx,
+      steps: [
+        `① 听老修说故障`,
+        seenFault ? `② 旧故障已抓出✓` : `② 读30℃抓出旧故障`,
+        `③ 控制柜修好程序`,
+        `④ 重测三温验收(${doneTemps}/3)`
+      ]
+    };
+  }
+  if (levelId === 'cross') {
+    const doneRoads = new Set(validRuns.filter((r: any) => r.scene?.outcome === 'arrived').map((r: any) => r.input?.facility)).size;
+    return {
+      activeIdx,
+      steps: [
+        `① 找小巡领任务`,
+        `② 观察点看有无天桥`,
+        `③ 指路牌设规则并发车`,
+        `④ 过街到对岸核验(${doneRoads}/2)`
+      ]
+    };
+  }
+  const donePairs = new Set(validRuns.map((r: any) => (r.input?.a ?? 0) < (r.input?.b ?? 0))).size;
+  return {
+    activeIdx,
+    steps: [
+      `① 找小电领任务`,
+      `② 读A、B两块电池电量`,
+      `③ 控制台比大小并供电`,
+      `④ 接低电量电池核验(${donePairs}/2)`
+    ]
+  };
+}
+
 function stopMovement() {
   heldDirection = undefined;
   cancelAnimationFrame(movementFrame);
@@ -128,7 +205,9 @@ const focusMarker = document.getElementById('focus-marker');
 const focusLabel = document.getElementById('focus-label');
 const focusArrow = focusMarker?.querySelector('.focus-arrow');
 const pathDots = document.getElementById('path-dots');
+const guideTrail = document.getElementById('guide-trail');
 const actorBadges = document.getElementById('actor-badges');
+const stationStepBar = document.getElementById('station-step-bar');
 const hintButton = document.getElementById('engine-hint') as HTMLButtonElement | null;
 const undo = document.getElementById('engine-undo') as HTMLButtonElement | null;
 const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
@@ -303,8 +382,54 @@ function paintDots(dots: Array<{ x: number, y: number }> = [], projection: Proje
   for (let index = used; index < dotPool.length; index++) setHidden(dotPool[index], true);
   setHidden(pathDots, used === 0);
 }
+
+const trailPool: HTMLElement[] = [];
+function paintGuideTrail(focus: { dots?: Array<{ x: number, y: number }>, target?: { x?: number, y?: number } }, projection: Projection) {
+  if (!guideTrail) return;
+  if (hostOverlay || studioOpen || dialogOpen || (focus.dots && focus.dots.length > 0) || !Number.isFinite(focus.target?.x) || !Number.isFinite(focus.target?.y)) {
+    setHidden(guideTrail, true);
+    return;
+  }
+  const pos = (typeof window !== 'undefined' && (window as any).__lessonPlayerPos) || getContext()?.draft?.rpg?.position;
+  if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
+    setHidden(guideTrail, true);
+    return;
+  }
+  const tx = Number(focus.target!.x) + 12;
+  const ty = Number(focus.target!.y) + 16;
+  const px = Number(pos.x) + 12;
+  const py = Number(pos.y) + 16;
+  const dist = Math.hypot(tx - px, ty - py);
+  if (dist < 64) {
+    setHidden(guideTrail, true);
+    return;
+  }
+  const count = Math.min(6, Math.max(2, Math.floor(dist / 68)));
+  let used = 0;
+  for (let i = 1; i <= count; i++) {
+    const ratio = i / (count + 1);
+    const wx = px + (tx - px) * ratio;
+    const wy = py + (ty - py) * ratio;
+    const screenPt = projectWorld({ x: wx, y: wy }, projection);
+    if (!screenPt || screenPt.offscreen) continue;
+    let node = trailPool[used];
+    if (!node) {
+      node = document.createElement('span');
+      node.className = 'trail-step';
+      trailPool.push(node);
+      guideTrail.appendChild(node);
+    }
+    setHidden(node, false);
+    setStyle(node, 'left', `${Math.round(screenPt.x)}px`);
+    setStyle(node, 'top', `${Math.round(screenPt.y)}px`);
+    used++;
+  }
+  for (let index = used; index < trailPool.length; index++) setHidden(trailPool[index], true);
+  setHidden(guideTrail, used === 0);
+}
+
 const badgePool: HTMLButtonElement[] = [];
-function paintActorBadges(focus: { target?: { mapId?: string, place?: string } }, projection: Projection) {
+function paintActorBadges(focus: { id?: string, step?: string, target?: { mapId?: string, place?: string } }, projection: Projection) {
   if (!actorBadges) return;
   if (hostOverlay || studioOpen || dialogOpen) {
     setHidden(actorBadges, true);
@@ -337,13 +462,15 @@ function paintActorBadges(focus: { target?: { mapId?: string, place?: string } }
       badgePool.push(badge);
       actorBadges.appendChild(badge);
     }
+    const isTarget = focus.target?.place === item.place;
+    const callout = isTarget ? focusActionCallout(levelId, item.place, focus.step) : '';
     setHidden(badge, false);
-    setText(badge, item.label);
+    setText(badge, callout ? `${item.label} · ${callout}` : item.label);
     setData(badge, 'mapId', mapId);
     setData(badge, 'place', item.place);
     setData(badge, 'tx', String(item.x));
     setData(badge, 'ty', String(item.y));
-    setClass(badge, 'is-focus', focus.target?.place === item.place);
+    setClass(badge, 'is-focus', isTarget);
     setStyle(badge, 'left', `${Math.round(point.x)}px`);
     setStyle(badge, 'top', `${Math.round(point.y)}px`);
     used++;
@@ -351,6 +478,26 @@ function paintActorBadges(focus: { target?: { mapId?: string, place?: string } }
   for (let index = used; index < badgePool.length; index++) setHidden(badgePool[index], true);
   setHidden(actorBadges, used === 0);
 }
+
+let lastStepBarKey = '';
+function paintStationStepBar(focus: { id?: string; step?: string; target?: { place?: string } }) {
+  if (!stationStepBar) return;
+  if (hostOverlay || studioOpen) {
+    setHidden(stationStepBar, true);
+    return;
+  }
+  setHidden(stationStepBar, false);
+  const info = computeStationSteps(getContext(), focus);
+  const key = JSON.stringify(info);
+  if (key === lastStepBarKey) return;
+  lastStepBarKey = key;
+  stationStepBar.innerHTML = info.steps.map((label, idx) => {
+    const stepNum = idx + 1;
+    const cls = stepNum < info.activeIdx ? 'step-pill done' : stepNum === info.activeIdx ? 'step-pill active' : 'step-pill';
+    return `<span class="${cls}">${stepNum < info.activeIdx ? '✅ ' : stepNum === info.activeIdx ? '👉 ' : ''}${label}</span>`;
+  }).join('<span class="step-sep" aria-hidden="true">➔</span>');
+}
+
 function paintFocus(focus = lessonFocus()) {
   if (new URLSearchParams(location.search).has('preview')) return;
   if (hostOverlay && focusMarker) setHidden(focusMarker, true);
@@ -384,14 +531,16 @@ function paintFocus(focus = lessonFocus()) {
     setText(focusLabel, showingTarget?'法宝位置':point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '');
   }
   paintDots(hostOverlay ? [] : (focus.dots || []), projection);
+  paintGuideTrail(focus, projection);
   paintActorBadges(focus, projection);
+  paintStationStepBar(focus);
   paintPanelFocus(focus);
   const hints=getContext()?.support?.hints||[];
   if(hintButton){setText(hintButton, `通关法宝 ${Math.max(0,5-hints.length)}/5`);setDisabled(hintButton, hints.length>=5||auxiliaryBusy);}
   if(undo)setDisabled(undo, !getContext()?.undoAvailable||autoWalking);
   if (goto) {
     setDisabled(goto, !focus.goto || !canControl());
-    setText(goto, autoWalking?'自动行走中…':'自动前往任务点');
+    setText(goto, autoWalking?'🚶 正在自动走过去…':'👉 点我自动走过去并操作');
     const title = gotoTitle(focus, processPanelOpen);
     if (goto.title !== title) goto.title = title;
     setClass(goto, 'focus-target', focusStrength >= 2 && focus.goto);
@@ -451,18 +600,7 @@ function triggerFocusGoto() {
 document.getElementById('engine-goto')?.addEventListener('click', triggerFocusGoto);
 document.getElementById('focus-marker')?.addEventListener('click', triggerFocusGoto);
 document.getElementById('engine-task-hint')?.addEventListener('click', triggerFocusGoto);
-document.getElementById('engine-quick-step')?.addEventListener('click', () => {
-  if (!canControl()) return;
-  stopMovement(); noteActivity(); clearAssistance();
-  window.dispatchEvent(new CustomEvent('lesson-quick-lab', { detail: { mode: 'step' } }));
-});
-for (const t of [29, 30, 31] as const) {
-  document.getElementById(`engine-sun-${t}`)?.addEventListener('click', () => {
-    if (!canControl()) return;
-    stopMovement(); noteActivity(); clearAssistance();
-    window.dispatchEvent(new CustomEvent('lesson-quick-lab', { detail: { temperature: t } }));
-  });
-}
+document.getElementById('station-step-bar')?.addEventListener('click', triggerFocusGoto);
 document.getElementById('rpg')?.addEventListener('pointerdown', (event: PointerEvent) => {
   if (!canControl()) return;
   const targetNode = event.target as HTMLElement | null;

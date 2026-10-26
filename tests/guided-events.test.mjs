@@ -274,14 +274,28 @@ test('验收追问刚才现场的理由，仍只提交原有理由一次', async
   }
 });
 
-test('现场阳光温度实验台可一键连测29/30/31℃并生成标准四步证据，免去7趟折返跑', async () => {
+test('第二、三次采样新温度后再点控制柜直接弹出一键启动实测，无需重看复杂流程图；路口与储能在完成拼句后预测即联动运行', async () => {
   const h = harness('sale');
-  await h.runtime.quickThermalSweep(h.player, { 29: 'off', 30: 'on', 31: 'on' });
-  assert.equal(h.context.runs.length, 3);
-  assert.deepEqual(h.context.runs.map(r => r.input.temperature), [29, 30, 31]);
-  for (const run of h.context.runs) {
-    assert.deepEqual(run.scene.actions, ['measure', 'predict', 'ticket', 'gate']);
-    assert.equal(run.correct, true);
+  h.context.draft.flow = { diamond: 'ge30', yes: 'on', no: 'off', locked: true };
+  h.context.draft.predictionsLocked = { 29: 'off', 30: 'on', 31: 'on', locked: true };
+  h.context.draft.scene.temperatureCase = 29;
+  h.context.draft.scene.actorId = 'sensor29';
+  h.answers.push('run-now');
+  await h.runtime.configure(h.player);
+  assert.equal(h.guis.length, 0, '已锁定规则与预测时不再重复打开流程图编辑器');
+  assert.equal(h.dialogs.length, 1);
+  assert.match(h.dialogs[0].name, /启动实测/);
+  assert.equal(h.context.draft.scene.ticket.output, 'off');
+  await h.act(h.thermal.greenhouseEvents, 'verify');
+  assert.equal(h.context.runs.length, 1);
+  assert.deepEqual(h.context.runs[0].scene.actions, ['measure', 'predict', 'ticket', 'gate']);
+
+  for (const [id, eventId, choice] of [['cross', 'road-console', 'bridge'], ['minimum', 'energy-console', 'a']]) {
+    const r = harness(id), events = id === 'cross' ? r.routes.crossingEvents : r.routes.energyEvents;
+    r.context.draft.flow = { locked: true };
+    r.context.draft.sentence = { locked: true, slots: [] };
+    r.answers.push(choice);
+    await r.act(events, eventId);
+    assert.ok(r.context.draft.scene.ticket, `${id}已确认句子后，完成预测立即联动运行，无需连点三次控制柜`);
   }
-  assert.equal(h.runtime.canReview(), true);
 });

@@ -3,8 +3,8 @@ import { Direction } from '@rpgjs/common';
 import { type RpgPlayer, type RpgPlayerHooks } from '@rpgjs/server';
 import { ready,subscribeContext,getContext } from '../../classroom-bridge';
 import { clickWaypoints, movementTarget } from './click-path';
-import { rpc,ctx,quickThermalRun } from './runtime';
-import { checkRoute, quickStep } from './routes';
+import { rpc,ctx } from './runtime';
+import { checkRoute } from './routes';
 import { mapForContext,registerActivePlayer,clearActivePlayer } from './active-player';
 import { standBeside } from './approach';
 import { ensureGreenhouseActors } from './thermal';
@@ -25,6 +25,9 @@ let lastInteraction = '';
 function publishInteraction(player:RpgPlayer) {
  const map=player.getCurrentMap();
  if(sessions.get(player.id)?.active!==player || map?.id!==mapFor(ctx()))return;
+ if(typeof window!=='undefined' && typeof player.x==='function' && typeof player.y==='function'){
+  (window as any).__lessonPlayerPos={x:player.x(),y:player.y(),mapId:map?.id||''};
+ }
  const near=nearestInteraction(player,map,Infinity);
  const detail={mapId:map?.id||'',label:near?interactionLabel(near.event,ctx().levelId):'交谈 / 操作',inRange:!!near&&near.distance<=48};
  const key=JSON.stringify(detail);if(key===lastInteraction)return;lastInteraction=key;
@@ -70,19 +73,6 @@ if (typeof window !== 'undefined') {
    item.active.setGraphic?.(skin);
    item.active.syncChanges?.();
   }
- });
- window.addEventListener('lesson-quick-lab', event => {
-  const detail = (event as CustomEvent<{mode?:string,temperature?:29|30|31}>).detail || {};
-  const runtime=[...sessions.values()].find(item=>item.map===mapFor(ctx()));
-  if(!runtime || runtime.changing || runtime.active.getVariable('lessonBusy'))return;
-  const player=runtime.active;
-  player.setVariable('lessonBusy',true);
-  const run = detail.temperature && typeof quickThermalRun === 'function'
-   ? quickThermalRun(player, detail.temperature)
-   : typeof quickStep === 'function' ? quickStep(player, detail.mode) : Promise.resolve();
-  void Promise.resolve(run).catch(error=>{
-   window.dispatchEvent(new CustomEvent('lesson-bridge-error',{detail:error instanceof Error?error.message:'请重试本次实验。'}));
-  }).finally(()=>{player.setVariable('lessonBusy',false);});
  });
 }
 async function clickToTarget(runtime:Runtime,target:{x:number,y:number,mapId:string,place:string},token:number){
