@@ -493,7 +493,7 @@ function createService(options = {}) {
     try {
       const url = new URL(req.url,'http://classroom.local');
       const route = decodeURIComponent(url.pathname);
-      if (route.startsWith('/api/teacher') || route === '/teacher.html') teacher(req);
+      if (route.startsWith('/api/teacher') || route === '/teacher.html' || route === '/teacher' || route === '/teacher/') teacher(req);
       if (req.method === 'POST') checkOrigin(req);
       if (req.method === 'GET' && route === '/api/config') return json(res,200,{appId:APP_ID,round:ROUND,levels:rules.levels});
       if (req.method === 'GET' && route === '/api/roster') return json(res,200,{classes:classes()});
@@ -535,7 +535,7 @@ function createService(options = {}) {
       if (req.method === 'POST' && route === '/api/events') return json(res,200,handleEvent(await readBody(req)));
       if (route.startsWith('/api/')) fail(404,'接口不存在');
       if (!['GET','HEAD'].includes(req.method)) fail(405,'请求方法不支持');
-      const name = route === '/' ? 'index.html' : ['/rpgjs','/rpgjs/'].includes(route) ? 'rpgjs/index.html' : route.slice(1);
+      const name = route === '/' ? 'index.html' : ['/rpgjs','/rpgjs/'].includes(route) ? 'rpgjs/index.html' : ['/teacher','/teacher/'].includes(route) ? 'teacher.html' : route.slice(1);
       if (!name || name.split('/').some(part=>part.startsWith('.') || !part) || !mime[path.extname(name)]) fail(404,'文件不存在');
       const publicDir=path.join(BASE,'public');const file=path.join(publicDir,name);
       if (!fs.existsSync(file) || !fs.statSync(file).isFile() || !fs.realpathSync(file).startsWith(fs.realpathSync(publicDir)+path.sep)) fail(404,'文件不存在');
