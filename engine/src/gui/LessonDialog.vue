@@ -128,7 +128,7 @@ onBeforeUnmount(() => {
       <header class="dialog-tools"><button type="button" @click="reviewKnowledge">巡检手册</button>
       <button class="dialog-undo" type="button" :disabled="undoBusy || toolBusy || !undoAvailable" @click="undo">撤回上一步</button>
       <button class="dialog-tool" type="button" :disabled="!canUseTool(support, toolBusy)" @click="useTool">通关法宝 · 还剩 {{ support?.remaining ?? '—' }} 次</button>
-      <button class="dialog-close" data-focus="story-skip" aria-label="跳过剧情" @click="finish(null)">×</button></header>
+      <button class="dialog-close" data-focus="story-skip" aria-label="关闭对话" @click="finish(null)">×</button></header>
       <p class="dialog-speaker">{{ name }}</p>
       <h2 v-if="title">{{ title }}</h2>
       <p class="dialog-text" :class="{ 'clue-focus': highlightField('condition') || highlightField('reading') || highlightField('input') }">{{ text }}</p>

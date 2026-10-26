@@ -266,7 +266,7 @@ function examFocus(exam) {
 
 function overlayFocus(overlay, exam) {
   if (overlay === 'story') {
-    return pack({ id: 'story-skip', step: '0b', kind: 'overlay', thinking: false, goto: false, pause: true, hint: '想快进可跳过剧情。', strong: '点右上角 ×，或按 Esc。', target: {} });
+    return pack({ id: 'story-skip', step: '0b', kind: 'overlay', thinking: false, goto: false, pause: true, hint: '先看完委托故事，了解现场任务。', strong: '点下方“继续了解”往下看。', target: {} });
   }
   if (overlay === 'checklist') {
     return pack({ id: 'patrol-checklist', step: '0', kind: 'overlay', thinking: false, goto: false, pause: true, hint: '打开巡检单，确认本站任务。', strong: '点当前这一站。', target: {} });

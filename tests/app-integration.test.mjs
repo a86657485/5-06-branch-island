@@ -200,13 +200,18 @@ test('找确认按钮的法宝照计次数，但不把自选程序标成概念�
  assert.equal(s.levels.sale.hinted,true);
 });
 
-test('旧版已读教材记录也不跳过新情境委托，关闭不写学习证据',()=>{
+test('旧版已读教材记录也不跳过新情境委托，首次观看不能中途跳过，看完关闭不写学习证据',()=>{
  const h=appHarness(true),s=state();s.points=25;s.runs.sale=[{kept:true}];h.app.setState(s);
  h.app.setPatrol({briefSeen:true,seen:{'sale:opening':true,'learn-v1:sale':true},skipped:[]});
  h.node('#learn-overlay').hidden=true;h.app.render();
  assert.equal(h.app.getStory()?.beat,'opening');
  assert.equal(h.node('#learn-overlay').hidden,true);
- h.app.closeStory(true);h.app.render();
+ assert.equal(h.node('#story-skip').hidden,true);
+ assert.equal(h.node('#story-direct-close').hidden,true);
+ assert.equal(h.app.closeStory(true),false,'首次观看未到最后一页时不能跳过');
+ assert.equal(h.app.getStory()?.beat,'opening');
+ while(h.app.getStory())h.app.advanceStory();
+ h.app.render();
  assert.equal(h.app.getStory(),null);
  assert.equal(s.points,25);assert.equal(s.runs.sale.length,1);
  assert.equal(s.levels.sale?.completed,undefined);
@@ -220,12 +225,16 @@ test('每幕同时显示两句，接到总委托后进本站剧情而非教材�
  assert.equal(h.app.getStory()?.beat,'opening');
  assert.equal(h.node('#learn-overlay').hidden,true);
 });
-test('重看委托可关闭且不自动弹回，不改变已选程序',()=>{
+test('重看委托可从第1帧直接关闭且不自动弹回，不改变已选程序',()=>{
  const h=appHarness(true),s=state();s.drafts.sale={config:{model:'ventilation',operator:'<',yes:'off',no:'on'},input:{temperature:29}};
  h.app.setState(s);h.app.setPatrol({briefSeen:true,seen:{},skipped:[]});h.app.render();h.app.showStory('sale','opening');h.app.closeStory(false);
  h.app.showStory('sale','opening',true);
  assert.equal(h.app.getStory()?.beat,'opening');
- h.app.closeStory(false);h.app.render();
+ assert.equal(h.app.getStory()?.replay,true);
+ assert.equal(h.node('#story-skip').hidden,false,'回放时显示右上角关闭按钮');
+ assert.equal(h.node('#story-direct-close').hidden,false,'回放时显示底部直接关闭按钮');
+ assert.equal(h.app.closeStory(true),true,'回放时第1帧即可直接关闭');
+ h.app.render();
  assert.equal(h.app.getStory(),null);
  assert.equal(s.drafts.sale.config.operator,'<');
  assert.equal(s.drafts.sale.config.yes,'off');
