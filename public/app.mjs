@@ -28,6 +28,31 @@ let storySession = null, learnStation = null;
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clone = v => JSON.parse(JSON.stringify(v));
 const eventId = () => globalThis.crypto?.randomUUID?.() || Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2,'0')).join('');
+const SKIN_OPTIONS = [
+ {id:'engineer',name:'小阳·男巡检员',avatar:'/assets/avatars/skin-boy.png',need:0,badge:'默认可选'},
+ {id:'engineer-girl',name:'小星·女巡检员',avatar:'/assets/avatars/skin-girl.png',need:0,badge:'默认可选'},
+ {id:'engineer-mecha-boy',name:'未来机甲·男',avatar:'/assets/avatars/skin-mecha-boy.png',need:1,badge:'通1站解锁 / 可试穿'},
+ {id:'engineer-mecha-girl',name:'未来机甲·女',avatar:'/assets/avatars/skin-mecha-girl.png',need:1,badge:'通1站解锁 / 可试穿'},
+ {id:'engineer-explorer-boy',name:'生态探险·男',avatar:'/assets/avatars/skin-explorer-boy.png',need:2,badge:'通2站解锁 / 可试穿'},
+ {id:'engineer-explorer-girl',name:'生态探险·女',avatar:'/assets/avatars/skin-explorer-girl.png',need:2,badge:'通2站解锁 / 可试穿'}
+];
+function getSkin(){try{const s=localStorage.getItem('branch-island-skin');if(SKIN_OPTIONS.some(o=>o.id===s))return s;}catch{}return 'engineer';}
+function setSkinChoice(id){
+ if(!SKIN_OPTIONS.some(o=>o.id===id))return;
+ try{localStorage.setItem('branch-island-skin',id);}catch{}
+ activeScene?.setSkin?.(id);
+ const cur=SKIN_OPTIONS.find(o=>o.id===id)||SKIN_OPTIONS[0];
+ const btn=$('#open-skin');if(btn)btn.innerHTML=`<img src="${cur.avatar}" alt="" class="skin-mini-avatar"> 换装`;
+ document.querySelectorAll('[data-skin-id]').forEach(el=>el.classList.toggle('selected',el.getAttribute('data-skin-id')===id));
+}
+function passedStationCount(){return ['sale','repair','cross','minimum'].filter(k=>state.levels?.[k]?.completed).length;}
+function skinCardsMarkup(){
+ const cur=getSkin(),done=passedStationCount();
+ return SKIN_OPTIONS.map(item=>{
+  const unlocked=done>=item.need;
+  return `<button type="button" class="skin-card ${cur===item.id?'selected':''}" data-skin-id="${item.id}"><img src="${item.avatar}" alt="${esc(item.name)}"><strong>${esc(item.name)}</strong><small class="${unlocked?'skin-unlocked':'skin-preview'}">${unlocked?'✨ 已解锁':esc(item.badge)}</small></button>`;
+ }).join('');
+}
 const ids = ['sale','repair','cross','minimum'];
 function rememberStation(id){ if(ids.includes(id)) lastStation=id; }
 const titles = ['温室风机调试','温室控制器返修','路口导行屏调试','储能柜配电'];
@@ -113,11 +138,12 @@ function flow(){
 function login(){
  const cls=roster.classes.find(c=>c.id===loginClass) || roster.classes[0];loginClass=cls.id;
  const names=cls.students.filter(s=>s.name.includes(loginSearch));
- $('#app').innerHTML=`<main class="landing"><section class="welcome"><p class="eyebrow">五年级 · 身边的算法 · 第6课</p><h1>分支<span>冒险岛</span></h1><p class="welcome-copy">走进智慧园区，亲自调试设备。<br>让判断有依据，让每条指令执行正确。</p><div class="landing-world" aria-hidden="true"><div class="landing-role">园区巡检员 / 调试员</div></div><p class="landing-note">读取传感器 · 修复设备 · 核验通行 · 节能配电</p></section><section class="login-card"><p class="eyebrow">调试员报到</p><h2>选择你的身份</h2><p class="muted">本课次的进度会保存。老师开始新课次后，要从头做。</p><label>班级<select id="class-select">${roster.classes.map(c=>option(c.id,`${c.id}班`,loginClass)).join('')}</select></label><label>搜索姓名<input id="name-search" value="${esc(loginSearch)}" placeholder="输入姓名中的字" autocomplete="off"></label><label>名单姓名<select id="student-select">${option('','请选择自己的姓名',selectedStudent)}${names.map(s=>option(s.id,s.name,selectedStudent)).join('')}</select></label><details><summary>名单中没有我</summary><label>补充姓名<input id="manual-name" maxlength="30" value="${esc(manual)}" placeholder="输入姓名，归入当前班级"></label></details><div class="identity-confirm">请确认：<strong id="chosen-identity">${esc(loginClass)}班 · ${esc(manual || cls.students.find(s=>s.id===selectedStudent)?.name || '尚未选择姓名')}</strong></div><button id="login" class="primary wide">确认身份，进入园区 →</button><p id="login-error" class="error" role="alert"></p><p class="small muted">请用自己的姓名进入。课堂选名用于记录学习进度。</p></section></main>`;
+ $('#app').innerHTML=`<main class="landing"><section class="welcome"><p class="eyebrow">五年级 · 身边的算法 · 第6课</p><h1>分支<span>冒险岛</span></h1><p class="welcome-copy">走进智慧园区，亲自调试设备。<br>让判断有依据，让每条指令执行正确。</p><div class="landing-world" aria-hidden="true"><div class="landing-role">园区巡检员 / 调试员</div></div><p class="landing-note">读取传感器 · 修复设备 · 核验通行 · 节能配电</p></section><section class="login-card"><p class="eyebrow">调试员报到</p><h2>选择你的身份</h2><p class="muted">本课次的进度会保存。老师开始新课次后，要从头做。</p><label>班级<select id="class-select">${roster.classes.map(c=>option(c.id,`${c.id}班`,loginClass)).join('')}</select></label><label>搜索姓名<input id="name-search" value="${esc(loginSearch)}" placeholder="输入姓名中的字" autocomplete="off"></label><label>名单姓名<select id="student-select">${option('','请选择自己的姓名',selectedStudent)}${names.map(s=>option(s.id,s.name,selectedStudent)).join('')}</select></label><details><summary>名单中没有我</summary><label>补充姓名<input id="manual-name" maxlength="30" value="${esc(manual)}" placeholder="输入姓名，归入当前班级"></label></details><div class="login-skin-pick"><span class="small muted">选择你的巡检员形象（进入园区后也可随时换装）：</span><div class="skin-grid compact">${skinCardsMarkup()}</div></div><div class="identity-confirm">请确认：<strong id="chosen-identity">${esc(loginClass)}班 · ${esc(manual || cls.students.find(s=>s.id===selectedStudent)?.name || '尚未选择姓名')}</strong></div><button id="login" class="primary wide">确认身份，进入园区 →</button><p id="login-error" class="error" role="alert"></p><p class="small muted">请用自己的姓名进入。课堂选名用于记录学习进度。</p></section></main>`;
  $('#class-select').onchange=e=>{loginClass=e.target.value;selectedStudent='';manual='';login();};
  $('#name-search').oninput=e=>{loginSearch=e.target.value;const sel=$('#student-select');sel.innerHTML=option('','请选择自己的姓名','')+cls.students.filter(s=>s.name.includes(loginSearch)).map(s=>option(s.id,s.name,selectedStudent)).join('');};
  $('#student-select').onchange=e=>{selectedStudent=e.target.value;manual='';$('#manual-name').value='';$('#chosen-identity').textContent=`${loginClass}班 · ${cls.students.find(s=>s.id===selectedStudent)?.name || '尚未选择姓名'}`;};
  $('#manual-name').oninput=e=>{manual=e.target.value;selectedStudent='';$('#student-select').value='';$('#chosen-identity').textContent=`${loginClass}班 · ${manual || '尚未填写姓名'}`;};
+ document.querySelectorAll('[data-skin-id]').forEach(btn=>{btn.onclick=()=>setSkinChoice(btn.getAttribute('data-skin-id'));});
  $('#login').onclick=async()=>{try{if(!selectedStudent&&!manual.trim())throw new Error('先选择自己的姓名，或在“名单中没有我”填写。');const data=await api('/api/login',{classId:loginClass,...(manual.trim()?{name:manual.trim()}:{studentId:selectedStudent})});attach(data);}catch(e){$('#login-error').textContent=e.message;}};
 }
 function attach(data){destroyScene();user=data.student;if(data.round!==round)queue.retire(user.id,data.round);round=data.round;state=data.state;const local=JSON.parse(localStorage.getItem(cacheKey())||'null');const pendingThisRound=queue.events.some(event=>event.studentId===user.id&&event.round===round);if(pendingThisRound&&local)state=local.state;current=pendingThisRound&&local?.current?local.current:resumeTask(state.levels);if(current!=='quiz')rememberStation(current);if(new URLSearchParams(location.search).get('task')==='quiz')current='quiz';if(!demo)localStorage.setItem('branch-island-identity',JSON.stringify({user,round}));saveLocal();render();queue.flush().then(updateHeader);}
@@ -145,6 +171,7 @@ function bindChrome(){
  const brand=$('.brand'); if(brand) brand.onclick=e=>{ e.preventDefault(); closePatrol(); goToTask(lastStation==='quiz'?'sale':(current==='quiz'?lastStation:'sale')); };
  const switcher=$('#switch-user'); if(switcher) switcher.onclick=()=>{ destroyScene(); saveLocal(); localStorage.removeItem('branch-island-identity'); user=null; selectedStudent=''; manual=''; notice=''; lastRun=null; storySession=null; if(demo){ location.href='/teacher.html'; return; } login(); };
  const patrolBtn=$('#open-patrol'); if(patrolBtn) patrolBtn.onclick=()=>openPatrol();
+ const skinBtn=$('#open-skin'); if(skinBtn) skinBtn.onclick=()=>openSkinModal();
  const helpBtn=$('#open-help'); if(helpBtn) helpBtn.onclick=()=>showHelp('<h2>怎么操作</h2><ol><li>你是园区巡检员。巡检单按温室→返修→路口，不能跳站。</li><li>可以用摇杆走近，再点交谈或操作；也可点“自动前往”。</li><li>对白、流程图、预测和巡检单都是浮层，右上角 × 或 Esc 可关闭。</li><li>关掉浮层不会替你提交没确认的答案。</li></ol>');
  const learnBtn=$('#open-learn');if(learnBtn){learnBtn.hidden=current==='quiz';learnBtn.onclick=()=>showLearnCard(current,true);}
  const missionBtn=$('#review-mission');if(missionBtn){missionBtn.hidden=current==='quiz';missionBtn.onclick=()=>{closePatrol();showStory(current,'opening',true);};}
@@ -166,10 +193,13 @@ function renderPlay(){
  const app = $('#app');
  const mounted = app?.querySelector?.('#play-shell') || String(app?.innerHTML || '').includes('id="play-shell"');
  if(!mounted){
-  $('#app').innerHTML=`<div id="play-shell" class="play-shell">${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar slim"><a class="brand" href="#">分支冒险岛<span>园区巡检</span></a>${routeMarkup()}<div class="identity"><span>${demo?'演示巡检员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${esc(pointsLabel(state))}</strong><button id="open-patrol" type="button">巡检单</button><button id="open-learn" type="button" class="quiet">巡检手册</button><button id="open-help" type="button" class="quiet">帮助</button><button id="switch-user" class="quiet">切换身份</button></div></header><div class="stage-full"><main id="workbench" class="workbench game-workbench"></main><p id="sync-notice" class="save-status stage-notice" role="status" ${notice?'':'hidden'}>${esc(notice)}</p><div id="save-status" class="save-status stage-save" role="status">${syncStatus()}</div></div><div id="patrol-overlay" class="screen-overlay" hidden><section class="overlay-card" role="dialog" aria-modal="true" aria-label="巡检单"><button type="button" id="patrol-close" class="overlay-close" aria-label="关闭巡检单">×</button><p class="eyebrow">园区巡检员</p><h2>巡检单</h2><p>固定顺序：温室 → 返修 → 路口。储能柜是选做。</p><div id="patrol-list" class="patrol-list">${checklistMarkup()}</div><button type="button" id="review-mission" type="button" class="quiet">回看当前委托</button><button type="button" id="open-exam" class="primary">考核入口</button></section></div><div id="story-overlay" class="screen-overlay" hidden><section class="overlay-card story-card" role="dialog" aria-modal="true" aria-label="剧情"><button type="button" id="story-skip" class="overlay-close" data-focus="story-skip" aria-label="跳过剧情">×</button><img id="story-art" alt="" /><p id="story-speaker" class="eyebrow"></p><p id="story-line" class="story-line"></p><button type="button" id="story-next" class="primary">继续</button></section></div><div id="learn-overlay" class="screen-overlay learn-overlay" hidden><section class="overlay-card learn-card" role="dialog" aria-modal="true" aria-label="巡检手册"><button type="button" id="learn-close" class="overlay-close" aria-label="关闭巡检手册">×</button><div id="learn-content"></div><button type="button" id="learn-continue" class="primary">回到现场继续</button></section></div><div id="exam-overlay" class="screen-overlay" hidden><section class="overlay-card exam-card" role="dialog" aria-modal="true" aria-label="考核"><button type="button" id="exam-close" class="overlay-close" aria-label="关闭考核">×</button><div id="exam-body"></div></section></div></div>`;
+  $('#app').innerHTML=`<div id="play-shell" class="play-shell">${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar slim"><a class="brand" href="#">分支冒险岛<span>园区巡检</span></a>${routeMarkup()}<div class="identity"><span>${demo?'演示巡检员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${esc(pointsLabel(state))}</strong><button id="open-skin" type="button" class="skin-btn"><img src="${(SKIN_OPTIONS.find(o=>o.id===getSkin())||SKIN_OPTIONS[0]).avatar}" alt="" class="skin-mini-avatar"> 换装</button><button id="open-patrol" type="button">巡检单</button><button id="open-learn" type="button" class="quiet">巡检手册</button><button id="open-help" type="button" class="quiet">帮助</button><button id="switch-user" class="quiet">切换身份</button></div></header><div class="stage-full"><main id="workbench" class="workbench game-workbench"></main><p id="sync-notice" class="save-status stage-notice" role="status" ${notice?'':'hidden'}>${esc(notice)}</p><div id="save-status" class="save-status stage-save" role="status">${syncStatus()}</div></div><div id="patrol-overlay" class="screen-overlay" hidden><section class="overlay-card" role="dialog" aria-modal="true" aria-label="巡检单"><button type="button" id="patrol-close" class="overlay-close" aria-label="关闭巡检单">×</button><p class="eyebrow">园区巡检员</p><h2>巡检单</h2><p>固定顺序：温室 → 返修 → 路口。储能柜是选做。</p><div id="patrol-list" class="patrol-list">${checklistMarkup()}</div><button type="button" id="review-mission" type="button" class="quiet">回看当前委托</button><button type="button" id="open-exam" class="primary">考核入口</button></section></div><div id="story-overlay" class="screen-overlay" hidden><section class="overlay-card story-card" role="dialog" aria-modal="true" aria-label="剧情"><button type="button" id="story-skip" class="overlay-close" data-focus="story-skip" aria-label="跳过剧情">×</button><img id="story-art" alt="" /><p id="story-speaker" class="eyebrow"></p><p id="story-line" class="story-line"></p><div class="story-actions"><button type="button" id="story-next" class="primary">继续</button><button type="button" id="story-direct-close" class="quiet">跳过剧情，直接去现场</button></div></section></div><div id="skin-overlay" class="screen-overlay" hidden><section class="overlay-card skin-modal" role="dialog" aria-modal="true" aria-label="角色换装"><button type="button" id="skin-close" class="overlay-close" aria-label="关闭换装">×</button><p class="eyebrow">智慧园区 · 个性形象</p><h2>选择巡检员角色与皮肤</h2><p class="muted">男女巡检员随时可换；完成站点可解锁未来机甲服与生态探险服（课堂中也可直接点击试穿）！</p><div id="skin-list" class="skin-grid">${skinCardsMarkup()}</div><button type="button" id="skin-confirm" class="primary">穿戴完毕，返回园区</button></section></div><div id="learn-overlay" class="screen-overlay learn-overlay" hidden><section class="overlay-card learn-card" role="dialog" aria-modal="true" aria-label="巡检手册"><button type="button" id="learn-close" class="overlay-close" aria-label="关闭巡检手册">×</button><div id="learn-content"></div><button type="button" id="learn-continue" class="primary">回到现场继续</button></section></div><div id="exam-overlay" class="screen-overlay" hidden><section class="overlay-card exam-card" role="dialog" aria-modal="true" aria-label="考核"><button type="button" id="exam-close" class="overlay-close" aria-label="关闭考核">×</button><div id="exam-body"></div></section></div></div>`;
   $('#patrol-close').onclick=()=>closePatrol();
   $('#story-skip').onclick=()=>closeStory(true);
+  if($('#story-direct-close'))$('#story-direct-close').onclick=()=>closeStory(true);
   $('#story-next').onclick=()=>advanceStory();
+  if($('#skin-close'))$('#skin-close').onclick=()=>closeSkinModal();
+  if($('#skin-confirm'))$('#skin-confirm').onclick=()=>closeSkinModal();
   $('#exam-close').onclick=()=>closeExam(true);
   $('#learn-close').onclick=()=>closeLearnCard();
   $('#learn-continue').onclick=()=>closeLearnCard();
@@ -191,6 +221,17 @@ function openPatrol(){
  overlay.hidden=false;
  activeScene?.setOverlay?.('checklist');
  updateChrome();
+}
+function openSkinModal(){
+ const overlay=$('#skin-overlay'); if(!overlay)return;
+ const list=$('#skin-list'); if(list) list.innerHTML=skinCardsMarkup();
+ overlay.querySelectorAll('[data-skin-id]').forEach(btn=>{btn.onclick=()=>setSkinChoice(btn.getAttribute('data-skin-id'));});
+ overlay.hidden=false;
+ activeScene?.setOverlay?.('skin');
+}
+function closeSkinModal(){
+ const overlay=$('#skin-overlay'); if(overlay) overlay.hidden=true;
+ if(!storySession && ($('#exam-overlay')?.hidden!==false) && ($('#patrol-overlay')?.hidden!==false)) activeScene?.setOverlay?.('');
 }
 function closePatrol(){
  const overlay=$('#patrol-overlay'); if(overlay) overlay.hidden=true;
@@ -393,6 +434,7 @@ function renderTask(idx){
 }
 function showHelp(html){$('#help-content').innerHTML=html;$('#help').showModal();window.dispatchEvent(new CustomEvent('branch-process-panel',{detail:{open:String(html).includes('当前执行过程')}}));}
 function closeTopOverlay(){
+ if($('#skin-overlay')?.hidden===false){closeSkinModal();return true;}
  if($('#learn-overlay')?.hidden===false){closeLearnCard();return true;}
  if($('#story-overlay') && $('#story-overlay').hidden===false){ closeStory(true); return true; }
  if($('#patrol-overlay') && $('#patrol-overlay').hidden===false){ closePatrol(); return true; }

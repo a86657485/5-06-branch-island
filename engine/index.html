@@ -11,7 +11,7 @@
       * { box-sizing: border-box; }
       html, body, #rpg { margin: 0; width: 100%; height: 100%; overflow: hidden; }
       body { background: #173b31; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
-      #rpg { position: relative; }
+      #rpg { position: relative; cursor: pointer; }
       #rpg canvas { display: block; }
       #vue-gui-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 100; }
       button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -21,6 +21,7 @@
       #engine-controls button { pointer-events: auto; min-height: 46px; border: 2px solid #dce8ce; border-radius: 12px; background: #fff9ecf2; color: #193d32; box-shadow: 0 3px 0 #173b3160; font-weight: 750; touch-action: none; user-select: none; -webkit-user-select: none; }
       .engine-tools { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); display: flex; gap: 8px; }
       .engine-tools button { padding: 8px 14px; font-size: 13px; }
+      #engine-quick-step { background: linear-gradient(135deg, #f59e0b, #d97706) !important; color: #fff !important; border-color: #fffaf0 !important; }
       .engine-pad { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); left: max(16px, env(safe-area-inset-left)); display: grid; grid-template-columns: repeat(3, 50px); grid-template-rows: repeat(3, 46px); gap: 5px; }
       .engine-pad button { padding: 0; font-size: 24px; }
       .engine-pad button[aria-pressed=true] { background: #d0e7c7; transform: translateY(2px); box-shadow: none; }
@@ -31,11 +32,13 @@
       #engine-controls #engine-action { position: absolute; bottom: max(24px, env(safe-area-inset-bottom)); right: max(20px, env(safe-area-inset-right)); width: 190px; height: 70px; background: #1c624d; color: white; font-size: 19px; }
       #engine-action small { display: block; font-size: 13px; margin-top: 4px; font-weight: 500; }
       .engine-pad-caption { position: absolute; bottom: 0; left: 175px; color: white; text-shadow: 0 1px 3px #0e302d; font-size: 11px; white-space: nowrap; }
-      #engine-task-hint { position:absolute;left:14px;top:10px;max-width:min(580px,calc(100% - 215px));padding:10px 14px;margin:0;border:2px solid #93ad7e;border-radius:12px;background:#fffaf0ef;color:#1b4434;z-index:80;font-size:16px;line-height:1.5;pointer-events:none;}
-      #focus-marker { position:absolute; left:0; top:0; width:0; height:0; z-index:80; pointer-events:none; color:#173b31; font-weight:800; }
-      #focus-marker .focus-ring { position:absolute; width:var(--ring-width,88px); height:var(--ring-height,28px); border:3px solid #fbbf24; border-radius:50%; background:transparent; box-shadow:0 0 0 3px #f59e0b30; pointer-events:none; transform:translate(-50%,-50%); animation:focus-feet-pulse 1.2s ease-in-out infinite; }
-      #focus-marker .focus-arrow { position:absolute; right:calc(var(--target-half-width,27px) + 12px); top:-38px; width:26px; font-size:30px; line-height:1; color:#f59e0b; filter:drop-shadow(0 1px 2px #173b31); pointer-events:none; animation:focus-side-nudge 1.2s ease-in-out infinite; }
-      #focus-label { position:absolute; top:28px; left:0; transform:translateX(-50%); white-space:nowrap; }
+      #engine-task-hint { position:absolute;left:14px;top:10px;max-width:min(580px,calc(100% - 215px));padding:10px 16px;margin:0;border:3px solid #f59e0b;border-radius:999px;background:#fffaf0f8;color:#173b31;z-index:82;font-size:17px;line-height:1.45;pointer-events:auto;cursor:pointer;box-shadow:0 6px 18px #0f29224d;}
+      #engine-task-hint::before { content:"👆 点此或点地图目标直达："; font-weight:800; color:#b45309; }
+      #focus-marker { position:absolute; left:0; top:0; width:0; height:0; z-index:80; pointer-events:auto; cursor:pointer; color:#173b31; font-weight:800; }
+      #focus-marker .focus-ring { position:absolute; width:var(--ring-width,88px); height:var(--ring-height,28px); border:3px solid #fbbf24; border-radius:50%; background:transparent; box-shadow:0 0 0 4px #f59e0b40; pointer-events:auto; transform:translate(-50%,-50%); animation:focus-feet-pulse 1.2s ease-in-out infinite; }
+      #focus-marker .focus-arrow { position:absolute; right:calc(var(--target-half-width,27px) + 12px); top:-46px; width:28px; font-size:32px; line-height:1; color:#f59e0b; filter:drop-shadow(0 2px 3px #173b31); pointer-events:none; animation:focus-side-nudge 1.2s ease-in-out infinite; }
+      #focus-label { position:absolute; top:-88px; left:0; transform:translateX(-50%); white-space:nowrap; padding:5px 12px; border-radius:999px; background:#fffbeb; border:2px solid #f59e0b; color:#183c30; font-size:14px; box-shadow:0 4px 12px #0f292244; }
+      #focus-label:empty { display:none; }
       #focus-marker.edge .focus-ring { display:none; }
       #focus-marker.edge .focus-arrow { right:auto; left:0; top:0; width:auto; font-size:42px; transform:translate(-50%,-50%); animation:none; }
       #path-dots { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
@@ -44,7 +47,7 @@
       .card-tray.focus-target, .flow-slot.focus-target, .studio.focus-target, .studio-tabs button.focus-target { outline: 4px solid #e39b00; outline-offset: 4px; }
       .predict-table.focus-target { outline: 3px solid #1175bb; outline-offset: 4px; }
       @keyframes focus-pulse { 50% { outline-color:#147d78; border-color:#fff; } }
-      @keyframes focus-feet-pulse { 0%,100% { transform:translate(-50%,-50%) scale(1); opacity:.6; } 50% { transform:translate(-50%,-50%) scale(1.12); opacity:.85; } }
+      @keyframes focus-feet-pulse { 0%,100% { transform:translate(-50%,-50%) scale(1); opacity:.7; } 50% { transform:translate(-50%,-50%) scale(1.14); opacity:.95; } }
       @keyframes focus-side-nudge { 50% { transform:translateX(4px); } }
       @media(prefers-reduced-motion:reduce){#focus-marker .focus-ring,#focus-marker .focus-arrow,#engine-task-hint,#engine-goto.focus-target{animation:none;}#focus-marker .focus-ring{opacity:.75;}}
       @media(max-width:600px){#engine-task-hint{max-width:calc(100% - 20px);top:62px;left:10px;font-size:14px;padding:7px 10px;}}
@@ -124,6 +127,7 @@
     <div id="focus-marker" hidden><span class="focus-ring" aria-hidden="true"></span><span class="focus-arrow" aria-hidden="true">→</span><span id="focus-label">下一目标</span></div>
     <div id="engine-controls" aria-label="园区操作" hidden>
       <nav class="engine-tools" aria-label="探究帮助">
+        <button id="engine-quick-step" type="button" title="免折返跑：一键推进当前现场实验">⚡ 现场快测</button>
         <button id="engine-learn" type="button">巡检手册</button>
         <button id="engine-flow" type="button">查看流程</button>
         <button id="engine-help" type="button">操作帮助</button>

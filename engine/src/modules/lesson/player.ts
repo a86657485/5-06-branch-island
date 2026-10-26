@@ -3,8 +3,8 @@ import { Direction } from '@rpgjs/common';
 import { type RpgPlayer, type RpgPlayerHooks } from '@rpgjs/server';
 import { ready,subscribeContext,getContext } from '../../classroom-bridge';
 import { clickWaypoints, movementTarget } from './click-path';
-import { rpc,ctx } from './runtime';
-import { checkRoute } from './routes';
+import { rpc,ctx,quickThermalRun } from './runtime';
+import { checkRoute, quickStep } from './routes';
 import { mapForContext,registerActivePlayer,clearActivePlayer } from './active-player';
 import { standBeside } from './approach';
 import { ensureGreenhouseActors } from './thermal';
@@ -12,6 +12,10 @@ import { GREENHOUSE_ACTORS, actorIdOf } from './greenhouse-cast';
 import { nearestInteraction, interactionLabel } from './interaction';
 const spawn=Object.fromEntries(Object.entries(layout).map(([id,m])=>[id,{x:m.positions.start[0],y:m.positions.start[1]}]));
 const mapFor=mapForContext;
+const VALID_SKINS=['engineer','engineer-girl','engineer-mecha-boy','engineer-mecha-girl','engineer-explorer-boy','engineer-explorer-girl'];
+let preferredSkin='engineer';
+try{const saved=typeof localStorage!=='undefined'?localStorage.getItem('branch-island-skin'):null;if(saved&&VALID_SKINS.includes(saved))preferredSkin=saved;}catch{}
+function currentSkin(c?:any){const s=c?.draft?.skin||preferredSkin;return VALID_SKINS.includes(s)?s:'engineer';}
 type ActorSnapshot={player:RpgPlayer,map:any,levelId:string,deviceOutput:string,events:any[],positions:string};
 type Runtime={map:string,lastSave:number,active:RpgPlayer,unsub?:()=>void,changing:boolean,checkpointTimer?:ReturnType<typeof setTimeout>,actorSync?:ActorSnapshot,actorQueue?:Promise<void>,enter:(c:any)=>Promise<void>};
 // RPGJS rehydrates a new player object on room transfers; the stable id survives.
@@ -46,16 +50,41 @@ async function syncActorContext(runtime:Runtime,c:any){
 }
 let pendingApproach: { mapId: string, direction: Direction } | null = null;
 let navigation = 0;
-if (typeof window !== 'undefined') window.addEventListener('lesson-goto', event => {
- const detail = (event as CustomEvent<{goto?:boolean,x?:number,y?:number,mapId?:string,place?:string}>).detail || {};
- if(!detail.goto || !Number.isFinite(detail.x) || !Number.isFinite(detail.y))return;
- const runtime=[...sessions.values()].find(item=>item.map===detail.mapId);
- if(!runtime || runtime.changing || runtime.active.getVariable('lessonBusy'))return;
- const token=++navigation;
- void clickToTarget(runtime,detail as {x:number,y:number,mapId:string,place:string},token).catch(error=>{
-  window.dispatchEvent(new CustomEvent('lesson-bridge-error',{detail:error instanceof Error?error.message:'请再点一次下一步。'}));
- }).finally(()=>window.dispatchEvent(new CustomEvent('lesson-walking',{detail:{moving:false}})));
-});
+if (typeof window !== 'undefined') {
+ window.addEventListener('lesson-goto', event => {
+  const detail = (event as CustomEvent<{goto?:boolean,x?:number,y?:number,mapId?:string,place?:string}>).detail || {};
+  if(!detail.goto || !Number.isFinite(detail.x) || !Number.isFinite(detail.y))return;
+  const runtime=[...sessions.values()].find(item=>item.map===detail.mapId);
+  if(!runtime || runtime.changing || runtime.active.getVariable('lessonBusy'))return;
+  const token=++navigation;
+  void clickToTarget(runtime,detail as {x:number,y:number,mapId:string,place:string},token).catch(error=>{
+   window.dispatchEvent(new CustomEvent('lesson-bridge-error',{detail:error instanceof Error?error.message:'请再点一次下一步。'}));
+  }).finally(()=>window.dispatchEvent(new CustomEvent('lesson-walking',{detail:{moving:false}})));
+ });
+ window.addEventListener('lesson-skin', event => {
+  const skin = (event as CustomEvent<{skin?:string}>).detail?.skin || '';
+  if(!VALID_SKINS.includes(skin))return;
+  preferredSkin=skin;
+  try{localStorage.setItem('branch-island-skin',skin);}catch{}
+  for(const item of sessions.values()){
+   item.active.setGraphic?.(skin);
+   item.active.syncChanges?.();
+  }
+ });
+ window.addEventListener('lesson-quick-lab', event => {
+  const detail = (event as CustomEvent<{mode?:string,temperature?:29|30|31}>).detail || {};
+  const runtime=[...sessions.values()].find(item=>item.map===mapFor(ctx()));
+  if(!runtime || runtime.changing || runtime.active.getVariable('lessonBusy'))return;
+  const player=runtime.active;
+  player.setVariable('lessonBusy',true);
+  const run = detail.temperature && typeof quickThermalRun === 'function'
+   ? quickThermalRun(player, detail.temperature)
+   : typeof quickStep === 'function' ? quickStep(player, detail.mode) : Promise.resolve();
+  void Promise.resolve(run).catch(error=>{
+   window.dispatchEvent(new CustomEvent('lesson-bridge-error',{detail:error instanceof Error?error.message:'请重试本次实验。'}));
+  }).finally(()=>{player.setVariable('lessonBusy',false);});
+ });
+}
 async function clickToTarget(runtime:Runtime,target:{x:number,y:number,mapId:string,place:string},token:number){
  const player=runtime.active;
  const levelId=ctx().levelId;
@@ -110,7 +139,7 @@ async function saveCheckpoint(runtime:Runtime,player:RpgPlayer){
 }
 export const player:RpgPlayerHooks={
  async onConnected(player){
- await ready();player.name='园区巡检员';player.setGraphic('engineer');player.setHitbox(24,24);
+ await ready();player.name='园区巡检员';player.setGraphic(currentSkin(ctx()));player.setHitbox(24,24);
  if(!ctx().draft.scene){const c=ctx(),s={version:1,x:400,y:420,facing:'down',phase:'start',measured:false,actions:[],visited:[],actorId:c.levelId==='cross'?'cross-open':c.levelId==='minimum'?'pair-a':'sensor30',temperatureCase:30,facility:true,pair:'pair-a',collected:[],signal:'red'};await rpc('change',{patch:{scene:s}});}
  const runtime:Runtime={map:'',lastSave:0,active:player,changing:false,enter:async()=>{}};sessions.set(player.id,runtime);
  runtime.enter=async c=>{
@@ -128,6 +157,7 @@ export const player:RpgPlayerHooks={
  lastInteraction='';window.dispatchEvent(new CustomEvent('lesson-map-changed'));
  map.setAutoTick(true);
  player.setHitbox(24,24);
+ if(preferredSkin!=='engineer')player.setGraphic?.(preferredSkin);
  const saved=ctx().draft.rpg;if(saved?.mapId===map.id){const direction=directions[saved.direction as keyof typeof directions];if(direction)player.changeDirection(direction);}
  if(pendingApproach?.mapId===map.id)holdFacing(player,pendingApproach.direction,{x:player.x(),y:player.y()});
  if(player.getVariable('lessonBusy')!==false)player.setVariable('lessonBusy',false);

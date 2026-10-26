@@ -41,6 +41,28 @@ export async function predict(player:RpgPlayer){
  const value=await say(player,'先预测，再运行',prompt,choices,undefined,{program});if(!value)return;
  await rpc('predict',{value,input:input(),config:ctx().draft.config});await patchScene(player,{...advance(scene(),'predict')});
 }
+export async function quickThermalRun(player:RpgPlayer,temperature:29|30|31,predValue?:string){
+ const id=ctx().levelId;if(!['sale','repair'].includes(id))return null;
+ const repair=id==='repair';
+ if(scene().ticket)await record(player,'gate');
+ await clearPending(player,{temperatureCase:temperature,actorId:`sensor${temperature}`});
+ await patchScene(player,{phase:'measured',measured:true,actions:[repair?'inspect':'measure']});
+ const lockedPred=predValue||(ctx().draft.predictionsLocked?.[temperature] as string)||ctx().draft.prediction||((ctx().draft.config?.operator==='<'?temperature<30:ctx().draft.config?.operator==='>'?temperature>30:ctx().draft.config?.operator==='<='?temperature<=30:temperature>=30)?ctx().draft.config?.yes:ctx().draft.config?.no)||'on';
+ await rpc('predict',{value:lockedPred,input:{temperature},config:ctx().draft.config});
+ await patchScene(player,{...advance(scene(),'predict')});
+ await apply(player);
+ return record(player,'gate');
+}
+export async function quickThermalSweep(player:RpgPlayer,predictions?:Record<string,unknown>){
+ const id=ctx().levelId;if(!['sale','repair'].includes(id))return;
+ const temps:Array<29|30|31>=[29,30,31];
+ for(const t of temps){
+  if(currentRuns().some(run=>run.input?.temperature===t&&run.correct))continue;
+  const p=predictions?.[t] as string|undefined;
+  const res=await quickThermalRun(player,t,p);
+  if(res&&res.correct===false)break;
+ }
+}
 export async function configure(player:RpgPlayer){
  if(scene().ticket){await say(player,'本次结果待核验','本次程序已执行，请先走到核验点保存实际结果，再修改程序。');return;}
  const id=ctx().levelId;
@@ -59,8 +81,16 @@ export async function configure(player:RpgPlayer){
   predictions:ctx().draft.predictionsLocked||emptyPredictions(),
   diagnoseAnswer:ctx().draft.diagnoseAnswer||'',
   diagnosed:mode!=='repair'||diagnosed
- },{waitingAction:true,blockPlayerInput:true}) as {action?:string,predictions?:{locked?:boolean,[key:string]:unknown}} | null;
+ },{waitingAction:true,blockPlayerInput:true}) as {action?:string,temperature?:29|30|31,predictions?:{locked?:boolean,[key:string]:unknown}} | null;
  if(!result||result.action==='close')return;
+ if(result.action==='quick-temp'&&result.temperature){
+  await quickThermalRun(player,result.temperature,result.predictions?.[result.temperature] as string|undefined);
+  return;
+ }
+ if(result.action==='quick-sweep'){
+  await quickThermalSweep(player,result.predictions);
+  return;
+ }
  if(result.action==='run'){
   if(result.predictions?.locked&&['sale','repair'].includes(id)){
    const temperature=input().temperature;

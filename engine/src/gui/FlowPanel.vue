@@ -5,7 +5,7 @@ import { assistedChoice, assistedField, assistedOperation, claimScaffold, scaffo
 import { stationBrief } from '../../../public/task-guidance.mjs';
 import { toPlain } from './plain';
 import SentencePanel from './SentencePanel.vue';
-import { canUseTool, cardsFor, cardsForSlot, emptyFlow, emptyPredictions, emptySentence, guidedPanelStep, lockFlow, lockPredictions, lockSentence, panelEditSnapshot, placeCard, repairEditMessage, repairPreset, sentenceFromFlow, setPrediction, type Flow, type Predictions, type Sentence, type PanelEdit } from './flow-model';
+import { canUseTool, cardsFor, cardsForSlot, emptyFlow, emptyPredictions, emptySentence, guidedPanelStep, lockFlow, lockPredictions, lockSentence, panelEditSnapshot, placeCard, repairEditMessage, repairPreset, sentenceFromFlow, setPrediction, thermalTrials, type Flow, type Predictions, type Sentence, type PanelEdit } from './flow-model';
 
 const props = withDefaults(defineProps<{
   mode?: string; flow?: Flow; sentence?: Sentence; predictions?: Predictions;
@@ -25,6 +25,7 @@ const support = ref(getContext()?.support);
 const toolBusy = ref(false);
 const toolAnswer = ref<({ key: string; action: string; why: string } & Assistance) | null>(null);
 const thermal = mode === 'sale' || mode === 'repair';
+const sunTemp = ref<29 | 30 | 31>((getContext()?.draft?.scene?.temperatureCase as 29 | 30 | 31) || 30);
 const cards = computed(() => cardsFor(mode));
 const step = computed(() => guidedPanelStep({ mode, flow: board.value, sentence: sentence.value, predictions: predictions.value, diagnosed: props.diagnosed, diagnose: diagnose.value, slot: editingSlot.value }));
 const stepKey=computed(()=>JSON.stringify(step.value));
@@ -34,6 +35,11 @@ const slotName = computed(() => step.value.slot || '');
 const choices = computed(() => step.value.slot ? cardsForSlot(mode, step.value.slot) : []);
 const alarm = computed(() => /菱形|不能用来/.test(message.value));
 const orderLine = computed(() => stationBrief(mode).purpose);
+const trials = computed(() => {
+  const cfg = lockedConfig.value || getContext()?.draft?.config || { operator: '>=', yes: 'on', no: 'off' };
+  return thermal ? thermalTrials(cfg as { operator?: string; yes?: string; no?: string }) : [];
+});
+const activeTrial = computed(() => trials.value.find(item => item.temperature === sunTemp.value) || null);
 const stepTitle = computed(() => {
   if (step.value.phase === 'original') return '先看旧板怎样控制风机，暂时别改';
   if (step.value.phase === 'diagnose') return '刚才30℃时，问题可能在哪里？';
@@ -68,7 +74,7 @@ function clearHelp(retire=false){
 }
 function highlightChoice(id:string){return assistedChoice(toolAnswer.value,stepKey.value,id);}
 function highlightOperation(key:string){return assistedOperation(toolAnswer.value,stepKey.value,key);}
-function highlightField(field:string){return assistedField(toolAnswer.value,stepKey.value,field);}
+function highlightField(field:string){return assistedField(toolAnswer.value,String(stepKey.value),field);}
 async function reviewKnowledge(){try{await request('learn');}catch(error){message.value=error instanceof Error?error.message:'知识卡暂时没打开。';}}
 function cardLabel(id: string) { return cards.value.find(card => card.id === id)?.label || ''; }
 function publish(extra: Record<string, unknown> = {}) {
@@ -165,10 +171,14 @@ async function useTool() {
   } catch (error) { message.value = error instanceof Error ? error.message : '法宝暂时没打开，请再试一次。'; }
   finally { toolBusy.value = false; }
 }
-function finish(action: string) {
+function finish(action: string, extra: Record<string, unknown> = {}) {
   clearHelp(true);
   publish({ panel: '' });
-  close?.('flow-panel', { action, flow: toPlain(board.value), sentence: toPlain(sentence.value), predictions: toPlain(predictions.value) });
+  close?.('flow-panel', { action, flow: toPlain(board.value), sentence: toPlain(sentence.value), predictions: toPlain(predictions.value), ...extra });
+}
+function runQuickTemp(t: 29 | 30 | 31) {
+  sunTemp.value = t;
+  finish('quick-temp', { temperature: t });
 }
 function onKey(event: KeyboardEvent) {
   if (event.key !== 'Escape') return;
@@ -195,7 +205,7 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
         <button type="button" :disabled="!canUseTool(support, toolBusy)" @click="useTool">通关法宝 · 还剩 {{ support?.remaining ?? '—' }} 次</button>
         <button type="button" class="guided-close" aria-label="关闭面板" @click="finish('close')">×</button>
       </header>
-      <p class="studio-kicker">{{ mode === 'repair' ? '返修控制柜' : mode === 'cross' ? '导行屏' : mode === 'minimum' ? '配电柜' : '规则控制柜' }}</p>
+      <p class="studio-kicker">{{ mode === 'repair' ? '返修控制柜 · 芯片工作台' : mode === 'cross' ? '智能导行屏 · 分支芯片台' : mode === 'minimum' ? '节能配电柜 · 比较芯片台' : '规则控制柜 · 温室芯片台' }}</p>
       <p class="studio-order">{{ orderLine }}</p>
       <h2 class="guided-step" :class="{ 'clue-focus': highlightField('reading') || highlightField('input') }">{{ stepTitle }}</h2>
       <aside v-if="toolAnswer" class="tool-answer" role="status">
@@ -255,6 +265,28 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
           <button type="button" class="predict-option" :class="{ 'answer-demo': highlightChoice('off') }" @click="predict('off')">我猜：关闭风机</button>
         </div>
         <ol class="prediction-log"><li v-for="temperature in ([29,30,31] as const)" :key="temperature">{{ temperature }}℃：{{ predictions[temperature] === 'on' ? '我猜启动' : predictions[temperature] === 'off' ? '我猜关闭' : '还没猜' }}</li></ol>
+      </div>
+      <div v-if="thermal && step.phase === 'run'" class="sun-lab" aria-label="现场阳光温度模拟实验台">
+        <div class="sun-lab-head">
+          <strong>☀️ 温室阳光调温实验台（免跑腿直测）</strong>
+          <span>拖动滑块或点温度卡，直接在现场驱动探头、风机与核验仪！</span>
+        </div>
+        <div class="sun-slider-row">
+          <label for="sun-range">阳光强度：<b>{{ sunTemp }}℃ {{ sunTemp === 29 ? '⛅ 多云凉爽' : sunTemp === 30 ? '🌤️ 30℃临界点' : '☀️ 烈日高温' }}</b></label>
+          <input id="sun-range" v-model.number="sunTemp" type="range" min="29" max="31" step="1" />
+        </div>
+        <div v-if="activeTrial" class="sun-circuit-preview">
+          <span>探头输入 <b>{{ activeTrial.temperature }}℃</b></span>
+          <span>→ 判断 <b>{{ activeTrial.condition ? '成立（走“是”）' : '不成立（走“否”）' }}</b></span>
+          <span>→ 风机 <b>{{ activeTrial.fan }}</b></span>
+          <span :class="activeTrial.correct ? 'chip-ok' : 'chip-warn'">{{ activeTrial.correct ? '🌱 符合告示' : '🥀 与告示不符' }}</span>
+        </div>
+        <div class="sun-quick-btns">
+          <button v-for="t in ([29,30,31] as const)" :key="t" type="button" class="sun-temp-btn" :class="{ active: sunTemp === t }" @click="runQuickTemp(t)">
+            {{ t === 29 ? '⛅ 实测 29℃' : t === 30 ? '🌤️ 实测 30℃(临界)' : '☀️ 实测 31℃' }}
+          </button>
+          <button type="button" class="sun-sweep-btn" @click="finish('quick-sweep')">⚡ 一键连测 29/30/31℃ 并核验</button>
+        </div>
       </div>
       <p v-if="step.phase === 'original'" class="guided-note">先记下你的预测，再让旧程序运行。亲眼看到问题以后，才能动手修。</p>
       <p v-if="message" class="studio-message" role="status">{{ message }}</p>
@@ -320,4 +352,15 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
 .prediction-log { display: flex; flex-wrap: wrap; gap: 8px 24px; padding-left: 22px; line-height: 1.8; }
 .answer-demo { outline:4px solid #ba8b28; outline-offset:3px; background:#fff3cf!important; } .clue-focus { outline:3px solid #1175bb; outline-offset:3px; }
 .program-clue{padding:10px 14px;border:1px solid #a4b69b;border-radius:10px;line-height:1.65;background:#f3f6ee;}
+.sun-lab { margin: 10px 0; padding: 12px 14px; border: 2px solid #e39b00; border-radius: 14px; background: linear-gradient(135deg, #fffbeb, #fef3c7); color: #183c30; }
+.sun-lab-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin-bottom: 8px; font-size: 14px; }
+.sun-slider-row { display: flex; align-items: center; gap: 12px; margin: 6px 0; }
+.sun-slider-row input[type=range] { flex: 1; accent-color: #d97706; cursor: pointer; }
+.sun-circuit-preview { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 8px 10px; border-radius: 10px; background: #fffaf0; border: 1px dashed #d97706; font-size: 14px; margin-bottom: 8px; }
+.chip-ok { color: #15803d; font-weight: 800; }
+.chip-warn { color: #b91c1c; font-weight: 800; }
+.sun-quick-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.sun-temp-btn, .sun-sweep-btn { min-height: 40px; padding: 6px 12px; border-radius: 10px; border: 2px solid #d97706; background: #fffef8; color: #163e31; font-weight: 750; }
+.sun-temp-btn.active { background: #fde68a; border-color: #b45309; }
+.sun-sweep-btn { background: #d97706; color: #fff; border-color: #b45309; }
 </style>

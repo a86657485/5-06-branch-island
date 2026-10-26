@@ -116,8 +116,18 @@ async function main(){
   const starterFiles=['[A]WaterFall_pipo.tsx','[Base]BaseChip_pipo.png','[A]WaterFall_pipo.png','[Base]BaseChip_pipo.tsx','base.png','[A]Water_pipo.png','[A]Water_pipo.tsx','[Base]BaseChip_pipo3.png','[A]Dirt_pipo.png','[A]Flower_pipo.tsx','[A]Grass_pipo.tsx','[A]Wall-Up_pipo.png','[A]Flower_pipo.png','[A]Dirt_pipo.tsx','[A]Wall-Up_pipo.tsx','[A]Grass_pipo.png','map.tmx','simplemap.tmx','tileset.tsx'];
   for(const file of starterFiles) await fs.rm(path.join(tiled,file),{force:true});
   for(const file of ['hero.png','female.png']) await fs.rm(path.join(sprites,file),{force:true});
-  for(const [id,rows]of Object.entries(crops))await packCharacter(id,rows);
-  for(const[id,content]of Object.entries(device))await packDevice(id,content);
+  const v2Dir=path.join(root,'scripts/assets/spritesheets_v2');
+  for(const [id,rows]of Object.entries(crops)){
+    const v2=path.join(v2Dir,`${id}.png`);
+    try{await fs.copyFile(v2,path.join(sprites,`${id}.png`));}catch{await packCharacter(id,rows);}
+  }
+  for(const extra of ['engineer-girl','engineer-mecha-boy','engineer-mecha-girl','engineer-explorer-boy','engineer-explorer-girl']){
+    try{await fs.copyFile(path.join(v2Dir,`${extra}.png`),path.join(sprites,`${extra}.png`));}catch{}
+  }
+  for(const[id,content]of Object.entries(device)){
+    const v2=path.join(v2Dir,`${id}.png`);
+    try{await fs.copyFile(v2,path.join(sprites,`${id}.png`));}catch{await packDevice(id,content);}
+  }
   for(const name of ['park-map','crossing-map'])await fs.copyFile(path.join(root,`public/assets/${name}.webp`),path.join(tiled,`images/${name}.webp`));
   await sharp({create:{width:32,height:32,channels:4,background:'#00000000'}}).png().toFile(path.join(tiled,'images/collision.png'));
   await fs.writeFile(path.join(tiled,'collision.tsx'),'<?xml version="1.0" encoding="UTF-8"?>\n<tileset version="1.10" tiledversion="1.11.2" name="Lesson collision" tilewidth="32" tileheight="32" tilecount="1" columns="1"><image source="images/collision.png" width="32" height="32"/><tile id="0"><properties><property name="collision" type="bool" value="true"/></properties></tile></tileset>\n');

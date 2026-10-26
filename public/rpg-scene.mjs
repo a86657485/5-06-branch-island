@@ -83,6 +83,9 @@ export function createRpgScene(initialHost) {
     setOverlay(kind) {
       post({ type: 'rpgjs-overlay', open: !!kind, kind: kind || '' });
     },
+    setSkin(skin) {
+      post({ type: 'rpgjs-skin', skin: skin || 'engineer' });
+    },
     destroy() {
       if (disposed) return;
       disposed = true;

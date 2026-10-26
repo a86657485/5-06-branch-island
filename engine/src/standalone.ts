@@ -31,6 +31,13 @@ const assistanceCard=document.getElementById('engine-assistance');
 let activeWorldHelp: {stepKey:string,target?:{focusKey?:string},origin?:string,level?:number}|null=null;
 const dismissButton = document.getElementById('engine-dismiss') as HTMLButtonElement | null;
 
+const MAP_PLACES: Record<string, Record<string, [number, number]>> = {
+  greenhouse: { guide: [520, 430], sensor: [360, 430], control: [260, 500], fan: [420, 520], verify: [600, 500], portal: [700, 530] },
+  energy: { guide: [540, 270], batteryA: [300, 155], batteryB: [440, 180], control: [365, 190], monitor: [435, 245], portal: [610, 300] },
+  crossing: { guide: [350, 600], observe: [430, 515], control: [410, 595], signal: [474, 608], bridgeWest: [470, 326], bridgeEast: [1080, 326], crossingWest: [470, 681], crossingEast: [1080, 681], verify: [1135, 535], portal: [1190, 590] },
+  'crossing-east': { guide: [350, 600], observe: [430, 515], control: [410, 595], signal: [474, 608], bridgeWest: [470, 326], bridgeEast: [1080, 326], crossingWest: [470, 681], crossingEast: [1080, 681], verify: [1135, 535], portal: [1190, 590] }
+};
+
 function stopMovement() {
   heldDirection = undefined;
   cancelAnimationFrame(movementFrame);
@@ -319,7 +326,12 @@ window.addEventListener('lesson-process-panel', event => {
 });
 window.addEventListener('message', event => {
   const message = event.data;
-  if (!message || message.type !== 'rpgjs-overlay') return;
+  if (!message) return;
+  if (message.type === 'rpgjs-skin') {
+    window.dispatchEvent(new CustomEvent('lesson-skin', { detail: { skin: message.skin } }));
+    return;
+  }
+  if (message.type !== 'rpgjs-overlay') return;
   hostOverlay = message.open ? (message.kind || 'overlay') : '';
   if (hostOverlay) stopMovement();
   if (controls) controls.inert = !!hostOverlay || dialogOpen;
@@ -343,13 +355,58 @@ function focusFrame() {
   requestAnimationFrame(focusFrame);
 }
 requestAnimationFrame(focusFrame);
-document.getElementById('engine-goto')?.addEventListener('click', () => {
+function triggerFocusGoto() {
   const context = getContext();
   const focus = lessonFocus(context);
   if (!canControl() || !focus.goto) return;
   noteActivity();clearAssistance();if(feedbackLine)feedbackLine.hidden=true;
   window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { ...focus.target, goto: true } }));
   void request('navHelp', { levelId: context?.levelId, mapId: focus.target.mapId || '', step: focus.step, focusId: focus.id, trigger: 'goto', strength: 0, idleMs: 0 }).catch(() => undefined);
+}
+document.getElementById('engine-goto')?.addEventListener('click', triggerFocusGoto);
+document.getElementById('focus-marker')?.addEventListener('click', triggerFocusGoto);
+document.getElementById('engine-task-hint')?.addEventListener('click', triggerFocusGoto);
+document.getElementById('engine-quick-step')?.addEventListener('click', () => {
+  if (!canControl()) return;
+  stopMovement(); noteActivity(); clearAssistance();
+  window.dispatchEvent(new CustomEvent('lesson-quick-lab', { detail: { mode: 'step' } }));
+});
+for (const t of [29, 30, 31] as const) {
+  document.getElementById(`engine-sun-${t}`)?.addEventListener('click', () => {
+    if (!canControl()) return;
+    stopMovement(); noteActivity(); clearAssistance();
+    window.dispatchEvent(new CustomEvent('lesson-quick-lab', { detail: { temperature: t } }));
+  });
+}
+document.getElementById('rpg')?.addEventListener('pointerdown', (event: PointerEvent) => {
+  if (!canControl()) return;
+  const targetNode = event.target as HTMLElement | null;
+  if (!targetNode || targetNode.tagName !== 'CANVAS') return;
+  const projection = projectionFrame();
+  if (!projection || !projection.viewport) return;
+  const world = projection.viewport.toWorld({ x: event.clientX - projection.rect.left, y: event.clientY - projection.rect.top });
+  if (!world || !Number.isFinite(world.x) || !Number.isFinite(world.y)) return;
+  const context = getContext();
+  const focus = lessonFocus(context);
+  const mapId = focus.target?.mapId || context?.draft?.rpg?.mapId || (context?.levelId === 'cross' ? (context?.draft?.scene?.facility === false ? 'crossing' : 'crossing-east') : context?.levelId === 'minimum' ? 'energy' : 'greenhouse');
+  const places = MAP_PLACES[mapId] || {};
+  let bestPlace = '';
+  let bestPoint: [number, number] | null = null;
+  let bestDist = 92;
+  for (const [place, pt] of Object.entries(places)) {
+    const d = Math.hypot(world.x - pt[0], world.y - (pt[1] - 24));
+    if (d < bestDist) {
+      bestDist = d;
+      bestPlace = place;
+      bestPoint = pt;
+    }
+  }
+  noteActivity(); clearAssistance(); if (feedbackLine) feedbackLine.hidden = true;
+  if (bestPoint) {
+    window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { mapId, place: bestPlace, x: bestPoint[0], y: bestPoint[1], goto: true } }));
+  } else {
+    window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { mapId, place: 'walk-point', x: Math.round(world.x), y: Math.round(world.y), goto: true } }));
+  }
 });
 document.getElementById('engine-hint')?.addEventListener('click', async () => {
   if(!canControl() || auxiliaryBusy)return;

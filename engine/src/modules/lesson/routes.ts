@@ -4,8 +4,9 @@ import { EventMode, type EventDefinition, type RpgPlayer } from '@rpgjs/server';
 import { advanceRoute, bothRoadsVerified, closedBridgeSelected, routeMark } from './route-progress.mjs';
 import {
   apply, clearPending, configure, ctx, event, input, patchScene, predict,
-  record, review, say, scene, currentRuns, canReview, feedback
+  record, review, say, scene, currentRuns, canReview, feedback, quickThermalRun
 } from './runtime';
+import { faultSeen } from '../../gui/flow-model';
 
 const routeProgress = new WeakMap<RpgPlayer, ReturnType<typeof advanceRoute>>();
 const movingSave = new WeakSet<RpgPlayer>();
@@ -283,6 +284,113 @@ async function verifyEnergy(player: RpgPlayer) {
     return say(player, '充电核验台', '先读电量、预测并运行。接入选中的电池，再来核验。');
   }
   return record(player, 'verify');
+}
+
+export async function quickStep(player: RpgPlayer, mode?: string) {
+  const id = ctx().levelId, s = scene();
+  if (!s.phase || s.phase === 'start') {
+    await patchScene(player, { phase: 'assigned' });
+    feedback('已领取委托，开始现场实验。');
+    return;
+  }
+  if (canReview()) {
+    await review(player);
+    return;
+  }
+  if (id === 'sale' || id === 'repair') {
+    const repair = id === 'repair';
+    if (repair && !faultSeen(ctx().runs)) {
+      if (!s.measured) {
+        await clearPending(player, { temperatureCase: 30, actorId: 'sensor30' });
+        await patchScene(player, { phase: 'measured', measured: true, actions: ['inspect'] });
+      }
+      if (scene().actions?.[1] !== 'predict') {
+        await predict(player);
+        if (scene().actions?.[1] === 'predict') {
+          await apply(player);
+          if (scene().ticket) await record(player, 'gate');
+        }
+        return;
+      }
+      if (!scene().ticket) await apply(player);
+      if (scene().ticket) await record(player, 'gate');
+      return;
+    }
+    if (!ctx().draft.flow?.locked || (repair && !ctx().draft.diagnoseAnswer)) {
+      await configure(player);
+      return;
+    }
+    const targetTemp = (mode === 'temp-29' ? 29 : mode === 'temp-30' ? 30 : mode === 'temp-31' ? 31 : ([29, 30, 31] as const).find(t => !currentRuns().some(r => r.input?.temperature === t && r.correct)) || 30) as 29 | 30 | 31;
+    await quickThermalRun(player, targetTemp);
+    return;
+  }
+  if (id === 'cross') {
+    const verified = currentRuns().filter(run => run.correct && run.scene?.outcome === 'arrived');
+    const nextFacility = verified.length ? ([true, false].find(v => !verified.some(run => run.input?.facility === v)) ?? s.facility) : s.facility !== false;
+    if (verified.length && nextFacility !== s.facility && !s.ticket) {
+      routeProgress.delete(player);
+      player.setVariable('returnToWest', false);
+      await clearPending(player, { facility: nextFacility, actorId: nextFacility ? 'cross-open' : 'cross-closed', measured: true, phase: 'observed', actions: ['observe'], signal: 'red' });
+      feedback(nextFacility ? '已切到有天桥路口并完成观察！' : '已切到无天桥路口并完成观察！');
+      return;
+    }
+    if (!s.measured && !s.ticket) {
+      const facility = s.facility === true;
+      routeProgress.delete(player);
+      await clearPending(player, { facility, actorId: facility ? 'cross-open' : 'cross-closed', measured: true, phase: 'observed', actions: ['observe'] });
+    }
+    if (!ctx().draft.flow?.locked || (!s.ticket && currentRuns().some(run => !run.correct))) {
+      await configure(player);
+      return;
+    }
+    if (scene().actions?.[1] !== 'predict') {
+      await predict(player);
+      if (scene().actions?.[1] === 'predict') await apply(player);
+      return;
+    }
+    if (!scene().ticket) {
+      await apply(player);
+      return;
+    }
+    if (scene().ticket.output === 'crossing' && scene().signal !== 'green') {
+      await patchScene(player, { signal: 'green' });
+      feedback('绿灯已亮起，正在通行核验！');
+    }
+    return;
+  }
+  if (id === 'minimum') {
+    const verified = currentRuns().filter(run => run.correct);
+    const pair = verified.length ? (verified.some(run => run.input?.a < run.input?.b) ? 'pair-b' : 'pair-a') : (s.pair || 'pair-a');
+    if (verified.length && pair !== (s.pair || 'pair-a') && !s.ticket) {
+      await clearPending(player, { pair, actorId: pair, collected: ['a', 'b'], measured: true, actions: ['collect'], phase: 'collected' });
+      feedback(pair === 'pair-b' ? '已切到第二组（A=9%，B=2%）并读完电量！' : '已切到第一组（A=3%，B=8%）并读完电量！');
+      return;
+    }
+    if (!s.measured && !s.ticket) {
+      const curPair = s.pair ?? 'pair-a';
+      await clearPending(player, { pair: curPair, actorId: curPair, collected: ['a', 'b'], measured: true, actions: ['collect'], phase: 'collected' });
+    }
+    if (!ctx().draft.flow?.locked || (!s.ticket && currentRuns().some(run => !run.correct))) {
+      await configure(player);
+      return;
+    }
+    if (scene().actions?.[1] !== 'predict') {
+      await predict(player);
+      if (scene().actions?.[1] === 'predict') {
+        await apply(player);
+        if (scene().ticket) {
+          await patchScene(player, { actions: [...scene().actions, 'route'], phase: 'connected' });
+          await record(player, 'verify');
+        }
+      }
+      return;
+    }
+    if (!scene().ticket) await apply(player);
+    if (scene().ticket) {
+      if (!scene().actions.includes('route')) await patchScene(player, { actions: [...scene().actions, 'route'], phase: 'connected' });
+      await record(player, 'verify');
+    }
+  }
 }
 
 export const energyEvents = [

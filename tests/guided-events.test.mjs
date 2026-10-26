@@ -273,3 +273,15 @@ test('验收追问刚才现场的理由，仍只提交原有理由一次', async
     assert.equal(h.calls.length,0,id);
   }
 });
+
+test('现场阳光温度实验台可一键连测29/30/31℃并生成标准四步证据，免去7趟折返跑', async () => {
+  const h = harness('sale');
+  await h.runtime.quickThermalSweep(h.player, { 29: 'off', 30: 'on', 31: 'on' });
+  assert.equal(h.context.runs.length, 3);
+  assert.deepEqual(h.context.runs.map(r => r.input.temperature), [29, 30, 31]);
+  for (const run of h.context.runs) {
+    assert.deepEqual(run.scene.actions, ['measure', 'predict', 'ticket', 'gate']);
+    assert.equal(run.correct, true);
+  }
+  assert.equal(h.runtime.canReview(), true);
+});
