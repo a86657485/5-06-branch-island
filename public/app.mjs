@@ -183,7 +183,7 @@ function bindChrome(){
  const switcher=$('#switch-user'); if(switcher) switcher.onclick=()=>{ destroyScene(); saveLocal(); localStorage.removeItem('branch-island-identity'); user=null; selectedStudent=''; manual=''; notice=''; lastRun=null; storySession=null; if(demo){ location.href='/teacher.html'; return; } login(); };
  const patrolBtn=$('#open-patrol'); if(patrolBtn) patrolBtn.onclick=()=>openPatrol();
  const skinBtn=$('#open-skin'); if(skinBtn) skinBtn.onclick=()=>openSkinModal();
- const helpBtn=$('#open-help'); if(helpBtn) helpBtn.onclick=()=>showHelp('<h2>怎么操作</h2><ol><li>你是园区巡检员。巡检单按温室→返修→路口，不能跳站。</li><li>可以用摇杆走近，再点交谈或操作；也可点“自动前往”。</li><li>对白、流程图、预测和巡检单都是浮层，右上角 × 或 Esc 可关闭。</li><li>关掉浮层不会替你提交没确认的答案。</li></ol>');
+ const helpBtn=$('#open-help'); if(helpBtn) helpBtn.onclick=()=>showHelp('<h2>怎么操作</h2><ol><li>你是园区巡检员。巡检单按温室→返修→路口，不能跳站。</li><li>可以用摇杆走近，再点交谈或操作；走近后点【操作】即可。</li><li>对白、流程图、预测和巡检单都是浮层，右上角 × 或 Esc 可关闭。</li><li>关掉浮层不会替你提交没确认的答案。</li></ol>');
  const learnBtn=$('#open-learn');if(learnBtn){learnBtn.hidden=current==='quiz';learnBtn.onclick=()=>showLearnCard(current,true);}
  const missionBtn=$('#review-mission');if(missionBtn){missionBtn.hidden=current==='quiz';missionBtn.onclick=()=>{closePatrol();showStory(current,'opening',true);};}
  const examBtn=$('#open-exam'); if(examBtn) examBtn.onclick=()=>{ closePatrol(); goToTask('quiz'); };
@@ -405,7 +405,7 @@ function renderTask(idx){
   onNext(options={}){if(!sameOwner())return;const next=nextTask(id,!!options.optional);if(!legacy&&next==='quiz'){setTimeout(()=>{if(sameOwner())goToTask('quiz');},0);return {levelId:'quiz'};}return goToTask(next);},
   onLearn(){if(!sameOwner())return {opened:false};return showLearnCard(id,true);},
   onFlow(){showHelp(`<h2>${titles[idx]} · 当前执行过程</h2><div class="scene-flow-preview">${flow()}</div><p>根据条件是否成立，一次只执行“是”或“否”对应的一条路径。</p>`);},
-  onHelp(){showHelp(`<h2>智慧园区 · 怎么操作</h2><ol><li>${legacy?'点击NPC或设备的名称，角色会沿步道走近，抵达后交谈或操作。':'用摇杆走近人物或设备，点交谈或操作；也可点“自动前往”。'}</li><li>按任务卡依次选择，错误可撤回上一步。</li><li>先领取委托、读取现场输入，在设备旁设置规则并预测。</li><li>亲自执行、到核验点观察结果，再向NPC汇报。不同情况都要验证。</li></ol><p>对话右上角的×可随时关闭，进度会保留。帮助不扣积分。</p><p class="muted">场景参考深圳智慧园林；地图、人物和30℃规则均为教学仿真。</p>`);},
+  onHelp(){showHelp(`<h2>智慧园区 · 怎么操作</h2><ol><li>${legacy?'点击NPC或设备的名称，角色会沿步道走近，抵达后交谈或操作。':'用摇杆走近人物或设备，点交谈或操作；走近后点【操作】即可。'}</li><li>按任务卡依次选择，错误可撤回上一步。</li><li>先领取委托、读取现场输入，在设备旁设置规则并预测。</li><li>亲自执行、到核验点观察结果，再向NPC汇报。不同情况都要验证。</li></ol><p>对话右上角的×可随时关闭，进度会保留。帮助不扣积分。</p><p class="muted">场景参考深圳智慧园林；地图、人物和30℃规则均为教学仿真。</p>`);},
   onNavHelp(data){if(!sameOwner())return null;send('nav_help',id,{trigger:data.trigger||'button',strength:data.strength??0,idleMs:data.idleMs||0,step:data.step||'',focusId:data.focusId||'',mapId:data.mapId||'',levelId:id});return {saved:true};},
   async onToolHint({step}={}){
    if(!sameOwner())throw new Error('身份已切换，请继续当前任务。');
