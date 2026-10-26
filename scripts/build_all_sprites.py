@@ -52,17 +52,21 @@ def extract_crop(rgba: Image.Image, box: tuple[int, int, int, int]) -> Image.Ima
         return sub
     return sub.crop((int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1))
 
-def fit_cell(sprite: Image.Image, max_w=62, max_h=92, foot_y=99, dx=0, dy=0) -> Image.Image:
+def fit_cell(sprite: Image.Image, max_w=62, max_h=92, foot_y=99, dx=0, dy=0, ring_style: str = 'npc') -> Image.Image:
     w, h = sprite.size
     scale = min(max_w / max(w, 1), max_h / max(h, 1))
     nw, nh = max(1, int(round(w * scale))), max(1, int(round(h * scale)))
     resized = sprite.resize((nw, nh), Image.Resampling.LANCZOS)
     cell = Image.new('RGBA', (FW, FH), (0, 0, 0, 0))
-    # Shadow ellipse under feet
     shadow = Image.new('RGBA', (FW, FH), (0, 0, 0, 0))
     sdraw = ImageDraw.Draw(shadow)
-    sw = min(26, max(16, int(nw * 0.36)))
-    sdraw.ellipse([FW // 2 - sw + dx, foot_y - 4, FW // 2 + sw + dx, foot_y + 3], fill=(15, 23, 42, 48))
+    if ring_style == 'player':
+        # High-contrast Electric Cyan + Magenta-Purple + White halo ring for the player
+        sdraw.ellipse([FW // 2 - 31 + dx, foot_y - 11, FW // 2 + 31 + dx, foot_y + 4], fill=(14, 116, 144, 115), outline=(0, 229, 255, 255), width=3)
+        sdraw.ellipse([FW // 2 - 25 + dx, foot_y - 8, FW // 2 + 25 + dx, foot_y + 2], fill=(56, 189, 248, 95), outline=(255, 255, 255, 245), width=2)
+    else:
+        sw = min(28, max(20, int(nw * 0.42)))
+        sdraw.ellipse([FW // 2 - sw + dx, foot_y - 8, FW // 2 + sw + dx, foot_y + 3], fill=(15, 23, 42, 95), outline=(254, 240, 138, 195), width=2)
     cell.alpha_composite(shadow)
     px = (FW - nw) // 2 + dx
     py = foot_y - nh + dy
@@ -122,7 +126,7 @@ def animate_walk_frame(base_cell: Image.Image, phase: int, is_side: bool = False
     res = Image.fromarray(out, mode='RGBA')
     return res
 
-def build_character_sheet(front_img: Image.Image, side_right_img: Image.Image, back_img: Image.Image) -> Image.Image:
+def build_character_sheet(front_img: Image.Image, side_right_img: Image.Image, back_img: Image.Image, ring_style: str = 'npc') -> Image.Image:
     sheet = Image.new('RGBA', (FW * 3, FH * 4), (0, 0, 0, 0))
     side_left_img = side_right_img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
     rows = [
@@ -132,7 +136,7 @@ def build_character_sheet(front_img: Image.Image, side_right_img: Image.Image, b
         (back_img, False),        # Row 3: Up
     ]
     for r_idx, (pose_img, is_side) in enumerate(rows):
-        base_cell = fit_cell(pose_img, max_w=62, max_h=92, foot_y=99)
+        base_cell = fit_cell(pose_img, max_w=62, max_h=92, foot_y=99, ring_style=ring_style)
         for c_idx in range(3):
             frame = animate_walk_frame(base_cell, c_idx, is_side=is_side)
             sheet.alpha_composite(frame, (c_idx * FW, r_idx * FH))
@@ -198,7 +202,7 @@ def main():
         front = extract_crop(p1_rgba, (x0, row_y[0][0], x1, row_y[0][1]))
         side = extract_crop(p1_rgba, (x0, row_y[1][0], x1, row_y[1][1]))
         back = extract_crop(p1_rgba, (x0, row_y[2][0], x1, row_y[2][1]))
-        sheet = build_character_sheet(front, side, back)
+        sheet = build_character_sheet(front, side, back, ring_style='player')
         saved_sheets[sprite_id] = sheet
         for out_dir in [*OUT_DIRS, ASSET_CACHE]:
             sheet.save(out_dir / f"{sprite_id}.png")

@@ -1,11 +1,11 @@
 /** 任何时刻只返回一个焦点。提示只说去哪里、怎么点，不说选哪一张。 */
 
 const PLACES = {
-  greenhouse: { guide: [520, 430], sensor: [360, 430], control: [260, 500], fan: [420, 520], verify: [600, 500], portal: [700, 530] },
+  greenhouse: { guide: [575, 395], sensor: [358, 398], control: [185, 515], fan: [415, 585], verify: [715, 565], portal: [925, 520] },
   workshop: { guide: [1035, 245], sensor: [970, 225], control: [1120, 225], fan: [1245, 225], verify: [1180, 235], portal: [955, 330] },
-  energy: { guide: [540, 270], batteryA: [300, 155], batteryB: [440, 180], control: [365, 190], monitor: [435, 245], portal: [610, 300] },
-  crossing: { guide: [350, 600], observe: [430, 515], control: [410, 595], signal: [474, 608], bridgeWest: [470, 326], bridgeEast: [1080, 326], crossingWest: [470, 681], crossingEast: [1080, 681], verify: [1135, 535], portal: [1190, 590] },
-  'crossing-east': { guide: [350, 600], observe: [430, 515], control: [410, 595], signal: [474, 608], bridgeWest: [470, 326], bridgeEast: [1080, 326], crossingWest: [470, 681], crossingEast: [1080, 681], verify: [1135, 535], portal: [1190, 590] }
+  energy: { guide: [485, 285], batteryA: [255, 160], batteryB: [525, 165], control: [390, 150], monitor: [325, 275], portal: [645, 295] },
+  crossing: { guide: [335, 725], observe: [435, 445], control: [345, 555], signal: [474, 608], bridgeWest: [470, 326], bridgeEast: [1080, 326], crossingWest: [470, 681], crossingEast: [1080, 681], verify: [1125, 485], portal: [1195, 615] },
+  'crossing-east': { guide: [335, 725], observe: [435, 445], control: [345, 555], signal: [474, 608], bridgeWest: [470, 326], bridgeEast: [1080, 326], crossingWest: [470, 681], crossingEast: [1080, 681], verify: [1125, 485], portal: [1195, 615] }
 };
 
 export function mapFor(levelId, scene) {

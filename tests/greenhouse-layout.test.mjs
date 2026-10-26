@@ -8,7 +8,7 @@ import { standBeside } from '../engine/src/modules/lesson/approach.ts';
 import { currentFocus, gotoTitle } from '../public/focus.mjs';
 
 const ids = ['guide', 'sensor', 'control', 'fan', 'verify', 'portal'];
-const approved = { start: [780, 620], guide: [520, 430], sensor: [360, 430], control: [260, 500], fan: [420, 520], verify: [600, 500], portal: [700, 530] };
+const approved = { start: [850, 640], guide: [575, 395], sensor: [358, 398], control: [185, 515], fan: [415, 585], verify: [715, 565], portal: [925, 520] };
 const tmx = readFileSync(new URL('../engine/src/tiled/greenhouse.tmx', import.meta.url), 'utf8');
 const cells = tmx.match(/<layer[^>]*name="Solid scenery"[\s\S]*?<data[^>]*>([\s\S]*?)<\/data>/)[1].trim().split(/[,\s]+/).map(Number);
 const point = ([x, y]) => ({ x, y });

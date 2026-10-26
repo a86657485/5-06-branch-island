@@ -104,3 +104,6 @@
 .skin-unlocked { color: #0f766e; font-weight: 700; }
 .skin-preview { color: #8a651b; }
 .story-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
+
+.skin-card.locked { opacity: 0.52; filter: grayscale(0.65); cursor: not-allowed; background: #edf2f7; border-style: dashed; }
+.skin-locked { color: #64748b; font-weight: 700; }

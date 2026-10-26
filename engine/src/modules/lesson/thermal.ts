@@ -26,11 +26,11 @@ function paintLabel(target: any, label: string, graphic: string) {
   target.setGraphic?.(graphic);
   if (actorIdOf(target.id) === 'verify') {
     target.setComponentsTop?.([]);
-    target.setComponentsBottom?.(Components.text(label, { fill: '#163e31', stroke: '#fffaf0', fontSize: 15 }), { width: 96, height: 18, marginLeft: 0, marginBottom: 36 });
+    target.setComponentsBottom?.(Components.text(label, { fill: '#ffffff', stroke: '#0b241d', fontSize: 18, opacity: 0 }), { width: 128, height: 24, marginLeft: 0, marginBottom: 36 });
     return;
   }
   const place = labelPlace[actorIdOf(target.id)] || { marginBottom: 8, marginLeft: 0, width: 80 };
-  target.setComponentsTop?.(Components.text(label, { fill: '#163e31', stroke: '#fffaf0', fontSize: 15 }), place);
+  target.setComponentsTop?.(Components.text(label, { fill: '#ffffff', stroke: '#0b241d', fontSize: 18, opacity: 0 }), place);
 }
 
 const guide = {

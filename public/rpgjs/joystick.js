@@ -28,9 +28,7 @@
   var coarse = mq ? mq('(pointer: coarse)').matches : false;
   var fine = mq ? mq('(pointer: fine)').matches : true;
   var hasTouch = (navigator.maxTouchPoints || 0) > 0;
-  if (coarse || (hasTouch && !fine)) {
-    document.documentElement.classList.add('lesson-touch');
-  }
+  document.documentElement.classList.add('lesson-touch');
 
   function blocked() {
     // 对话、规则面板、错误状态打开时不给行走，避免绕过引擎的 canControl 判断
@@ -98,7 +96,7 @@
   }
 
   base.addEventListener('pointerdown', function (event) {
-    if (event.pointerType === 'mouse') return;  // 桌面用键盘，摇杆只在触屏生效
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (blocked()) { end(); return; }
     event.preventDefault();
     event.stopPropagation();

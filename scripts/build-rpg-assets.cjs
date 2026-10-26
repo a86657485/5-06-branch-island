@@ -59,15 +59,15 @@ const parkPaths = [
  [[975,430],[1145,470],[1320,510],[1536,520],[1536,650],[1330,625],[1100,550],[1000,525]],
 ];
 const stations = {
- greenhouse: {start:[780,620],guide:[520,430],sensor:[360,430],control:[260,500],fan:[420,520],verify:[600,500],portal:[700,530]},
+ greenhouse: {start:[850,640],guide:[575,395],sensor:[358,398],control:[185,515],fan:[415,585],verify:[715,565],portal:[925,520]},
  workshop: {start:[945,280],guide:[1035,245],sensor:[970,225],control:[1120,225],fan:[1245,225],verify:[1180,235],portal:[955,330]},
- energy: {start:[575,275],guide:[540,270],batteryA:[300,155],batteryB:[440,180],control:[365,190],monitor:[435,245],portal:[610,300]},
- crossing: {start:[350,810],guide:[350,600],observe:[430,515],control:[410,595],bridgeWest:[470,326],bridgeEast:[1080,326],crossingWest:[470,681],crossingEast:[1080,681],verify:[1135,535],portal:[1190,590]},
- 'crossing-east': {start:[350,810],guide:[350,600],observe:[430,515],control:[410,595],bridgeWest:[470,326],bridgeEast:[1080,326],crossingWest:[470,681],crossingEast:[1080,681],verify:[1135,535],portal:[1190,590]},
+ energy: {start:[635,175],guide:[485,285],batteryA:[255,160],batteryB:[525,165],control:[390,150],monitor:[325,275],portal:[645,295]},
+ crossing: {start:[460,835],guide:[335,725],observe:[435,445],control:[345,555],bridgeWest:[470,326],bridgeEast:[1080,326],crossingWest:[470,681],crossingEast:[1080,681],verify:[1125,485],portal:[1195,615],visitor:[365,845]},
+ 'crossing-east': {start:[460,835],guide:[335,725],observe:[435,445],control:[345,555],bridgeWest:[470,326],bridgeEast:[1080,326],crossingWest:[470,681],crossingEast:[1080,681],verify:[1125,485],portal:[1195,615],visitor:[365,845]},
 };
 function parkBlocked(x,y,mapId) {
-  const taskSafety = Object.values(stations[mapId]).some(([sx,sy])=>ellipse(x,y,sx,sy,48,44));
-  const path = parkPaths.some(p=>inside(x,y,p)) || ellipse(x,y,770,420,280,170) || ellipse(x,y,380,170,185,88);
+  const taskSafety = Object.values(stations[mapId]).some(([sx,sy])=>ellipse(x,y,sx,sy,72,68));
+  const path = parkPaths.some(p=>inside(x,y,p)) || ellipse(x,y,770,420,280,170) || ellipse(x,y,380,170,185,88) || ellipse(x,y,520,490,380,135);
   const flower = ellipse(x,y,770,416,119,64);
   const hut = inside(x,y,[[90,365],[205,325],[250,370],[245,480],[90,480]]);
   const shop = x>980&&x<1290&&y>32&&y<210;

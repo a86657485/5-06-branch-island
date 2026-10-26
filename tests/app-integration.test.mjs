@@ -29,7 +29,7 @@ function appHarness(rpg = false, demo = false) {
  const learningImports=source.match(/import \{([^}]+)\} from '\.\/learning-flow\.mjs';/)[1].split(',').map(name=>name.trim());
  for(const name of learningImports)context[name]=learningFlow[name];
  source=source.replace(/^import .*;\n/gm,'').replace(/boot\(\)\.catch[\s\S]*$/,'');
- source += `\nglobalThis.testApp={render,renderTask,destroyScene,draft,quizDraft,attach,goToTask,closeExam,showLearnCard:(...args)=>typeof showLearnCard==='function'?showLearnCard(...args):false,closeLearnCard:()=>{if(typeof closeLearnCard==='function')closeLearnCard();},getStory:()=>storySession,showStory,closeStory,advanceStory,setPatrol(value){savePatrol(value);},setState(s){state=s;user={id:'student-a',classId:'501',name:'同学甲'};},setCurrent(id){current=id;},getState(){return state;},getStation(){return {current,lastStation};},setQuizVersion(v){quizVersion=v;},setUser(u){user=u;}};`;
+ source += `\nglobalThis.testApp={render,renderTask,destroyScene,draft,quizDraft,attach,goToTask,closeExam,showLearnCard:(...args)=>typeof showLearnCard==='function'?showLearnCard(...args):false,closeLearnCard:()=>{if(typeof closeLearnCard==='function')closeLearnCard();},getStory:()=>storySession,showStory,closeStory,advanceStory,setPatrol(value){savePatrol(value);},setState(s){state=s;user={id:'student-a',classId:'501',name:'同学甲'};},setCurrent(id){current=id;},getState(){return state;},getStation(){return {current,lastStation};},setQuizVersion(v){quizVersion=v;},setUser(u){user=u;},getSkin,setSkinChoice,isSkinUnlocked};`;
  vm.runInContext(source,context);
  return {app:context.testApp,scenes,events,storage,node};
 }
@@ -238,4 +238,25 @@ test('重看委托可从第1帧直接关闭且不自动弹回，不改变已选�
  assert.equal(h.app.getStory(),null);
  assert.equal(s.drafts.sale.config.operator,'<');
  assert.equal(s.drafts.sale.config.yes,'off');
+});
+
+test('未解锁的机甲与探险皮肤严禁试穿，通关对应站点后才解锁穿戴',()=>{
+ const h=appHarness(true),s=state();
+ h.app.setState(s);
+ assert.equal(h.app.isSkinUnlocked('engineer'),true);
+ assert.equal(h.app.isSkinUnlocked('engineer-girl'),true);
+ assert.equal(h.app.isSkinUnlocked('engineer-mecha-boy'),false);
+ assert.equal(h.app.isSkinUnlocked('engineer-explorer-boy'),false);
+ assert.equal(h.app.setSkinChoice('engineer-mecha-boy'),false,'未通1站不能试穿机甲皮肤');
+ assert.equal(h.app.getSkin(),'engineer');
+ assert.equal(h.app.setSkinChoice('engineer-girl'),true,'默认女巡检员可直接切换');
+ assert.equal(h.app.getSkin(),'engineer-girl');
+ s.levels.sale={completed:true,valid:true};
+ assert.equal(h.app.isSkinUnlocked('engineer-mecha-boy'),true);
+ assert.equal(h.app.setSkinChoice('engineer-mecha-boy'),true,'通1站后解锁机甲皮肤');
+ assert.equal(h.app.getSkin(),'engineer-mecha-boy');
+ assert.equal(h.app.setSkinChoice('engineer-explorer-boy'),false,'仅通1站不能穿2站探险皮肤');
+ s.levels.repair={completed:true,valid:true};
+ assert.equal(h.app.setSkinChoice('engineer-explorer-boy'),true,'通2站后解锁探险皮肤');
+ assert.equal(h.app.getSkin(),'engineer-explorer-boy');
 });

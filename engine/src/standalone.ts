@@ -32,11 +32,46 @@ let activeWorldHelp: {stepKey:string,target?:{focusKey?:string},origin?:string,l
 const dismissButton = document.getElementById('engine-dismiss') as HTMLButtonElement | null;
 
 const MAP_PLACES: Record<string, Record<string, [number, number]>> = {
-  greenhouse: { guide: [520, 430], sensor: [360, 430], control: [260, 500], fan: [420, 520], verify: [600, 500], portal: [700, 530] },
-  energy: { guide: [540, 270], batteryA: [300, 155], batteryB: [440, 180], control: [365, 190], monitor: [435, 245], portal: [610, 300] },
-  crossing: { guide: [350, 600], observe: [430, 515], control: [410, 595], signal: [474, 608], bridgeWest: [470, 326], bridgeEast: [1080, 326], crossingWest: [470, 681], crossingEast: [1080, 681], verify: [1135, 535], portal: [1190, 590] },
-  'crossing-east': { guide: [350, 600], observe: [430, 515], control: [410, 595], signal: [474, 608], bridgeWest: [470, 326], bridgeEast: [1080, 326], crossingWest: [470, 681], crossingEast: [1080, 681], verify: [1135, 535], portal: [1190, 590] }
+  greenhouse: { guide: [575, 395], sensor: [358, 398], control: [185, 515], fan: [415, 585], verify: [715, 565], portal: [925, 520] },
+  energy: { guide: [485, 285], batteryA: [255, 160], batteryB: [525, 165], control: [390, 150], monitor: [325, 275], portal: [645, 295] },
+  crossing: { guide: [335, 725], observe: [435, 445], control: [345, 555], signal: [474, 608], bridgeWest: [470, 326], bridgeEast: [1080, 326], crossingWest: [470, 681], crossingEast: [1080, 681], verify: [1125, 485], portal: [1195, 615] },
+  'crossing-east': { guide: [335, 725], observe: [435, 445], control: [345, 555], signal: [474, 608], bridgeWest: [470, 326], bridgeEast: [1080, 326], crossingWest: [470, 681], crossingEast: [1080, 681], verify: [1125, 485], portal: [1195, 615] }
 };
+
+function actorBadgeDefs(levelId: string, mapId: string): Array<{ place: string; label: string; x: number; y: number }> {
+  if (mapId === 'greenhouse') {
+    const repair = levelId === 'repair';
+    return [
+      { place: 'guide', label: repair ? '🔧 维修员老修' : '👩‍🌾 园艺员阿绿', x: 575, y: 395 },
+      { place: 'sensor', label: '🌡️ 温度探头', x: 358, y: 398 },
+      { place: 'control', label: '🎛️ 规则控制柜', x: 185, y: 515 },
+      { place: 'fan', label: '🌀 通风风机', x: 415, y: 585 },
+      { place: 'verify', label: '🖥️ 现场核验仪', x: 715, y: 565 },
+      { place: 'portal', label: '🚪 下一站', x: 925, y: 520 },
+    ];
+  }
+  if (mapId === 'energy') {
+    return [
+      { place: 'guide', label: '⚡ 储能柜小电', x: 485, y: 285 },
+      { place: 'batteryA', label: '🔋 A 电池支路', x: 255, y: 160 },
+      { place: 'batteryB', label: '🔋 B 电池支路', x: 525, y: 165 },
+      { place: 'control', label: '🎛️ 配电控制台', x: 390, y: 150 },
+      { place: 'monitor', label: '🖥️ 充电核验台', x: 325, y: 275 },
+    ];
+  }
+  if (mapId === 'crossing' || mapId === 'crossing-east') {
+    return [
+      { place: 'guide', label: '👮 巡检员小巡', x: 335, y: 725 },
+      { place: 'observe', label: '🔭 设施观察点', x: 435, y: 445 },
+      { place: 'control', label: '🪧 智能指路牌', x: 345, y: 555 },
+      { place: 'bridgeWest', label: '🌉 天桥入口', x: 470, y: 326 },
+      { place: 'signal', label: '🚦 人行信号灯', x: 474, y: 608 },
+      { place: 'verify', label: '🖥️ 通行核验台', x: 1125, y: 485 },
+      { place: 'portal', label: '👮 东岸巡检员', x: 1195, y: 615 },
+    ];
+  }
+  return [];
+}
 
 function stopMovement() {
   heldDirection = undefined;
@@ -93,6 +128,7 @@ const focusMarker = document.getElementById('focus-marker');
 const focusLabel = document.getElementById('focus-label');
 const focusArrow = focusMarker?.querySelector('.focus-arrow');
 const pathDots = document.getElementById('path-dots');
+const actorBadges = document.getElementById('actor-badges');
 const hintButton = document.getElementById('engine-hint') as HTMLButtonElement | null;
 const undo = document.getElementById('engine-undo') as HTMLButtonElement | null;
 const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
@@ -267,6 +303,54 @@ function paintDots(dots: Array<{ x: number, y: number }> = [], projection: Proje
   for (let index = used; index < dotPool.length; index++) setHidden(dotPool[index], true);
   setHidden(pathDots, used === 0);
 }
+const badgePool: HTMLButtonElement[] = [];
+function paintActorBadges(focus: { target?: { mapId?: string, place?: string } }, projection: Projection) {
+  if (!actorBadges) return;
+  if (hostOverlay || studioOpen || dialogOpen) {
+    setHidden(actorBadges, true);
+    return;
+  }
+  const context = getContext();
+  const levelId = context?.levelId || 'sale';
+  const mapId = focus.target?.mapId || context?.draft?.rpg?.mapId || (levelId === 'cross' ? (context?.draft?.scene?.facility === false ? 'crossing' : 'crossing-east') : levelId === 'minimum' ? 'energy' : 'greenhouse');
+  const items = actorBadgeDefs(levelId, mapId);
+  let used = 0;
+  for (const item of items) {
+    const point = projectWorld({ x: item.x + 12, y: item.y - 78 }, projection);
+    if (!point || point.offscreen) continue;
+    let badge = badgePool[used];
+    if (!badge) {
+      badge = document.createElement('button');
+      badge.type = 'button';
+      badge.className = 'actor-name-badge';
+      badge.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (!canControl()) return;
+        const m = badge.dataset.mapId || '';
+        const p = badge.dataset.place || '';
+        const tx = Number(badge.dataset.tx);
+        const ty = Number(badge.dataset.ty);
+        if (!m || !p || !Number.isFinite(tx) || !Number.isFinite(ty)) return;
+        noteActivity(); clearAssistance(); if (feedbackLine) feedbackLine.hidden = true;
+        window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { mapId: m, place: p, x: tx, y: ty, goto: true } }));
+      });
+      badgePool.push(badge);
+      actorBadges.appendChild(badge);
+    }
+    setHidden(badge, false);
+    setText(badge, item.label);
+    setData(badge, 'mapId', mapId);
+    setData(badge, 'place', item.place);
+    setData(badge, 'tx', String(item.x));
+    setData(badge, 'ty', String(item.y));
+    setClass(badge, 'is-focus', focus.target?.place === item.place);
+    setStyle(badge, 'left', `${Math.round(point.x)}px`);
+    setStyle(badge, 'top', `${Math.round(point.y)}px`);
+    used++;
+  }
+  for (let index = used; index < badgePool.length; index++) setHidden(badgePool[index], true);
+  setHidden(actorBadges, used === 0);
+}
 function paintFocus(focus = lessonFocus()) {
   if (new URLSearchParams(location.search).has('preview')) return;
   if (hostOverlay && focusMarker) setHidden(focusMarker, true);
@@ -300,6 +384,7 @@ function paintFocus(focus = lessonFocus()) {
     setText(focusLabel, showingTarget?'法宝位置':point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '');
   }
   paintDots(hostOverlay ? [] : (focus.dots || []), projection);
+  paintActorBadges(focus, projection);
   paintPanelFocus(focus);
   const hints=getContext()?.support?.hints||[];
   if(hintButton){setText(hintButton, `通关法宝 ${Math.max(0,5-hints.length)}/5`);setDisabled(hintButton, hints.length>=5||auxiliaryBusy);}

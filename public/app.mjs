@@ -29,28 +29,39 @@ const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const clone = v => JSON.parse(JSON.stringify(v));
 const eventId = () => globalThis.crypto?.randomUUID?.() || Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2,'0')).join('');
 const SKIN_OPTIONS = [
- {id:'engineer',name:'小阳·男巡检员',avatar:'/assets/avatars/skin-boy.png',need:0,badge:'默认可选'},
- {id:'engineer-girl',name:'小星·女巡检员',avatar:'/assets/avatars/skin-girl.png',need:0,badge:'默认可选'},
- {id:'engineer-mecha-boy',name:'未来机甲·男',avatar:'/assets/avatars/skin-mecha-boy.png',need:1,badge:'通1站解锁 / 可试穿'},
- {id:'engineer-mecha-girl',name:'未来机甲·女',avatar:'/assets/avatars/skin-mecha-girl.png',need:1,badge:'通1站解锁 / 可试穿'},
- {id:'engineer-explorer-boy',name:'生态探险·男',avatar:'/assets/avatars/skin-explorer-boy.png',need:2,badge:'通2站解锁 / 可试穿'},
- {id:'engineer-explorer-girl',name:'生态探险·女',avatar:'/assets/avatars/skin-explorer-girl.png',need:2,badge:'通2站解锁 / 可试穿'}
+ {id:'engineer',name:'小阳·男巡检员',avatar:'/assets/avatars/skin-boy.png',need:0,badge:'默认可用'},
+ {id:'engineer-girl',name:'小星·女巡检员',avatar:'/assets/avatars/skin-girl.png',need:0,badge:'默认可用'},
+ {id:'engineer-mecha-boy',name:'未来机甲·男',avatar:'/assets/avatars/skin-mecha-boy.png',need:1,badge:'🔒 通1站解锁'},
+ {id:'engineer-mecha-girl',name:'未来机甲·女',avatar:'/assets/avatars/skin-mecha-girl.png',need:1,badge:'🔒 通1站解锁'},
+ {id:'engineer-explorer-boy',name:'生态探险·男',avatar:'/assets/avatars/skin-explorer-boy.png',need:2,badge:'🔒 通2站解锁'},
+ {id:'engineer-explorer-girl',name:'生态探险·女',avatar:'/assets/avatars/skin-explorer-girl.png',need:2,badge:'🔒 通2站解锁'}
 ];
-function getSkin(){try{const s=localStorage.getItem('branch-island-skin');if(SKIN_OPTIONS.some(o=>o.id===s))return s;}catch{}return 'engineer';}
+function passedStationCount(){return ['sale','repair','cross','minimum'].filter(k=>state.levels?.[k]?.completed).length;}
+function isSkinUnlocked(id){const item=SKIN_OPTIONS.find(o=>o.id===id);return !!item && passedStationCount()>=item.need;}
+function getSkin(){
+ let saved='engineer';
+ try{const s=localStorage.getItem('branch-island-skin');if(SKIN_OPTIONS.some(o=>o.id===s))saved=s;}catch{}
+ if(!isSkinUnlocked(saved)){
+  const fallback=saved.includes('girl')?'engineer-girl':'engineer';
+  try{localStorage.setItem('branch-island-skin',fallback);}catch{}
+  return fallback;
+ }
+ return saved;
+}
 function setSkinChoice(id){
- if(!SKIN_OPTIONS.some(o=>o.id===id))return;
+ if(!isSkinUnlocked(id))return false;
  try{localStorage.setItem('branch-island-skin',id);}catch{}
  activeScene?.setSkin?.(id);
  const cur=SKIN_OPTIONS.find(o=>o.id===id)||SKIN_OPTIONS[0];
  const btn=$('#open-skin');if(btn)btn.innerHTML=`<img src="${cur.avatar}" alt="" class="skin-mini-avatar"> 换装`;
  document.querySelectorAll('[data-skin-id]').forEach(el=>el.classList.toggle('selected',el.getAttribute('data-skin-id')===id));
+ return true;
 }
-function passedStationCount(){return ['sale','repair','cross','minimum'].filter(k=>state.levels?.[k]?.completed).length;}
 function skinCardsMarkup(){
  const cur=getSkin(),done=passedStationCount();
  return SKIN_OPTIONS.map(item=>{
   const unlocked=done>=item.need;
-  return `<button type="button" class="skin-card ${cur===item.id?'selected':''}" data-skin-id="${item.id}"><img src="${item.avatar}" alt="${esc(item.name)}"><strong>${esc(item.name)}</strong><small class="${unlocked?'skin-unlocked':'skin-preview'}">${unlocked?'✨ 已解锁':esc(item.badge)}</small></button>`;
+  return `<button type="button" class="skin-card ${cur===item.id?'selected':''} ${unlocked?'':'locked'}" data-skin-id="${item.id}" ${unlocked?'':'disabled'} aria-disabled="${!unlocked}"><img src="${item.avatar}" alt="${esc(item.name)}"><strong>${esc(item.name)}</strong><small class="${unlocked?'skin-unlocked':'skin-locked'}">${unlocked?'✨ 已解锁可穿戴':esc(item.badge)}</small></button>`;
  }).join('');
 }
 const ids = ['sale','repair','cross','minimum'];
@@ -193,7 +204,7 @@ function renderPlay(){
  const app = $('#app');
  const mounted = app?.querySelector?.('#play-shell') || String(app?.innerHTML || '').includes('id="play-shell"');
  if(!mounted){
-  $('#app').innerHTML=`<div id="play-shell" class="play-shell">${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar slim"><a class="brand" href="#">分支冒险岛<span>园区巡检</span></a>${routeMarkup()}<div class="identity"><span>${demo?'演示巡检员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${esc(pointsLabel(state))}</strong><button id="open-skin" type="button" class="skin-btn"><img src="${(SKIN_OPTIONS.find(o=>o.id===getSkin())||SKIN_OPTIONS[0]).avatar}" alt="" class="skin-mini-avatar"> 换装</button><button id="open-patrol" type="button">巡检单</button><button id="open-learn" type="button" class="quiet">巡检手册</button><button id="open-help" type="button" class="quiet">帮助</button><button id="switch-user" class="quiet">切换身份</button></div></header><div class="stage-full"><main id="workbench" class="workbench game-workbench"></main><p id="sync-notice" class="save-status stage-notice" role="status" ${notice?'':'hidden'}>${esc(notice)}</p><div id="save-status" class="save-status stage-save" role="status">${syncStatus()}</div></div><div id="patrol-overlay" class="screen-overlay" hidden><section class="overlay-card" role="dialog" aria-modal="true" aria-label="巡检单"><button type="button" id="patrol-close" class="overlay-close" aria-label="关闭巡检单">×</button><p class="eyebrow">园区巡检员</p><h2>巡检单</h2><p>固定顺序：温室 → 返修 → 路口。储能柜是选做。</p><div id="patrol-list" class="patrol-list">${checklistMarkup()}</div><button type="button" id="review-mission" type="button" class="quiet">回看当前委托</button><button type="button" id="open-exam" class="primary">考核入口</button></section></div><div id="story-overlay" class="screen-overlay" hidden><section class="overlay-card story-card" role="dialog" aria-modal="true" aria-label="剧情"><button type="button" id="story-skip" class="overlay-close" data-focus="story-skip" aria-label="关闭回放" hidden>×</button><img id="story-art" alt="" /><p id="story-speaker" class="eyebrow"></p><p id="story-line" class="story-line"></p><div class="story-actions"><button type="button" id="story-next" class="primary">继续</button><button type="button" id="story-direct-close" class="quiet" hidden>关闭回放，回到现场</button></div></section></div><div id="skin-overlay" class="screen-overlay" hidden><section class="overlay-card skin-modal" role="dialog" aria-modal="true" aria-label="角色换装"><button type="button" id="skin-close" class="overlay-close" aria-label="关闭换装">×</button><p class="eyebrow">智慧园区 · 个性形象</p><h2>选择巡检员角色与皮肤</h2><p class="muted">男女巡检员随时可换；完成站点可解锁未来机甲服与生态探险服（课堂中也可直接点击试穿）！</p><div id="skin-list" class="skin-grid">${skinCardsMarkup()}</div><button type="button" id="skin-confirm" class="primary">穿戴完毕，返回园区</button></section></div><div id="learn-overlay" class="screen-overlay learn-overlay" hidden><section class="overlay-card learn-card" role="dialog" aria-modal="true" aria-label="巡检手册"><button type="button" id="learn-close" class="overlay-close" aria-label="关闭巡检手册">×</button><div id="learn-content"></div><button type="button" id="learn-continue" class="primary">回到现场继续</button></section></div><div id="exam-overlay" class="screen-overlay" hidden><section class="overlay-card exam-card" role="dialog" aria-modal="true" aria-label="考核"><button type="button" id="exam-close" class="overlay-close" aria-label="关闭考核">×</button><div id="exam-body"></div></section></div></div>`;
+  $('#app').innerHTML=`<div id="play-shell" class="play-shell">${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar slim"><a class="brand" href="#">分支冒险岛<span>园区巡检</span></a>${routeMarkup()}<div class="identity"><span>${demo?'演示巡检员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${esc(pointsLabel(state))}</strong><button id="open-skin" type="button" class="skin-btn"><img src="${(SKIN_OPTIONS.find(o=>o.id===getSkin())||SKIN_OPTIONS[0]).avatar}" alt="" class="skin-mini-avatar"> 换装</button><button id="open-patrol" type="button">巡检单</button><button id="open-learn" type="button" class="quiet">巡检手册</button><button id="open-help" type="button" class="quiet">帮助</button><button id="switch-user" class="quiet">切换身份</button></div></header><div class="stage-full"><main id="workbench" class="workbench game-workbench"></main><p id="sync-notice" class="save-status stage-notice" role="status" ${notice?'':'hidden'}>${esc(notice)}</p><div id="save-status" class="save-status stage-save" role="status">${syncStatus()}</div></div><div id="patrol-overlay" class="screen-overlay" hidden><section class="overlay-card" role="dialog" aria-modal="true" aria-label="巡检单"><button type="button" id="patrol-close" class="overlay-close" aria-label="关闭巡检单">×</button><p class="eyebrow">园区巡检员</p><h2>巡检单</h2><p>固定顺序：温室 → 返修 → 路口。储能柜是选做。</p><div id="patrol-list" class="patrol-list">${checklistMarkup()}</div><button type="button" id="review-mission" type="button" class="quiet">回看当前委托</button><button type="button" id="open-exam" class="primary">考核入口</button></section></div><div id="story-overlay" class="screen-overlay" hidden><section class="overlay-card story-card" role="dialog" aria-modal="true" aria-label="剧情"><button type="button" id="story-skip" class="overlay-close" data-focus="story-skip" aria-label="关闭回放" hidden>×</button><img id="story-art" alt="" /><p id="story-speaker" class="eyebrow"></p><p id="story-line" class="story-line"></p><div class="story-actions"><button type="button" id="story-next" class="primary">继续</button><button type="button" id="story-direct-close" class="quiet" hidden>关闭回放，回到现场</button></div></section></div><div id="skin-overlay" class="screen-overlay" hidden><section class="overlay-card skin-modal" role="dialog" aria-modal="true" aria-label="角色换装"><button type="button" id="skin-close" class="overlay-close" aria-label="关闭换装">×</button><p class="eyebrow">智慧园区 · 个性形象</p><h2>选择巡检员角色与皮肤</h2><p class="muted">男女巡检员默认可用；完成 1 站解锁未来机甲服，完成 2 站解锁生态探险服，解锁后方可穿戴！</p><div id="skin-list" class="skin-grid">${skinCardsMarkup()}</div><button type="button" id="skin-confirm" class="primary">穿戴完毕，返回园区</button></section></div><div id="learn-overlay" class="screen-overlay learn-overlay" hidden><section class="overlay-card learn-card" role="dialog" aria-modal="true" aria-label="巡检手册"><button type="button" id="learn-close" class="overlay-close" aria-label="关闭巡检手册">×</button><div id="learn-content"></div><button type="button" id="learn-continue" class="primary">回到现场继续</button></section></div><div id="exam-overlay" class="screen-overlay" hidden><section class="overlay-card exam-card" role="dialog" aria-modal="true" aria-label="考核"><button type="button" id="exam-close" class="overlay-close" aria-label="关闭考核">×</button><div id="exam-body"></div></section></div></div>`;
   $('#patrol-close').onclick=()=>closePatrol();
   $('#story-skip').onclick=()=>closeStory(true);
   if($('#story-direct-close'))$('#story-direct-close').onclick=()=>closeStory(true);

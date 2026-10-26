@@ -32,66 +32,60 @@
       #engine-controls #engine-action { position: absolute; bottom: max(24px, env(safe-area-inset-bottom)); right: max(20px, env(safe-area-inset-right)); width: 190px; height: 70px; background: #1c624d; color: white; font-size: 19px; }
       #engine-action small { display: block; font-size: 13px; margin-top: 4px; font-weight: 500; }
       .engine-pad-caption { position: absolute; bottom: 0; left: 175px; color: white; text-shadow: 0 1px 3px #0e302d; font-size: 11px; white-space: nowrap; }
-      #engine-task-hint { position:absolute;left:14px;top:10px;max-width:min(580px,calc(100% - 215px));padding:10px 16px;margin:0;border:3px solid #f59e0b;border-radius:999px;background:#fffaf0f8;color:#173b31;z-index:82;font-size:17px;line-height:1.45;pointer-events:auto;cursor:pointer;box-shadow:0 6px 18px #0f29224d;}
-      #engine-task-hint::before { content:"👆 点此或点地图目标直达："; font-weight:800; color:#b45309; }
-      #focus-marker { position:absolute; left:0; top:0; width:0; height:0; z-index:80; pointer-events:auto; cursor:pointer; color:#173b31; font-weight:800; }
-      #focus-marker .focus-ring { position:absolute; width:var(--ring-width,88px); height:var(--ring-height,28px); border:3px solid #fbbf24; border-radius:50%; background:transparent; box-shadow:0 0 0 4px #f59e0b40; pointer-events:auto; transform:translate(-50%,-50%); animation:focus-feet-pulse 1.2s ease-in-out infinite; }
-      #focus-marker .focus-arrow { position:absolute; right:calc(var(--target-half-width,27px) + 12px); top:-46px; width:28px; font-size:32px; line-height:1; color:#f59e0b; filter:drop-shadow(0 2px 3px #173b31); pointer-events:none; animation:focus-side-nudge 1.2s ease-in-out infinite; }
-      #focus-label { position:absolute; top:-88px; left:0; transform:translateX(-50%); white-space:nowrap; padding:5px 12px; border-radius:999px; background:#fffbeb; border:2px solid #f59e0b; color:#183c30; font-size:14px; box-shadow:0 4px 12px #0f292244; }
+      #engine-task-hint { position:absolute;left:14px;top:10px;max-width:min(580px,calc(100% - 215px));padding:10px 16px;margin:0;border:3px solid #ff1493;border-radius:999px;background:#fffaf0f8;color:#173b31;z-index:82;font-size:17px;line-height:1.45;pointer-events:auto;cursor:pointer;box-shadow:0 6px 18px #4a002855;}
+      #engine-task-hint::before { content:"👆 点此或点地图目标直达："; font-weight:800; color:#c2185b; }
+      #actor-badges { position: fixed; inset: 0; z-index: 75; pointer-events: none; }
+      .actor-name-badge { position: absolute; transform: translate(-50%, -105%); pointer-events: auto; cursor: pointer; white-space: nowrap; padding: 5px 15px; border-radius: 999px; background: #071f18fa; border: 3px solid #ffd166; color: #ffffff; font-size: 19px; font-weight: 900; letter-spacing: 0.03em; box-shadow: 0 5px 14px #00000099; text-shadow: 0 1px 3px #000000; transition: transform 0.12s ease, border-color 0.12s ease; }
+      .actor-name-badge:hover { transform: translate(-50%, -108%) scale(1.05); border-color: #00e5ff; }
+      .actor-name-badge.is-focus { background: #6a0036f8; border: 3px solid #ff80ab; color: #ffffff; box-shadow: 0 0 0 3px #ff149355, 0 6px 16px #4a0028aa; }
+      #focus-marker { position:absolute; left:0; top:0; width:0; height:0; z-index:80; pointer-events:auto; cursor:pointer; color:#ffffff; font-weight:900; }
+      #focus-marker .focus-ring { position:absolute; width:var(--ring-width,92px); height:var(--ring-height,32px); border:4px solid #ff1493; border-radius:50%; background:transparent; outline:3px solid #ffffff; box-shadow:0 0 0 6px #ff149366, 0 0 22px 4px #ff007f; pointer-events:auto; transform:translate(-50%,-50%); animation:focus-feet-pulse 1.1s ease-in-out infinite; }
+      #focus-marker .focus-arrow { position:absolute; right:calc(var(--target-half-width,27px) + 14px); top:-46px; width:30px; font-size:34px; line-height:1; color:#ff1493; filter:drop-shadow(0 0 3px #ffffff) drop-shadow(0 2px 5px #4a0028); pointer-events:none; animation:focus-side-nudge 1.1s ease-in-out infinite; }
+      #focus-label { position:absolute; top:24px; left:0; transform:translateX(-50%); white-space:nowrap; padding:4px 12px; border-radius:999px; background:#880e4f; border:2.5px solid #ff80ab; color:#ffffff; font-size:15px; font-weight:900; box-shadow:0 4px 12px #4a002888; }
       #focus-label:empty { display:none; }
       #focus-marker.edge .focus-ring { display:none; }
       #focus-marker.edge .focus-arrow { right:auto; left:0; top:0; width:auto; font-size:42px; transform:translate(-50%,-50%); animation:none; }
       #path-dots { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
-      .path-dot { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: #e39b00; border: 3px solid #173b31; box-shadow: 0 0 0 3px #fff6; }
-      #engine-goto.focus-target { outline:4px solid #ffcf5a; animation:focus-pulse 1s ease-in-out infinite; }
+      .path-dot { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: #ff1493; border: 3px solid #ffffff; box-shadow: 0 0 0 3px #ff149366; }
+      #engine-goto.focus-target { outline:4px solid #ff1493; animation:focus-pulse 1s ease-in-out infinite; }
       .card-tray.focus-target, .flow-slot.focus-target, .studio.focus-target, .studio-tabs button.focus-target { outline: 4px solid #e39b00; outline-offset: 4px; }
       .predict-table.focus-target { outline: 3px solid #1175bb; outline-offset: 4px; }
-      @keyframes focus-pulse { 50% { outline-color:#147d78; border-color:#fff; } }
-      @keyframes focus-feet-pulse { 0%,100% { transform:translate(-50%,-50%) scale(1); opacity:.7; } 50% { transform:translate(-50%,-50%) scale(1.14); opacity:.95; } }
-      @keyframes focus-side-nudge { 50% { transform:translateX(4px); } }
-      @media(prefers-reduced-motion:reduce){#focus-marker .focus-ring,#focus-marker .focus-arrow,#engine-task-hint,#engine-goto.focus-target{animation:none;}#focus-marker .focus-ring{opacity:.75;}}
-      @media(max-width:600px){#engine-task-hint{max-width:calc(100% - 20px);top:62px;left:10px;font-size:14px;padding:7px 10px;}}
+      @keyframes focus-pulse { 50% { outline-color:#00e5ff; border-color:#fff; } }
+      @keyframes focus-feet-pulse { 0%,100% { transform:translate(-50%,-50%) scale(1); opacity:.88; } 50% { transform:translate(-50%,-50%) scale(1.16); opacity:1; } }
+      @keyframes focus-side-nudge { 50% { transform:translateX(5px); } }
+      @media(prefers-reduced-motion:reduce){#focus-marker .focus-ring,#focus-marker .focus-arrow,#engine-task-hint,#engine-goto.focus-target{animation:none;}#focus-marker .focus-ring{opacity:.9;}}
+      @media(max-width:600px){#engine-task-hint{max-width:calc(100% - 20px);top:62px;left:10px;font-size:14px;padding:7px 10px;}.actor-name-badge{font-size:14px;padding:3px 9px;}}
       #engine-status { position: absolute; inset: 22% 8% auto; padding: 22px; background: #fff9e9; color: #19392d; border: 3px solid #d6bd79; box-shadow: 0 15px 45px #092b2a66; border-radius: 18px; text-align: center; z-index: 1200; }
       #engine-status p { margin: 0 0 15px; line-height: 1.7; }
       #engine-status button { min-height: 44px; padding: 8px 20px; border: 0; border-radius: 9px; color: white; background: #1c624d; }
       @media (max-width: 600px) { .engine-pad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 44px); gap: 3px; left: 10px; bottom: 10px; } .engine-pad-caption { display: none; } .engine-tools { top: 8px; right: 8px; gap: 5px; } .engine-tools button { font-size: 12px; padding: 6px 10px; } #engine-controls #engine-action { right: 12px; bottom: 20px; width: 180px; height: 68px; font-size: 17px; } }
     #engine-goto { position:fixed;right:20px;bottom:108px;min-width:240px;min-height:56px;background:#1c624d!important;color:white!important;font-size:19px!important;box-shadow:0 4px 18px #153b3266;} #engine-goto:disabled, #engine-action:disabled {opacity:.65;cursor:default;} #engine-status p {white-space:pre-line;} @media(max-width:600px){#engine-goto{right:12px;bottom:102px;min-width:200px;font-size:16px!important;}}
-    #engine-feedback{position:absolute;left:16px;bottom:22px;max-width:calc(100% - 300px);padding:10px 14px;border-radius:12px;background:#fffaf0f2;color:#173b31;font-size:17px;line-height:1.5;z-index:85;pointer-events:none;}
-#engine-assistance{position:absolute;left:16px;bottom:90px;max-width:min(560px,calc(100% - 32px));padding:14px 46px 14px 16px;border:2px solid #ba8b28;border-radius:14px;background:#fff3cffa;color:#173b31;font-size:17px;line-height:1.5;z-index:90;}
+    #engine-feedback{position:absolute;left:164px;bottom:24px;max-width:calc(100% - 420px);padding:10px 14px;border-radius:12px;background:#fffaf0f2;color:#173b31;font-size:17px;line-height:1.5;z-index:85;pointer-events:none;}
+#engine-assistance{position:absolute;left:164px;bottom:92px;max-width:min(560px,calc(100% - 340px));padding:14px 46px 14px 16px;border:2px solid #ba8b28;border-radius:14px;background:#fff3cffa;color:#173b31;font-size:17px;line-height:1.5;z-index:90;}
 #engine-assistance p{white-space:pre-line;margin:6px 0 0;}#engine-assistance-close{position:absolute;top:6px;right:8px;width:32px;height:32px;border:0;border-radius:50%;background:#f2dfab;color:#173b31;font-size:25px;}
-#focus-marker.assisted-marker .focus-ring{border-color:#ba8b28;box-shadow:0 0 0 5px #fbbf2440;}
-@media(max-width:600px){#engine-feedback{bottom:78px;left:10px;max-width:calc(100% - 20px);font-size:15px;}#engine-assistance{left:10px;bottom:130px;font-size:15px;}.engine-tools{flex-wrap:wrap;justify-content:flex-end;max-width:100%;}}
+#focus-marker.assisted-marker .focus-ring{border-color:#00e5ff;box-shadow:0 0 0 6px #00e5ff66, 0 0 22px 4px #00e5ff;}
+@media(max-width:600px){#engine-feedback{bottom:156px;left:10px;max-width:calc(100% - 20px);font-size:15px;}#engine-assistance{left:10px;bottom:205px;max-width:calc(100% - 20px);font-size:15px;}.engine-tools{flex-wrap:wrap;justify-content:flex-end;max-width:100%;}}
 </style>
     <style id="lesson-touch-ui">
-      /* 触屏摇杆（2026-10-26）：平板上给一个可持续按住的方向摇杆。
-         只在粗指针（触屏）或带触摸点的设备显示，桌面端保持键盘操作。 */
+      /* 电脑与平板常驻虚拟摇杆（2026-10-26）：支持鼠标按住拖动与触屏拖动 */
       #lesson-joystick{
-        position:absolute;left:max(14px, env(safe-area-inset-left));bottom:max(16px, env(safe-area-inset-bottom));
-        width:132px;height:132px;border-radius:50%;display:none;z-index:60;
-        background:#fffaf0b8;border:3px solid #184c3b8c;box-shadow:0 4px 14px #102e2c40;
-        pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none;
+        position:absolute;left:max(16px, env(safe-area-inset-left));bottom:max(18px, env(safe-area-inset-bottom));
+        width:132px;height:132px;border-radius:50%;display:block;z-index:60;
+        background:#fffaf0d9;border:3.5px solid #184c3b;box-shadow:0 6px 18px #102e2c66;
+        pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none;cursor:grab;
       }
-      #lesson-joystick.is-active{background:#fffaf0e6;border-color:#184c3b}
+      #lesson-joystick.is-active{background:#fffaf0f8;border-color:#ff1493;cursor:grabbing}
       #lesson-joystick::after{
-        content:"";position:absolute;inset:14px;border-radius:50%;border:2px dashed #184c3b33;
+        content:"";position:absolute;inset:14px;border-radius:50%;border:2px dashed #184c3b4d;
       }
       #lesson-joystick-knob{
         position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;
-        background:#1c624d;border:3px solid #fffaf0;box-shadow:0 2px 6px #0000004d;pointer-events:none;
+        background:linear-gradient(135deg, #1c624d, #0f3d2e);border:3px solid #fffaf0;box-shadow:0 3px 8px #00000066;pointer-events:none;
       }
       #lesson-joystick-label{
-        position:absolute;left:0;right:0;top:-24px;text-align:center;font-size:12px;font-weight:700;
-        color:#fff;text-shadow:0 1px 3px #0e302d;pointer-events:none;
+        position:absolute;left:-6px;right:-6px;top:-28px;text-align:center;font-size:13px;font-weight:900;
+        color:#fff;background:#0b241dd9;padding:2px 6px;border-radius:999px;border:1.5px solid #ffd166;pointer-events:none;
       }
-      @media (pointer:coarse){ #lesson-joystick{display:block} }
-      html.lesson-touch #lesson-joystick{display:block}
-      /* 摇杆占了左下角，把反馈条与帮助卡抬起来，避免叠字 */
-      @media (pointer:coarse){
-        #engine-feedback{left:14px;right:14px;bottom:160px;max-width:none}
-        #engine-assistance{bottom:170px;left:14px;max-width:calc(100% - 28px)}
-      }
-      html.lesson-touch #engine-feedback{bottom:160px;left:14px;right:14px;max-width:none}
-      html.lesson-touch #engine-assistance{bottom:170px;left:14px;max-width:calc(100% - 28px)}
       @media (max-width:600px){
         #lesson-joystick{width:118px;height:118px;left:10px;bottom:12px}
         #lesson-joystick-knob{width:52px;height:52px;margin:-26px 0 0 -26px}
@@ -124,6 +118,7 @@
     <p id="engine-feedback" role="status" hidden></p>
     <aside id="engine-assistance" role="status" hidden><button id="engine-assistance-close" type="button" aria-label="关闭帮助提示">×</button><strong>探究帮助</strong><p></p></aside>
     <div id="path-dots" hidden></div>
+    <div id="actor-badges" hidden></div>
     <div id="focus-marker" hidden><span class="focus-ring" aria-hidden="true"></span><span class="focus-arrow" aria-hidden="true">→</span><span id="focus-label">下一目标</span></div>
     <div id="engine-controls" aria-label="园区操作" hidden>
       <nav class="engine-tools" aria-label="探究帮助">
@@ -138,7 +133,7 @@
       <button id="engine-action" type="button" aria-describedby="engine-action-help" disabled><span id="engine-action-label">交谈 / 操作</span><small id="engine-action-help">请先靠近目标</small></button>
       <div id="lesson-joystick" role="group" aria-label="移动摇杆：按住并拖动可让巡检员走动">
         <div id="lesson-joystick-knob" aria-hidden="true"></div>
-        <span id="lesson-joystick-label" aria-hidden="true">按住拖动</span>
+        <span id="lesson-joystick-label" aria-hidden="true">拖动摇杆移动</span>
       </div>
     </div>
     <aside id="engine-status" role="alert" hidden>
