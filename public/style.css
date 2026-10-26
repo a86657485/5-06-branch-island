@@ -107,3 +107,49 @@
 
 .skin-card.locked { opacity: 0.52; filter: grayscale(0.65); cursor: not-allowed; background: #edf2f7; border-style: dashed; }
 .skin-locked { color: #64748b; font-weight: 700; }
+
+/* 教师大屏：可视化与全字段筛选（2026-10-27） */
+.topbar-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.sync-pill{font-size:12px;color:var(--teal);background:#e3f1eb;border:1px solid #b7d8cc;border-radius:999px;padding:6px 12px;white-space:nowrap}
+.filter-bar{background:#fff;border:1px solid var(--line);border-radius:15px;padding:18px 20px 14px;margin:0 0 20px}
+.filter-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+.filter-head h2{font-size:16px;margin:0}
+.filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(146px,1fr));gap:12px 14px}
+.filter-grid label{font-size:11px;font-weight:650;color:var(--muted);gap:5px;min-width:0}
+.filter-grid select,.filter-grid input{min-height:38px;padding:7px 9px;font-size:13px;border-radius:9px}
+.filter-actions{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+.filter-actions button{font-size:12px;padding:8px 14px}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chips .chip{background:#e8f1e7;border:1px solid #b9d3b4;color:#1d4b3c;border-radius:999px;padding:5px 11px;font-size:11px;line-height:1.4}
+.stat-with-ring{display:flex;align-items:center;gap:14px}
+.stat-with-ring strong{font-size:28px}
+.donut{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:var(--muted)}
+.donut svg{display:block}
+.histogram{display:flex;align-items:flex-end;gap:10px;height:168px;margin:18px 0 6px}
+.histogram .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;font-size:11px;color:var(--muted);min-width:0}
+.histogram .col b{font-size:12px;color:#183c30}
+.histogram .bar{width:100%;border-radius:7px 7px 2px 2px;background:linear-gradient(180deg,#63b8a9,#147d78);min-height:3px;flex:none}
+.class-row{display:grid;grid-template-columns:58px 1fr 52px;align-items:center;gap:12px;margin:12px 0;font-size:12px}
+.class-name{font-weight:700}
+.class-bars{display:flex;flex-direction:column;gap:4px}
+.class-bar{position:relative;height:16px;background:#eef3f7;border-radius:5px;overflow:hidden}
+.class-bar i{display:block;height:100%;background:#6ca7cb;border-radius:5px;min-width:2px}
+.class-bar.pass i{background:var(--teal)}
+.class-bar em{position:absolute;left:8px;top:0;line-height:16px;font-size:10px;font-style:normal;color:#123c31;font-weight:650}
+.class-row>b{text-align:right;color:var(--muted);font-weight:600}
+.station-dots{display:flex;gap:4px}
+.station-dots i{width:26px;height:20px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:10px;font-weight:700;background:#eef3f7;border:1px solid #d3e0ea;color:#7d95a8}
+.station-dots i.done{background:#cfe6da;border-color:#8fc0aa;color:#1f5c46}
+.station-dots i.valid{background:#147d78;border-color:#0f5f5b;color:#fff}
+th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+th.sortable:hover{background:#d3e7f5}
+th.sortable:after{content:'⇅';font-size:10px;opacity:.45;margin-left:6px}
+.row-id{display:block;color:var(--muted);font-size:10px;font-weight:400}
+tr.row-open>td{background:#f4faf8}
+.empty-state{padding:26px;text-align:center;color:var(--muted)}
+.misconceptions{margin:6px 0 0;padding-left:20px}
+@media(max-width:900px){
+  .filter-grid{grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stat-with-ring{grid-column:1/-1}
+}
