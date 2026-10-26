@@ -348,7 +348,7 @@ function renderTask(idx){
    if(patch.config&&d.config&&JSON.stringify(R.normalizeConfig(id,d.config,true))!==JSON.stringify(R.normalizeConfig(id,{...d.config,...patch.config},true))){state.levels[id]||={completed:false,points:0};state.levels[id].evidenceStart=(state.runs[id]||[]).length;state.levels[id].valid=false;lastRun=null;}
    if(patch.input&&JSON.stringify(patch.input)!==JSON.stringify(d.input))lastRun=null;
    for(const key of ['config','input'])if(patch[key])d[key]={...(d[key]||{}),...patch[key]};
-   for(const key of ['prediction','scene','reason','rpg','flow','sentence','predictionsLocked','diagnoseAnswer','panel'])if(key in patch)d[key]=clone(patch[key]);
+   for(const key of ['prediction','scene','reason','rpg','flow','sentence','predictionsLocked','diagnoseAnswer','flowMistakes','panel'])if(key in patch)d[key]=clone(patch[key]);
    if(Array.isArray(patch.mCodes)&&patch.mCodes.includes('M8')){
     const diamond=typeof patch.flow?.diamond==='string'?patch.flow.diamond:(typeof d.flow?.diamond==='string'?d.flow.diamond:'');
     d.flowRejections=[...(Array.isArray(d.flowRejections)?d.flowRejections:[]),{mCodes:['M8'],diamond,at:Date.now()}].slice(-20);

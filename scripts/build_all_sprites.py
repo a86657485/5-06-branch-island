@@ -126,14 +126,14 @@ def animate_walk_frame(base_cell: Image.Image, phase: int, is_side: bool = False
     res = Image.fromarray(out, mode='RGBA')
     return res
 
-def build_character_sheet(front_img: Image.Image, side_right_img: Image.Image, back_img: Image.Image, ring_style: str = 'npc') -> Image.Image:
+def build_character_sheet(front_img: Image.Image, side_left_img: Image.Image, back_img: Image.Image, ring_style: str = 'npc') -> Image.Image:
     sheet = Image.new('RGBA', (FW * 3, FH * 4), (0, 0, 0, 0))
-    side_left_img = side_right_img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    side_right_img = side_left_img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
     rows = [
-        (front_img, False),       # Row 0: Down
-        (side_left_img, True),    # Row 1: Left
-        (side_right_img, True),   # Row 2: Right
-        (back_img, False),        # Row 3: Up
+        (front_img, False),       # Row 0: Down (正面朝下)
+        (side_left_img, True),    # Row 1: Left (侧面朝左)
+        (side_right_img, True),   # Row 2: Right (侧面朝右)
+        (back_img, False),        # Row 3: Up (背面朝上)
     ]
     for r_idx, (pose_img, is_side) in enumerate(rows):
         base_cell = fit_cell(pose_img, max_w=62, max_h=92, foot_y=99, ring_style=ring_style)
@@ -201,7 +201,11 @@ def main():
         x0, x1 = col_x[idx]
         front = extract_crop(p1_rgba, (x0, row_y[0][0], x1, row_y[0][1]))
         side = extract_crop(p1_rgba, (x0, row_y[1][0], x1, row_y[1][1]))
-        back = extract_crop(p1_rgba, (x0, row_y[2][0], x1, row_y[2][1]))
+        if idx in (4, 5):
+            # col 4 in master sheet is angled slightly right; flip so side_left faces left
+            side = side.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        back_x0, back_x1 = col_x[4] if idx == 5 else (x0, x1)
+        back = extract_crop(p1_rgba, (back_x0, row_y[2][0], back_x1, row_y[2][1]))
         sheet = build_character_sheet(front, side, back, ring_style='player')
         saved_sheets[sprite_id] = sheet
         for out_dir in [*OUT_DIRS, ASSET_CACHE]:
@@ -224,23 +228,20 @@ def main():
     visitor_crop = extract_crop(p2_rgba, (865, 65, 1020, 368))
     robot_crop = extract_crop(p2_rgba, (1050, 100, 1245, 335))
 
-    # Build Gardener (front, left-facing, right-facing, back-shaded)
-    gardener_right = gardener_crop.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-    gardener_sheet = build_character_sheet(gardener_crop, gardener_right, gardener_crop)
+    # Build Gardener (gardener_crop faces left)
+    gardener_sheet = build_character_sheet(gardener_crop, gardener_crop, gardener_crop)
     saved_sheets['gardener'] = gardener_sheet
 
-    # Build Warden (has dedicated front and side!)
+    # Build Warden (warden_side faces left)
     warden_sheet = build_character_sheet(warden_front, warden_side, warden_front)
     saved_sheets['warden'] = warden_sheet
 
-    # Build Mechanic
-    mechanic_right = mechanic_crop.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-    mechanic_sheet = build_character_sheet(mechanic_crop, mechanic_right, mechanic_crop)
+    # Build Mechanic (mechanic_crop faces left)
+    mechanic_sheet = build_character_sheet(mechanic_crop, mechanic_crop, mechanic_crop)
     saved_sheets['mechanic'] = mechanic_sheet
 
-    # Build Staff (Visitor): visitor_crop is facing left in a cute walking pose; flip for right!
-    visitor_right = visitor_crop.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-    staff_sheet = build_character_sheet(visitor_crop, visitor_right, visitor_crop)
+    # Build Staff (Visitor): visitor_crop faces left
+    staff_sheet = build_character_sheet(visitor_crop, visitor_crop, visitor_crop)
     saved_sheets['staff'] = staff_sheet
 
     # Build Robot Drone (hover animation across 3 columns: dy = -3, 0, +2)

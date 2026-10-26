@@ -647,7 +647,7 @@ window.addEventListener('lesson-artifact', event => {
   }
   const context = getContext();
   if (context?.draft) {
-    for (const key of ['flow', 'sentence', 'predictionsLocked', 'diagnoseAnswer', 'panel', 'config']) {
+    for (const key of ['flow', 'sentence', 'predictionsLocked', 'diagnoseAnswer', 'flowMistakes', 'panel', 'config']) {
       if (key in patch) context.draft[key] = patch[key];
     }
   }
@@ -675,6 +675,7 @@ function mountPreview() {
       mode,
       preview,
       diagnosed: true,
+      initialMistakes: Number(params.get('mistakes') || 0),
       flow
     }).mount(host);
     return;

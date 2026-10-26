@@ -266,3 +266,194 @@ export function flowLogicGuidance(mode: string, flow: Flow): { ok: boolean; slot
   }
   return { ok: true, slot: 'diamond', message: '' };
 }
+
+export type MistakeGuidanceModal = {
+  mistakeCount: number;
+  tier: 1 | 2 | 3;
+  tierBadge: string;
+  speaker: string;
+  title: string;
+  summary: string;
+  directionHint: string;
+  steps: string[];
+  targetSlot: 'diamond' | 'yes' | 'no';
+  recommendedCategory: string;
+  recommendedCardIds: string[];
+  showFaultMagnifier: boolean;
+};
+
+/** 初始（0错）展示全部可选卡片，不预先过滤类别；第2次点错起再按槽位过滤推荐类别。 */
+export function visibleCardsForSlot(mode: string, slot: 'diamond' | 'yes' | 'no', mistakeCount = 0): Card[] {
+  if (mistakeCount < 2) return cardsFor(mode);
+  return cardsForSlot(mode, slot);
+}
+
+export function buildMistakeModal(
+  mode: string,
+  flow: Flow,
+  mistakeCount: number,
+  kind: 'flow' | 'diagnose' = 'flow'
+): MistakeGuidanceModal {
+  const count = Math.max(1, mistakeCount);
+  const tier: 1 | 2 | 3 = count === 1 ? 1 : count === 2 ? 2 : 3;
+  const speaker = mode === 'repair' ? '🔧 维修员老修' : mode === 'cross' ? '👮 巡检员小巡' : mode === 'minimum' ? '⚡ 储能柜小电' : '👩‍🌾 园艺员阿绿';
+  const tierBadge = tier === 1
+    ? `💡 第 ${count} 次点错 · 启发思考（指方向）`
+    : tier === 2
+      ? `💡 第 ${count} 次点错 · 分步引导（缩范围 + 开启推荐类别）`
+      : `💡 第 ${count} 次点错 · 手把手示范支架`;
+
+  if (kind === 'diagnose') {
+    return {
+      mistakeCount: count,
+      tier,
+      tierBadge,
+      speaker,
+      title: '先别急！回想刚才 30℃ 时的现场表现：',
+      summary: '刚才探头读到 30℃ 时，按照温室告示本来应该启动风机降温，可旧控制板却让风机保持关闭，说明旧程序确实有故障哦！',
+      directionHint: '想一想：旧板条件写的是“温度≥30℃？”，30℃ 时条件已经成立（走“是”分支），为什么风机反而关了呢？',
+      steps: [
+        '① 观察旧板【菱形判断框】：写着“温度≥30℃？”（30℃ 时成立）',
+        '② 观察旧板【“是”与“否”出口】：“是”连了关闭风机、“否”连了启动风机（两个出口动作接反了，或者需要调整判断条件）',
+        '③ 请选择【两个分支出口的动作接反了】或【判断条件不合适】进入修板！'
+      ],
+      targetSlot: 'diamond',
+      recommendedCategory: '故障原因诊断',
+      recommendedCardIds: ['exit', 'condition'],
+      showFaultMagnifier: true
+    };
+  }
+
+  const cards = cardsFor(mode);
+  const dCard = cards.find(c => c.id === flow.diamond);
+  const yCard = cards.find(c => c.id === flow.yes);
+  const nCard = cards.find(c => c.id === flow.no);
+  const lockCheck = lockFlow(mode, flow);
+  const logicCheck = flowLogicGuidance(mode, flow);
+
+  let targetSlot: 'diamond' | 'yes' | 'no' = 'diamond';
+  let summary = '';
+
+  if (!dCard || !yCard || !nCard) {
+    targetSlot = nextSlot(flow) || 'diamond';
+    summary = '还有空白的格子没有放上卡片哦！分支结构需要把【判断条件】、【是】、【否】三个位置都填满。';
+  } else if (dCard.kind !== 'condition') {
+    targetSlot = 'diamond';
+    summary = `你在【菱形判断框】里放了“${dCard.label}”，但这是一张执行动作卡！菱形框里必须放能回答“是”或“否”的判断条件卡。`;
+  } else if (dCard.illegal) {
+    targetSlot = 'diamond';
+    summary = `你选了“${dCard.label}”，但红绿灯只管斑马线什么时候走，不能用来决定“走天桥还是走斑马线”哦！`;
+  } else if (yCard.kind !== 'action') {
+    targetSlot = 'yes';
+    summary = `你在左边【“是”出口】里放了“${yCard.label}”，这是判断条件卡！分支出口必须放设备具体执行的动作卡。`;
+  } else if (nCard.kind !== 'action') {
+    targetSlot = 'no';
+    summary = `你在右边【“否”出口】里放了“${nCard.label}”，这是判断条件卡！分支出口必须放设备具体执行的动作卡。`;
+  } else {
+    targetSlot = logicCheck.slot;
+    if (mode === 'sale' || mode === 'repair') {
+      if (flow.yes === flow.no) {
+        summary = `刚才你把“是”和“否”两个出口都选成了【${yCard.label}】！这样不管温度高不高，风机都做同一件事，就失去分支判断的意义啦。`;
+      } else if (flow.diamond === 'gt30') {
+        summary = `刚才选的【温度＞30℃？】在 31℃ 时能吹风，但遇到刚好 30℃ 时，“30＞30”不成立，风机会走“否”保持关闭，30℃ 高温下菜苗就受热啦！`;
+      } else if (flow.diamond === 'le30') {
+        summary = `刚才选的【温度≤30℃？】把刚好 30℃ 算进了同一边，导致 30℃ 临界温度或高温下风机做出相反动作哦！`;
+      } else if (flow.diamond === 'lt30' && flow.yes === 'on') {
+        summary = `刚才选的规则“温度＜30℃ → 是：启动风机”，在 29℃ 凉爽天反而开机吹风，到了 30℃、31℃ 高温下反而停机，动作完全反过来啦！`;
+      } else if (flow.diamond === 'ge30' && flow.yes === 'off') {
+        summary = `刚才选的规则在 30℃、31℃ 高温下（满足 ≥30℃）会走“是：关闭风机”，做出相反动作哦！`;
+      } else {
+        summary = lockCheck.ok ? logicCheck.message.replace(/^💡\s*[^：]+：/, '') : lockCheck.message;
+      }
+    } else if (mode === 'cross') {
+      if (flow.yes === flow.no) {
+        summary = `刚才“是”和“否”两个出口都选了【${yCard.label}】，不管有没有天桥都走同一条路啦！`;
+      } else {
+        summary = `刚才选的规则“${dCard.label} → 是：${yCard.label}，否：${nCard.label}”把有天桥和没天桥的路线接反啦！`;
+      }
+    } else {
+      if (flow.yes === flow.no) {
+        summary = `刚才“是”和“否”两个出口都选了【${yCard.label}】，不能不管哪块电池少都充同一块电池哦！`;
+      } else {
+        summary = `刚才选的规则“${dCard.label} → 是：${yCard.label}，否：${nCard.label}”会把优先充电口接给电量更多的那块电池，做反啦！`;
+      }
+    }
+  }
+
+  const directionHint = mode === 'sale' || mode === 'repair'
+    ? '🧭 思考方向（判断条件 + 双路分支）：先看温室告示——“达到或超过 30℃ 启动风机，低于 30℃ 关闭风机”。想一想：① 菱形框要先判断什么温度条件（注意 30℃ 本身算不算达标）？② 当条件成立（是）与不成立（否）时，分别该选哪张动作卡？'
+    : mode === 'cross'
+      ? '🧭 思考方向（先看设施 + 双路分流）：过马路前要先判断附近有没有可用天桥。想一想：有天桥（是）走哪条路？没有天桥（否）走哪条路？'
+      : '🧭 思考方向（比大小 + 少者优先）：只有一个优先充电口，要先比较 A 和 B 谁的电量更少。想一想：当 a＜b 成立（是）时谁更少？不成立（否）时谁更少？';
+
+  const steps = mode === 'sale' || mode === 'repair'
+    ? (tier === 2
+      ? [
+          '① 【菱形判断框】请从“⭐ 推荐类别：判断条件卡”里选包含 30℃ 临界值的条件（如【温度≥30℃？】或【温度＜30℃？】）',
+          '② 【“是”出口格】从“⭐ 推荐类别：执行动作卡”里选该条件成立时风机的动作',
+          '③ 【“否”出口格】选相反的另一个动作（两边动作不能相同）'
+        ]
+      : [
+          '① 第 1 格【菱形判断条件】：直接点选【温度≥30℃？】（或选【温度＜30℃？】）',
+          '② 第 2 格【“是”分支出口】：若选了 ≥30℃，请点选【启动风机】（若选了 ＜30℃ 则选【关闭风机】）',
+          '③ 第 3 格【“否”分支出口】：请点选剩下的相反动作【关闭风机】（若“是”为关闭则选【启动风机】）'
+        ])
+    : mode === 'cross'
+      ? (tier === 2
+        ? [
+            '① 【判断条件格】从“⭐ 推荐类别：判断条件卡”里选询问过街天桥设施的卡片',
+            '② 【“是”出口格】有可用天桥时，选安全过桥的动作卡',
+            '③ 【“否”出口格】没有天桥时，选按信号灯走斑马线的动作卡'
+          ]
+        : [
+            '① 第 1 格【判断条件】：请点选【附近有可用的过街天桥或地下通道吗？】',
+            '② 第 2 格【“是”分支出口】：请点选【走天桥】',
+            '③ 第 3 格【“否”分支出口】：请点选【到斑马线按信号通行】'
+          ])
+      : (tier === 2
+        ? [
+            '① 【判断条件格】从“⭐ 推荐类别：判断条件卡”里选比较 A、B 电量的卡片',
+            '② 【“是”出口格】根据比较符号，选当前电量更少的那块电池',
+            '③ 【“否”出口格】选另一块电池优先充电'
+          ]
+        : [
+            '① 第 1 格【判断条件】：请点选【电量 a＜b？】',
+            '② 第 2 格【“是”分支出口】：请点选【电池A优先充电】',
+            '③ 第 3 格【“否”分支出口】：请点选【电池B优先充电】'
+          ]);
+
+  const recommendedCategory = targetSlot === 'diamond' ? '判断条件卡（能回答“是/否”的问题）' : '执行动作卡（设备具体执行的动作）';
+  let recommendedCardIds: string[] = [];
+  if (mode === 'sale' || mode === 'repair') {
+    if (targetSlot === 'diamond') recommendedCardIds = ['ge30', 'lt30'];
+    else if (targetSlot === 'yes') recommendedCardIds = [flow.diamond === 'lt30' ? 'off' : 'on'];
+    else recommendedCardIds = [flow.yes === 'off' ? 'on' : 'off'];
+  } else if (mode === 'cross') {
+    if (targetSlot === 'diamond') recommendedCardIds = ['bridge-q'];
+    else if (targetSlot === 'yes') recommendedCardIds = ['bridge'];
+    else recommendedCardIds = ['crossing'];
+  } else {
+    if (targetSlot === 'diamond') recommendedCardIds = ['lt', 'gt'];
+    else if (targetSlot === 'yes') recommendedCardIds = [flow.diamond === 'gt' ? 'b' : 'a'];
+    else recommendedCardIds = [flow.yes === 'b' ? 'a' : 'b'];
+  }
+
+  return {
+    mistakeCount: count,
+    tier,
+    tierBadge,
+    speaker,
+    title: tier === 1
+      ? '别灰心！我们先想一想刚才这套规则会怎样运行：'
+      : tier === 2
+        ? '再进一步！已为你开启【⭐ 推荐类别】与分步线索：'
+        : '手把手带你过关！请按下面三步修正卡片：',
+    summary,
+    directionHint,
+    steps,
+    targetSlot,
+    recommendedCategory,
+    recommendedCardIds,
+    showFaultMagnifier: mode === 'repair' && count >= 1
+  };
+}

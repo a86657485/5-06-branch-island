@@ -44,10 +44,9 @@ function showScaffold(context:any){
 }
 function highlightChoice(id:string){return assistedChoice(toolAnswer.value,String(props.dialogId),id);}
 function highlightField(field:string){return assistedField(toolAnswer.value,String(props.dialogId),field);}
-function isRecommendedChoice(choice: DialogChoice, list?: DialogChoice[]) {
+function isRecommendedChoice(_choice: DialogChoice, list?: DialogChoice[]) {
   if (!list) return false;
-  if (list.length === 1) return true;
-  return /建议|推荐|点我|点这里/.test(choice.label);
+  return list.length === 1;
 }
 async function reviewKnowledge(){try{await request('learn');}catch(error){toolError.value=error instanceof Error?error.message:'知识卡暂时没打开。';}}
 function finish(value: string | null) {

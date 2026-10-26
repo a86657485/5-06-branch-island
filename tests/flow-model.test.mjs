@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import rules from '../public/rules.js';
 import {
   conditionLine, emptyFlow, faultSeen, flowLogicGuidance, lockFlow, lockPredictions, lockSentence,
-  canRunVerify, placeCard, releaseAfterProgramEdit, repairPreset, sentenceTokens, thermalTrials
+  canRunVerify, placeCard, releaseAfterProgramEdit, repairPreset, sentenceTokens, thermalTrials,
+  visibleCardsForSlot, buildMistakeModal
 } from '../engine/src/gui/flow-model.ts';
 
 test('动作卡放进菱形不能锁定，程序保持原样', () => {
@@ -138,4 +139,31 @@ test('前置规则校验拦截反接或漏边界的错误流程图并给出具�
 
   const validLt = flowLogicGuidance('sale', { diamond: 'lt30', yes: 'off', no: 'on', locked: true });
   assert.equal(validLt.ok, true);
+});
+
+test('初始0错展示全部卡片不预过滤，点错后按1/2/3级递进生成手把手引导弹窗并缩范围', () => {
+  const initialCards = visibleCardsForSlot('sale', 'diamond', 0);
+  assert.equal(initialCards.length, 6);
+  assert.equal(initialCards.some(c => c.kind === 'condition'), true);
+  assert.equal(initialCards.some(c => c.kind === 'action'), true);
+
+  const afterOneMistake = visibleCardsForSlot('sale', 'diamond', 1);
+  assert.equal(afterOneMistake.length, 6);
+
+  const afterTwoMistakes = visibleCardsForSlot('sale', 'diamond', 2);
+  assert.equal(afterTwoMistakes.every(c => c.kind === 'condition'), true);
+
+  const m1 = buildMistakeModal('sale', { diamond: 'gt30', yes: 'on', no: 'off', locked: false }, 1);
+  assert.equal(m1.tier, 1);
+  assert.equal(m1.targetSlot, 'diamond');
+  assert.match(m1.summary, /30℃/);
+
+  const m2 = buildMistakeModal('repair', { diamond: 'ge30', yes: 'off', no: 'on', locked: false }, 2);
+  assert.equal(m2.tier, 2);
+  assert.equal(m2.showFaultMagnifier, true);
+  assert.equal(m2.steps.length, 3);
+
+  const m3 = buildMistakeModal('sale', { diamond: 'lt30', yes: 'on', no: 'off', locked: false }, 3);
+  assert.equal(m3.tier, 3);
+  assert.ok(m3.recommendedCardIds.includes('ge30'));
 });

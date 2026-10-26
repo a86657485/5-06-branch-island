@@ -146,7 +146,8 @@ export async function review(player:RpgPlayer){
  const id=ctx().levelId;
  const reasons=ctx().reasons.map((r:any)=>Array.isArray(r)?{id:r[0],label:r[1]}:{id:r.value,label:r.label});
  const prompt=id==='sale'?'阿绿问：为何测试不能漏掉刚好30℃？':id==='repair'?'老修问：旧板30℃关闭，修后能开。你改了哪里，为何这样改？':id==='cross'?'小巡问：为何每次只走选中的一路？':'小电问：为何不能一直先接电池A？';
- const hint=id==='sale'?'💡 提示：30℃ 是开与关的分界线（临界值），达到 30℃ 就要开风机，低于 30℃ 才关！':id==='repair'?'💡 提示：回想刚才你保留了“≥30℃”对调出口，还是把符号改成了“＜30℃”？选对应的那一项！':id==='cross'?'💡 提示：分支结构先做条件判断，每次只走符合当前现场条件的那一条路！':'💡 提示：哪块电池电量少是不固定的，必须先比较 A 和 B 的电量，剩得少的先充！';
+ const hadReasonMistake=!!(ctx().scaffold&&ctx().scaffold.kind==='reason');
+ const hint=hadReasonMistake?(id==='sale'?'💡 手把手引导：30℃ 是开与关的分界线（临界值），达到 30℃ 就要开风机，低于 30℃ 才关！':id==='repair'?'💡 手把手引导：回想刚才你保留了“≥30℃”对调出口，还是把符号改成了“＜30℃”？选对应的那一项！':id==='cross'?'💡 手把手引导：分支结构先做条件判断，每次只走符合当前现场条件的那一条路！':'💡 手把手引导：哪块电池电量少是不固定的，必须先比较 A 和 B 的电量，剩得少的先充！'):undefined;
  const value=await say(player,'验收负责人',prompt,reasons,hint);if(!value)return;
  await rpc('reason',{value});const result=await rpc('complete');
  if(!result.passed){feedback('这次还没验收通过。对照记录再试一次。',supportDetail(result.scaffold));return;}
