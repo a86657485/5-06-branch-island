@@ -19,7 +19,9 @@ const sessions=new Map<string,Runtime>();
 const directions = { up: Direction.Up, down: Direction.Down, left: Direction.Left, right: Direction.Right };
 let lastInteraction = '';
 function publishInteraction(player:RpgPlayer) {
- const map=player.getCurrentMap(),near=nearestInteraction(player,map,Infinity);
+ const map=player.getCurrentMap();
+ if(sessions.get(player.id)?.active!==player || map?.id!==mapFor(ctx()))return;
+ const near=nearestInteraction(player,map,Infinity);
  const detail={mapId:map?.id||'',label:near?interactionLabel(near.event,ctx().levelId):'交谈 / 操作',inRange:!!near&&near.distance<=48};
  const key=JSON.stringify(detail);if(key===lastInteraction)return;lastInteraction=key;
  window.dispatchEvent(new CustomEvent('lesson-interaction-target',{detail}));
@@ -116,7 +118,7 @@ export const player:RpgPlayerHooks={
  const map=mapFor(c);if(runtime.changing)return;if(runtime.map===map){await syncActorContext(runtime,c);return;}runtime.changing=true;
  try{runtime.map=map;const saved=c.draft.rpg;const pos=saved?.mapId===map?saved.position:spawn[map];await runtime.active.changeMap(map,pos);}
  catch(error){runtime.map='';console.error(error);window.dispatchEvent(new CustomEvent('lesson-bridge-error',{detail:'地图加载未完成，请刷新重试。'}));}
- finally{runtime.changing=false;const latest=getContext();if(latest&&mapFor(latest)!==runtime.map&&runtime.map)void runtime.enter(latest);}
+ finally{runtime.changing=false;const latest=getContext();if(latest&&mapFor(latest)!==runtime.map&&runtime.map)void runtime.enter(latest);else if(latest)publishInteraction(runtime.active);}
  };
  runtime.unsub=subscribeContext(c=>{void runtime.enter(c);});await runtime.enter(ctx());
  window.addEventListener('pagehide',()=>{runtime.unsub?.();clearTimeout(runtime.checkpointTimer);clearActivePlayer(player.id);sessions.delete(player.id);},{once:true});
@@ -135,7 +137,7 @@ export const player:RpgPlayerHooks={
  async onInput(player, input){
   const action=(input as {action?:string,input?:string})?.action ?? (input as {input?:string})?.input ?? input;
   if(!['action','lesson:interact'].includes(action as string) || player.getVariable('lessonBusy'))return;
-  const here=player.getCurrentMap(); if(!here?.getEvents)return;
+  const here=player.getCurrentMap(); if(!here?.getEvents || here.id!==mapFor(ctx()) || sessions.get(player.id)?.active!==player)return;
   if(action==='action'){
    // Default keyboard actions already dispatch collision events in RPGJS before this hook.
    const map=here as any,collisions=new Set<string>(map.getCollisions?.(player.id)||[]);
