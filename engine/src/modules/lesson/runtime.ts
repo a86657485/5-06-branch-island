@@ -2,7 +2,7 @@ import { Components, EventMode, type EventDefinition, type RpgPlayer } from '@rp
 import { getContext, request, type BridgeMethod } from '../../classroom-bridge';
 import { ask, type DialogChoice, type LessonDialogData } from '../../gui/ask';
 import { advance, resetTrial, evidenceFor } from './experiment';
-import { emptyFlow, emptyPredictions, emptySentence, faultSeen, repairPreset } from '../../gui/flow-model';
+import { emptyFlow, emptyPredictions, emptySentence, faultSeen, lockFlow, repairPreset } from '../../gui/flow-model';
 import { waitForActivePlayer,mapForContext } from './active-player';
 export const ctx=()=> {const value=getContext();if(!value)throw new Error('课堂正在连接，请稍候。');return value;};
 export function scene():Record<string,any>{return ctx().draft.scene;}
@@ -84,8 +84,18 @@ export async function configure(player:RpgPlayer){
   predictions:ctx().draft.predictionsLocked||emptyPredictions(),
   diagnoseAnswer:ctx().draft.diagnoseAnswer||'',
   diagnosed:mode!=='repair'||diagnosed
- },{waitingAction:true,blockPlayerInput:true}) as {action?:string,predictions?:{locked?:boolean,[key:string]:unknown}} | null;
- if(!result||result.action==='close')return;
+ },{waitingAction:true,blockPlayerInput:true}) as {action?:string,flow?:any,sentence?:any,predictions?:{locked?:boolean,[key:string]:unknown}} | null;
+ if(!result)return;
+ if(result.flow?.locked){
+  const locked=lockFlow(mode,result.flow);
+  if(locked?.ok&&locked.config)await rpc('change',{patch:{flow:result.flow,sentence:result.sentence,predictionsLocked:result.predictions,config:locked.config,panel:''}});
+ }
+ if(result.action==='close'){
+  if(!scene().measured && result.flow?.locked){
+   feedback(['sale','repair'].includes(id)?'✅ 规则已保存！请用左下角摇杆或键盘方向键前往【🌡️ 温度探头】采样温度！':id==='cross'?'✅ 规则已保存！请用摇杆或方向键前往【🔭 设施观察点】观察路口！':'✅ 规则已保存！请用摇杆或方向键前往【🔋 A/B 电池支路】读取电量！');
+  }
+  return;
+ }
  if(result.action==='run'){
   if(['sale','repair'].includes(id)){
    if(result.predictions?.locked){

@@ -11,7 +11,7 @@
       * { box-sizing: border-box; }
       html, body, #rpg { margin: 0; width: 100%; height: 100%; overflow: hidden; }
       body { background: #173b31; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
-      #rpg { position: relative; cursor: pointer; }
+      #rpg { position: relative; }
       #rpg canvas { display: block; }
       #vue-gui-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 100; }
       button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -28,26 +28,26 @@
       .engine-pad [data-direction=left] { grid-column: 1; grid-row: 2; }
       .engine-pad [data-direction=right] { grid-column: 3; grid-row: 2; }
       .engine-pad [data-direction=down] { grid-column: 2; grid-row: 3; }
-      #engine-controls #engine-action { position: absolute; bottom: max(24px, env(safe-area-inset-bottom)); right: max(20px, env(safe-area-inset-right)); width: 190px; height: 70px; background: #1c624d; color: white; font-size: 19px; }
-      #engine-action small { display: block; font-size: 13px; margin-top: 4px; font-weight: 500; }
+      #engine-controls #engine-action { position: absolute; bottom: max(24px, env(safe-area-inset-bottom)); right: max(20px, env(safe-area-inset-right)); width: 225px; height: 76px; background: linear-gradient(135deg, #1c624d, #0f766e); border: 3px solid #ffd166; color: white; font-size: 20px; box-shadow: 0 6px 20px #092b2a88; }
+      #engine-controls #engine-action:not(:disabled) { background: linear-gradient(135deg, #be185d, #ff1493); border-color: #ffffff; box-shadow: 0 0 0 4px #ff149366, 0 8px 24px #4a0028cc; animation: focus-pulse 1s ease-in-out infinite; }
+      #engine-action small { display: block; font-size: 13px; margin-top: 4px; font-weight: 600; }
       .engine-pad-caption { position: absolute; bottom: 0; left: 175px; color: white; text-shadow: 0 1px 3px #0e302d; font-size: 11px; white-space: nowrap; }
-      #station-step-bar { position: absolute; left: 14px; top: 8px; max-width: min(680px, calc(100% - 440px)); display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 14px; background: #071f18e8; border: 2px solid #ffd166; z-index: 82; pointer-events: auto; cursor: pointer; box-shadow: 0 4px 14px #00000066; }
+      #station-step-bar { position: absolute; left: 14px; top: 8px; max-width: min(680px, calc(100% - 440px)); display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 14px; background: #071f18e8; border: 2px solid #ffd166; z-index: 82; pointer-events: none; box-shadow: 0 4px 14px #00000066; }
       #station-step-bar .step-pill { padding: 3px 9px; border-radius: 999px; font-size: 13px; font-weight: 800; color: #cbd5e1; background: #1e293b99; border: 1.5px solid #475569; white-space: nowrap; }
       #station-step-bar .step-pill.done { color: #dcfce7; background: #14532d; border-color: #22c55e; }
       #station-step-bar .step-pill.active { color: #ffffff; background: #be185d; border-color: #ff80ab; box-shadow: 0 0 0 2px #ff149355; font-size: 14px; }
       #station-step-bar .step-sep { color: #ffd166; font-weight: 900; font-size: 13px; }
-      #engine-task-hint { position:absolute;left:14px;top:52px;max-width:min(640px,calc(100% - 215px));padding:9px 16px;margin:0;border:3px solid #ff1493;border-radius:999px;background:#fffaf0f8;color:#173b31;z-index:82;font-size:17px;line-height:1.45;pointer-events:auto;cursor:pointer;box-shadow:0 6px 18px #4a002855;}
-      #engine-task-hint::before { content:"💬 当前任务引导（点此直达）："; font-weight:900; color:#c2185b; }
+      #engine-task-hint { position:absolute;left:14px;top:52px;max-width:min(640px,calc(100% - 215px));padding:9px 16px;margin:0;border:3px solid #ff1493;border-radius:999px;background:#fffaf0f8;color:#173b31;z-index:82;font-size:17px;line-height:1.45;pointer-events:none;box-shadow:0 6px 18px #4a002855;}
+      #engine-task-hint::before { content:"🕹️ 用摇杆或方向键前往："; font-weight:900; color:#c2185b; }
       #guide-trail { position: fixed; inset: 0; z-index: 68; pointer-events: none; }
       .trail-step { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: radial-gradient(circle, #ffffff 25%, #00e5ff 70%, #ff1493 100%); border: 2.5px solid #ffffff; box-shadow: 0 0 12px 3px #00e5ffaa, 0 0 20px 4px #ff149388; animation: trail-pulse 1s ease-in-out infinite; }
       @keyframes trail-pulse { 0%, 100% { transform: scale(0.85); opacity: 0.78; } 50% { transform: scale(1.2); opacity: 1; } }
       #actor-badges { position: fixed; inset: 0; z-index: 75; pointer-events: none; }
       .actor-name-badge { position: absolute; transform: translate(-50%, -105%); pointer-events: auto; cursor: pointer; white-space: nowrap; padding: 5px 15px; border-radius: 999px; background: #071f18fa; border: 3px solid #ffd166; color: #ffffff; font-size: 19px; font-weight: 900; letter-spacing: 0.03em; box-shadow: 0 5px 14px #00000099; text-shadow: 0 1px 3px #000000; transition: transform 0.12s ease, border-color 0.12s ease; }
-      .actor-name-badge:hover { transform: translate(-50%, -110%) scale(1.05); border-color: #00e5ff; }
       .actor-name-badge.is-focus { background: linear-gradient(135deg, #880e4f, #be185d); border: 3.5px solid #ffffff; color: #ffffff; font-size: 20px; box-shadow: 0 0 0 4px #ff149388, 0 8px 22px #4a0028cc; animation: badge-nudge 1.1s ease-in-out infinite; }
       @keyframes badge-nudge { 0%, 100% { transform: translate(-50%, -105%) scale(1); } 50% { transform: translate(-50%, -114%) scale(1.05); } }
-      #focus-marker { position:absolute; left:0; top:0; width:0; height:0; z-index:80; pointer-events:auto; cursor:pointer; color:#ffffff; font-weight:900; }
-      #focus-marker .focus-ring { position:absolute; width:var(--ring-width,92px); height:var(--ring-height,32px); border:4px solid #ff1493; border-radius:50%; background:transparent; outline:3px solid #ffffff; box-shadow:0 0 0 6px #ff149366, 0 0 22px 4px #ff007f; pointer-events:auto; transform:translate(-50%,-50%); animation:focus-feet-pulse 1.1s ease-in-out infinite; }
+      #focus-marker { position:absolute; left:0; top:0; width:0; height:0; z-index:80; pointer-events:none; color:#ffffff; font-weight:900; }
+      #focus-marker .focus-ring { position:absolute; width:var(--ring-width,92px); height:var(--ring-height,32px); border:4px solid #ff1493; border-radius:50%; background:transparent; outline:3px solid #ffffff; box-shadow:0 0 0 6px #ff149366, 0 0 22px 4px #ff007f; pointer-events:none; transform:translate(-50%,-50%); animation:focus-feet-pulse 1.1s ease-in-out infinite; }
       #focus-marker .focus-arrow { position:absolute; right:calc(var(--target-half-width,27px) + 14px); top:-46px; width:30px; font-size:34px; line-height:1; color:#ff1493; filter:drop-shadow(0 0 3px #ffffff) drop-shadow(0 2px 5px #4a0028); pointer-events:none; animation:focus-side-nudge 1.1s ease-in-out infinite; }
       #focus-label { position:absolute; top:24px; left:0; transform:translateX(-50%); white-space:nowrap; padding:4px 12px; border-radius:999px; background:#880e4f; border:2.5px solid #ff80ab; color:#ffffff; font-size:15px; font-weight:900; box-shadow:0 4px 12px #4a002888; }
       #focus-label:empty { display:none; }
@@ -66,8 +66,8 @@
       #engine-status { position: absolute; inset: 22% 8% auto; padding: 22px; background: #fff9e9; color: #19392d; border: 3px solid #d6bd79; box-shadow: 0 15px 45px #092b2a66; border-radius: 18px; text-align: center; z-index: 1200; }
       #engine-status p { margin: 0 0 15px; line-height: 1.7; }
       #engine-status button { min-height: 44px; padding: 8px 20px; border: 0; border-radius: 9px; color: white; background: #1c624d; }
-      @media (max-width: 600px) { .engine-pad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 44px); gap: 3px; left: 10px; bottom: 10px; } .engine-pad-caption { display: none; } .engine-tools { top: 8px; right: 8px; gap: 5px; } .engine-tools button { font-size: 12px; padding: 6px 10px; } #engine-controls #engine-action { right: 12px; bottom: 20px; width: 180px; height: 68px; font-size: 17px; } }
-    #engine-goto { position:fixed;right:20px;bottom:108px;min-width:255px;min-height:58px;background:linear-gradient(135deg,#be185d,#ff1493)!important;color:white!important;border:3px solid #ffffff!important;font-size:18px!important;box-shadow:0 6px 20px #4a002888;} #engine-goto:disabled, #engine-action:disabled {opacity:.65;cursor:default;} #engine-status p {white-space:pre-line;} @media(max-width:600px){#engine-goto{right:12px;bottom:102px;min-width:205px;font-size:15px!important;}}
+      @media (max-width: 600px) { .engine-pad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 44px); gap: 3px; left: 10px; bottom: 10px; } .engine-pad-caption { display: none; } .engine-tools { top: 8px; right: 8px; gap: 5px; } .engine-tools button { font-size: 12px; padding: 6px 10px; } #engine-controls #engine-action { right: 12px; bottom: 20px; width: 195px; height: 68px; font-size: 17px; } }
+    #engine-goto { display:none!important; } #engine-goto:disabled, #engine-action:disabled {opacity:.65;cursor:default;} #engine-status p {white-space:pre-line;}
     #engine-feedback{position:absolute;left:164px;bottom:24px;max-width:calc(100% - 440px);padding:10px 16px;border-radius:14px;border:2.5px solid #ffd166;background:#071f18f2;color:#ffffff;font-weight:750;font-size:17px;line-height:1.5;z-index:85;pointer-events:none;box-shadow:0 6px 18px #00000066;}
 #engine-assistance{position:absolute;left:164px;bottom:92px;max-width:min(560px,calc(100% - 340px));padding:14px 46px 14px 16px;border:2px solid #ba8b28;border-radius:14px;background:#fff3cffa;color:#173b31;font-size:17px;line-height:1.5;z-index:90;}
 #engine-assistance p{white-space:pre-line;margin:6px 0 0;}#engine-assistance-close{position:absolute;top:6px;right:8px;width:32px;height:32px;border:0;border-radius:50%;background:#f2dfab;color:#173b31;font-size:25px;}
@@ -91,8 +91,8 @@
         background:linear-gradient(135deg, #1c624d, #0f3d2e);border:3px solid #fffaf0;box-shadow:0 3px 8px #00000066;pointer-events:none;
       }
       #lesson-joystick-label{
-        position:absolute;left:-6px;right:-6px;top:-28px;text-align:center;font-size:13px;font-weight:900;
-        color:#fff;background:#0b241dd9;padding:2px 6px;border-radius:999px;border:1.5px solid #ffd166;pointer-events:none;
+        position:absolute;left:-14px;right:-14px;top:-28px;text-align:center;font-size:12px;font-weight:900;
+        color:#fff;background:#0b241dd9;padding:2px 6px;border-radius:999px;border:1.5px solid #ffd166;pointer-events:none;white-space:nowrap;
       }
       @media (max-width:600px){
         #lesson-joystick{width:118px;height:118px;left:10px;bottom:12px}
@@ -137,12 +137,12 @@
         <button id="engine-help" type="button">❓ 操作帮助</button>
         <button id="engine-undo" type="button" disabled>↶ 撤回上一步</button>
         <button id="engine-hint" type="button">✨ 通关法宝 5/5</button>
-        <button id="engine-goto" type="button">👉 点我自动走过去并操作</button>
+        <button id="engine-goto" type="button" hidden>自动前往任务点</button>
       </nav>
       <button id="engine-action" type="button" aria-describedby="engine-action-help" disabled><span id="engine-action-label">交谈 / 操作</span><small id="engine-action-help">请先靠近目标</small></button>
       <div id="lesson-joystick" role="group" aria-label="移动摇杆：按住并拖动可让巡检员走动">
         <div id="lesson-joystick-knob" aria-hidden="true"></div>
-        <span id="lesson-joystick-label" aria-hidden="true">拖动摇杆移动</span>
+        <span id="lesson-joystick-label" aria-hidden="true">拖动摇杆 / 按方向键移动</span>
       </div>
     </div>
     <aside id="engine-status" role="alert" hidden>

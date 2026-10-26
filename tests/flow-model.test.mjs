@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import rules from '../public/rules.js';
 import {
-  conditionLine, emptyFlow, faultSeen, lockFlow, lockPredictions, lockSentence,
+  conditionLine, emptyFlow, faultSeen, flowLogicGuidance, lockFlow, lockPredictions, lockSentence,
   canRunVerify, placeCard, releaseAfterProgramEdit, repairPreset, sentenceTokens, thermalTrials
 } from '../engine/src/gui/flow-model.ts';
 
@@ -120,4 +120,22 @@ test('重新打开已解开的图时，句子和预测可以再改', () => {
   const preset = releaseAfterProgramEdit(repairPreset(), predictions, sentence);
   assert.equal(preset.predictions.locked, true);
   assert.equal(preset.sentence.locked, true);
+});
+
+test('前置规则校验拦截反接或漏边界的错误流程图并给出具体槽位提示', () => {
+  const reversed = flowLogicGuidance('sale', { diamond: 'lt30', yes: 'on', no: 'off', locked: false });
+  assert.equal(reversed.ok, false);
+  assert.equal(reversed.slot, 'diamond');
+  assert.match(reversed.message, /温度≥30℃/);
+
+  const boundaryMiss = flowLogicGuidance('sale', { diamond: 'gt30', yes: 'on', no: 'off', locked: false });
+  assert.equal(boundaryMiss.ok, false);
+  assert.equal(boundaryMiss.slot, 'diamond');
+  assert.match(boundaryMiss.message, /刚好30℃/);
+
+  const validGe = flowLogicGuidance('sale', { diamond: 'ge30', yes: 'on', no: 'off', locked: true });
+  assert.equal(validGe.ok, true);
+
+  const validLt = flowLogicGuidance('sale', { diamond: 'lt30', yes: 'off', no: 'on', locked: true });
+  assert.equal(validLt.ok, true);
 });

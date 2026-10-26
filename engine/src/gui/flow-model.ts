@@ -214,3 +214,55 @@ export function cardsForSlot(mode: string, slot: 'diamond' | 'yes' | 'no') {
 export function canUseTool(support?: { remaining?: number }, busy = false) {
   return !busy && typeof support?.remaining === 'number' && support.remaining > 0;
 }
+
+export function flowLogicGuidance(mode: string, flow: Flow): { ok: boolean; slot: 'diamond' | 'yes' | 'no'; message: string } {
+  if (!flow.diamond || !flow.yes || !flow.no) {
+    return { ok: false, slot: nextSlot(flow) || 'diamond', message: '请先把三个格子都放上卡片。' };
+  }
+  if (mode === 'sale' || mode === 'repair') {
+    if ((flow.diamond === 'ge30' && flow.yes === 'on' && flow.no === 'off') || (flow.diamond === 'lt30' && flow.yes === 'off' && flow.no === 'on')) {
+      return { ok: true, slot: 'diamond', message: '' };
+    }
+    if (flow.yes === flow.no) {
+      return { ok: false, slot: 'no', message: '💡 阿绿提醒：“是”和“否”两个分支出口不能做同一个动作哦！请把右边“否”改成另一个动作。' };
+    }
+    if (flow.diamond === 'gt30') {
+      return { ok: false, slot: 'diamond', message: '💡 阿绿提醒：温室告示说“达到30℃就开风机”，【温度＞30℃？】漏掉了刚好30℃！请把菱形条件换成【温度≥30℃？】。' };
+    }
+    if (flow.diamond === 'le30') {
+      return { ok: false, slot: 'diamond', message: '💡 阿绿提醒：30℃已经达到开启标准，不能算在低温关闭里！请把菱形条件换成【温度≥30℃？】或【温度＜30℃？】。' };
+    }
+    if (flow.diamond === 'lt30' && flow.yes === 'on') {
+      return { ok: false, slot: 'diamond', message: '💡 阿绿提醒：现在选的是“温度＜30℃ → 是：启动风机”，变成天冷才吹风啦！请把菱形条件换成【温度≥30℃？】（或者对调下面两个动作）！' };
+    }
+    if (flow.diamond === 'ge30' && flow.yes === 'off') {
+      return { ok: false, slot: 'yes', message: '💡 阿绿提醒：温度达到30℃（≥30℃成立）时应该吹风降温，现在“是”却接了关闭风机！请把“是”改成【启动风机】，“否”改成【关闭风机】！' };
+    }
+    return { ok: false, slot: 'diamond', message: '💡 阿绿提醒：请对照告示“达到30℃启动风机，否则关闭风机”检查条件与是/否动作是否配合！' };
+  }
+  if (mode === 'cross') {
+    if (flow.diamond === 'bridge-q' && flow.yes === 'bridge' && flow.no === 'crossing') {
+      return { ok: true, slot: 'diamond', message: '' };
+    }
+    if (flow.diamond !== 'bridge-q') {
+      return { ok: false, slot: 'diamond', message: '💡 小巡提醒：指路牌要先判断【附近有可用的过街天桥或地下通道吗？】哦！' };
+    }
+    if (flow.yes !== 'bridge') {
+      return { ok: false, slot: 'yes', message: '💡 小巡提醒：当附近有可用天桥（回答“是”）时，应该优先【走天桥】哦！' };
+    }
+    return { ok: false, slot: 'no', message: '💡 小巡提醒：当没有天桥（回答“否”）时，应该选择【到斑马线按信号通行】！' };
+  }
+  if (mode === 'minimum') {
+    if ((flow.diamond === 'lt' && flow.yes === 'a' && flow.no === 'b') || (flow.diamond === 'gt' && flow.yes === 'b' && flow.no === 'a')) {
+      return { ok: true, slot: 'diamond', message: '' };
+    }
+    if (flow.yes === flow.no) {
+      return { ok: false, slot: 'no', message: '💡 小电提醒：不能不管谁少都充同一块电池哦！“是”和“否”要分别接不同的电池。' };
+    }
+    if (flow.diamond === 'lt' && flow.yes === 'b') {
+      return { ok: false, slot: 'yes', message: '💡 小电提醒：当“电量 a＜b”成立时，说明 A 剩得更少，所以“是”应该选【电池A优先充电】！' };
+    }
+    return { ok: false, slot: 'yes', message: '💡 小电提醒：当“电量 a＞b”成立时，说明 B 剩得更少，所以“是”应该选【电池B优先充电】！' };
+  }
+  return { ok: true, slot: 'diamond', message: '' };
+}

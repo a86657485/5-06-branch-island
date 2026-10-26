@@ -31,13 +31,6 @@ const assistanceCard=document.getElementById('engine-assistance');
 let activeWorldHelp: {stepKey:string,target?:{focusKey?:string},origin?:string,level?:number}|null=null;
 const dismissButton = document.getElementById('engine-dismiss') as HTMLButtonElement | null;
 
-const MAP_PLACES: Record<string, Record<string, [number, number]>> = {
-  greenhouse: { guide: [575, 395], sensor: [358, 398], control: [185, 515], fan: [415, 585], verify: [715, 565], portal: [925, 520] },
-  energy: { guide: [485, 285], batteryA: [255, 160], batteryB: [525, 165], control: [390, 150], monitor: [325, 275], portal: [645, 295] },
-  crossing: { guide: [335, 725], observe: [435, 445], control: [345, 555], signal: [474, 608], bridgeWest: [470, 326], bridgeEast: [1080, 326], crossingWest: [470, 681], crossingEast: [1080, 681], verify: [1125, 485], portal: [1195, 615] },
-  'crossing-east': { guide: [335, 725], observe: [435, 445], control: [345, 555], signal: [474, 608], bridgeWest: [470, 326], bridgeEast: [1080, 326], crossingWest: [470, 681], crossingEast: [1080, 681], verify: [1125, 485], portal: [1195, 615] }
-};
-
 function actorBadgeDefs(levelId: string, mapId: string): Array<{ place: string; label: string; x: number; y: number }> {
   if (mapId === 'greenhouse') {
     const repair = levelId === 'repair';
@@ -75,16 +68,16 @@ function actorBadgeDefs(levelId: string, mapId: string): Array<{ place: string; 
 
 function focusActionCallout(levelId: string, place?: string, step?: string): string {
   if (!place) return '';
-  if (place === 'guide') return step === '11' || step === 'done' ? '👈 第4步：点我汇报验收！' : '👈 第1步：点我领任务！';
-  if (place === 'sensor') return '👈 第2步：点我读温室温度！';
-  if (place === 'observe') return '👈 第2步：点我观察路口设施！';
-  if (place === 'batteryA' || place === 'batteryB') return step === '9' ? '👈 点我接入选中的电池！' : '👈 第2步：点我读电池电量！';
-  if (place === 'control') return levelId === 'cross' ? '👈 第3步：点我设指路规则！' : levelId === 'minimum' ? '👈 第3步：点我比较电量！' : '👈 第3步：点我装芯片/启动风机！';
-  if (place === 'signal') return '👈 先点我：等绿灯亮起！';
-  if (place === 'bridgeEast' || place === 'bridgeWest' || place === 'crossingEast' || place === 'crossingWest') return '👈 点我沿路线过马路！';
-  if (place === 'verify' || place === 'monitor') return '👈 第4步：点我核验本次结果！';
-  if (place === 'portal') return '👈 点我继续或找巡检员！';
-  return '👈 点我操作';
+  if (place === 'guide') return step === '11' || step === 'done' ? '👈 第4步：走近我汇报验收！' : '👈 第1步：走近我领任务！';
+  if (place === 'sensor') return '👈 第2步：走近我读温室温度！';
+  if (place === 'observe') return '👈 第2步：走近我观察路口设施！';
+  if (place === 'batteryA' || place === 'batteryB') return step === '9' ? '👈 走近我接入选中的电池！' : '👈 第2步：走近我读电池电量！';
+  if (place === 'control') return levelId === 'cross' ? '👈 第3步：走近我设指路规则！' : levelId === 'minimum' ? '👈 第3步：走近我比较电量！' : '👈 第3步：走近我装芯片/启动风机！';
+  if (place === 'signal') return '👈 先走近我：等绿灯亮起！';
+  if (place === 'bridgeEast' || place === 'bridgeWest' || place === 'crossingEast' || place === 'crossingWest') return '👈 沿发光路线走过马路！';
+  if (place === 'verify' || place === 'monitor') return '👈 第4步：走近我核验本次结果！';
+  if (place === 'portal') return '👈 走近我继续或找巡检员！';
+  return '👈 走近我操作';
 }
 
 function computeStationSteps(context: any, focus: { id?: string; step?: string; target?: { place?: string } }) {
@@ -162,6 +155,14 @@ function canControl() {
   return !!engine && !dialogOpen && !studioOpen && !hostOverlay && !auxiliaryBusy && !autoWalking && status?.hidden !== false && !engine.stopProcessingInput;
 }
 
+function focusGameCanvas() {
+  try {
+    window.focus?.();
+    const canvas = document.querySelector<HTMLElement>('#rpg canvas');
+    canvas?.focus?.();
+  } catch { /* ignore */ }
+}
+
 function moveWhileHeld() {
   if (!heldDirection || !canControl()) { stopMovement(); return; }
   // This is RPGJS's movement channel: its physics, collisions and events run normally.
@@ -231,6 +232,7 @@ function paintControlState() {
   lastControlsBlocked = blocked;
   if (controls) controls.dataset.blocked = String(blocked);
   if (blocked) stopMovement();
+  else focusGameCanvas();
   window.dispatchEvent(new CustomEvent('lesson-controls-state', { detail: { blocked } }));
 }
 window.addEventListener('lesson-interaction-target', event => {
@@ -242,7 +244,9 @@ let highlightedPanel: Element | null = null;
 let highlightedId = '';
 new MutationObserver(() => {
   panelFocusDirty = true;
+  const wasStudio = studioOpen;
   studioOpen = !!document.querySelector('.studio');
+  if (wasStudio && !studioOpen) focusGameCanvas();
   syncIdle();
 }).observe(document.getElementById('vue-gui-overlay') || document.body, { childList: true, subtree: true });
 let lastMoveReset = 0;
@@ -450,14 +454,10 @@ function paintActorBadges(focus: { id?: string, step?: string, target?: { mapId?
       badge.className = 'actor-name-badge';
       badge.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        if (!canControl()) return;
-        const m = badge.dataset.mapId || '';
-        const p = badge.dataset.place || '';
-        const tx = Number(badge.dataset.tx);
-        const ty = Number(badge.dataset.ty);
-        if (!m || !p || !Number.isFinite(tx) || !Number.isFinite(ty)) return;
-        noteActivity(); clearAssistance(); if (feedbackLine) feedbackLine.hidden = true;
-        window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { mapId: m, place: p, x: tx, y: ty, goto: true } }));
+        if (!canControl() || !interactionTarget.inRange) return;
+        stopMovement();
+        noteActivity();
+        engine!.processAction('lesson:interact');
       });
       badgePool.push(badge);
       actorBadges.appendChild(badge);
@@ -540,7 +540,7 @@ function paintFocus(focus = lessonFocus()) {
   if(undo)setDisabled(undo, !getContext()?.undoAvailable||autoWalking);
   if (goto) {
     setDisabled(goto, !focus.goto || !canControl());
-    setText(goto, autoWalking?'🚶 正在自动走过去…':'👉 点我自动走过去并操作');
+    setText(goto, autoWalking?'自动行走中…':'自动前往任务点');
     const title = gotoTitle(focus, processPanelOpen);
     if (goto.title !== title) goto.title = title;
     setClass(goto, 'focus-target', focusStrength >= 2 && focus.goto);
@@ -568,6 +568,7 @@ window.addEventListener('message', event => {
   if (message.type !== 'rpgjs-overlay') return;
   hostOverlay = message.open ? (message.kind || 'overlay') : '';
   if (hostOverlay) stopMovement();
+  else focusGameCanvas();
   if (controls) controls.inert = !!hostOverlay || dialogOpen;
   if (focusMarker && hostOverlay) focusMarker.hidden = true;
   syncIdle(dialogOpen || auxiliaryBusy || document.hidden || !!hostOverlay);
@@ -575,6 +576,7 @@ window.addEventListener('message', event => {
 window.addEventListener('lesson-dialog-state', event => {
   dialogOpen = !!(event as CustomEvent<{ open: boolean }>).detail.open;
   if (dialogOpen) stopMovement();
+  else focusGameCanvas();
   if (controls) controls.inert = dialogOpen || !!hostOverlay;
   syncIdle();
 });
@@ -589,48 +591,6 @@ function focusFrame() {
   requestAnimationFrame(focusFrame);
 }
 requestAnimationFrame(focusFrame);
-function triggerFocusGoto() {
-  const context = getContext();
-  const focus = lessonFocus(context);
-  if (!canControl() || !focus.goto) return;
-  noteActivity();clearAssistance();if(feedbackLine)feedbackLine.hidden=true;
-  window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { ...focus.target, goto: true } }));
-  void request('navHelp', { levelId: context?.levelId, mapId: focus.target.mapId || '', step: focus.step, focusId: focus.id, trigger: 'goto', strength: 0, idleMs: 0 }).catch(() => undefined);
-}
-document.getElementById('engine-goto')?.addEventListener('click', triggerFocusGoto);
-document.getElementById('focus-marker')?.addEventListener('click', triggerFocusGoto);
-document.getElementById('engine-task-hint')?.addEventListener('click', triggerFocusGoto);
-document.getElementById('station-step-bar')?.addEventListener('click', triggerFocusGoto);
-document.getElementById('rpg')?.addEventListener('pointerdown', (event: PointerEvent) => {
-  if (!canControl()) return;
-  const targetNode = event.target as HTMLElement | null;
-  if (!targetNode || targetNode.tagName !== 'CANVAS') return;
-  const projection = projectionFrame();
-  if (!projection || !projection.viewport) return;
-  const world = projection.viewport.toWorld({ x: event.clientX - projection.rect.left, y: event.clientY - projection.rect.top });
-  if (!world || !Number.isFinite(world.x) || !Number.isFinite(world.y)) return;
-  const context = getContext();
-  const focus = lessonFocus(context);
-  const mapId = focus.target?.mapId || context?.draft?.rpg?.mapId || (context?.levelId === 'cross' ? (context?.draft?.scene?.facility === false ? 'crossing' : 'crossing-east') : context?.levelId === 'minimum' ? 'energy' : 'greenhouse');
-  const places = MAP_PLACES[mapId] || {};
-  let bestPlace = '';
-  let bestPoint: [number, number] | null = null;
-  let bestDist = 92;
-  for (const [place, pt] of Object.entries(places)) {
-    const d = Math.hypot(world.x - pt[0], world.y - (pt[1] - 24));
-    if (d < bestDist) {
-      bestDist = d;
-      bestPlace = place;
-      bestPoint = pt;
-    }
-  }
-  noteActivity(); clearAssistance(); if (feedbackLine) feedbackLine.hidden = true;
-  if (bestPoint) {
-    window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { mapId, place: bestPlace, x: bestPoint[0], y: bestPoint[1], goto: true } }));
-  } else {
-    window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { mapId, place: 'walk-point', x: Math.round(world.x), y: Math.round(world.y), goto: true } }));
-  }
-});
 document.getElementById('engine-hint')?.addEventListener('click', async () => {
   if(!canControl() || auxiliaryBusy)return;
   stopMovement();noteActivity();auxiliaryBusy=true;paintFocus();

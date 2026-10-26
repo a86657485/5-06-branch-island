@@ -5,7 +5,7 @@ import { assistedChoice, assistedField, assistedOperation, claimScaffold, scaffo
 import { stationBrief } from '../../../public/task-guidance.mjs';
 import { toPlain } from './plain';
 import SentencePanel from './SentencePanel.vue';
-import { canUseTool, cardsFor, cardsForSlot, emptyFlow, emptyPredictions, emptySentence, guidedPanelStep, lockFlow, lockPredictions, lockSentence, panelEditSnapshot, placeCard, repairEditMessage, repairPreset, sentenceFromFlow, setPrediction, type Flow, type Predictions, type Sentence, type PanelEdit } from './flow-model';
+import { canUseTool, cardsFor, cardsForSlot, emptyFlow, emptyPredictions, emptySentence, flowLogicGuidance, guidedPanelStep, lockFlow, lockPredictions, lockSentence, panelEditSnapshot, placeCard, repairEditMessage, repairPreset, sentenceFromFlow, setPrediction, type Flow, type Predictions, type Sentence, type PanelEdit } from './flow-model';
 
 const props = withDefaults(defineProps<{
   mode?: string; flow?: Flow; sentence?: Sentence; predictions?: Predictions;
@@ -37,7 +37,7 @@ const inactiveChoices = computed(() => {
   const otherSlot = step.value.slot === 'diamond' ? 'yes' : 'diamond';
   return cardsForSlot(mode, otherSlot);
 });
-const alarm = computed(() => /菱形|不能用来/.test(message.value));
+const alarm = computed(() => /菱形|不能用来|提醒/.test(message.value));
 const orderLine = computed(() => stationBrief(mode).purpose);
 const stepTitle = computed(() => {
   if (step.value.phase === 'original') return '先看旧板怎样控制风机，暂时别改';
@@ -76,7 +76,11 @@ const companionTip = computed(() => {
     const yesLbl = cardLabel(board.value.yes);
     return `第三步填右边【否（条件不成立）】格：左边“是”已经选了【${yesLbl}】，那右边“否”就要选剩下的另一个动作，不能两边做同一件事哦！`;
   }
-  if (p === 'lock') return '太棒啦！判断条件和“是/否”两个分支动作都装进芯片了！快点下方绿色大按钮【✅ 确认这份程序】锁定它！';
+  if (p === 'lock') {
+    const check = flowLogicGuidance(mode, board.value);
+    if (!check.ok) return check.message;
+    return '太棒啦！判断条件和“是/否”两个分支动作都装进芯片了！快点下方绿色大按钮【✅ 确认这份程序】锁定它！';
+  }
   if (p === 'sentence') return '读一读下面这句“如果…那么…否则…”顺口溜，它就是你刚才装好的分支规则！确认没问题就点【👍 我看懂了，下一步】！';
   if (p === 'predict') {
     const t = step.value.temperature;
@@ -88,7 +92,7 @@ const companionTip = computed(() => {
     return '29℃、30℃、31℃ 三种温度都猜好啦！快点下方【📝 记下预测，下一步】！';
   }
   return props.measured === false
-    ? '规则芯片已经修好保存啦！现在点下方按钮回到现场，先去读取现场数据再来检验吧！'
+    ? '规则芯片已经修好保存啦！现在点下方按钮回到现场，用摇杆或方向键去【温度探头】采样再来检验吧！'
     : '万事俱备！现在点击下方绿色大按钮，立即在现场运行设备看结果吧！';
 });
 const wizardStepIndex = computed(() => {
@@ -206,10 +210,24 @@ function editFlow() {
 }
 function lock() {
   const result = lockFlow(mode, board.value);
-  remember(); board.value = result.flow; message.value = result.message;
-  if (result.ok && result.config) { lockedConfig.value = result.config; sentence.value = sentenceFromFlow(mode, result.flow); }
-  else { editingSlot.value = 'diamond'; }
-  publish(!result.ok && 'mCodes' in result ? { mCodes: result.mCodes } : {});
+  remember();
+  if (!result.ok) {
+    board.value = result.flow; message.value = result.message;
+    editingSlot.value = 'diamond';
+    publish('mCodes' in result ? { mCodes: result.mCodes } : {});
+    return;
+  }
+  const logicCheck = flowLogicGuidance(mode, board.value);
+  if (!logicCheck.ok) {
+    board.value = { ...board.value, locked: false, preset: false };
+    editingSlot.value = logicCheck.slot;
+    message.value = logicCheck.message;
+    publish();
+    return;
+  }
+  board.value = result.flow; message.value = result.message;
+  if (result.config) { lockedConfig.value = result.config; sentence.value = sentenceFromFlow(mode, result.flow); }
+  publish();
 }
 function confirmSentence(next: Sentence) {
   remember(); sentence.value = next; message.value = ''; publish();
@@ -237,19 +255,55 @@ async function useTool() {
   finally { toolBusy.value = false; }
 }
 function finish(action: string) {
+  if (action !== 'close') {
+    const logicCheck = flowLogicGuidance(mode, board.value);
+    if (!logicCheck.ok && !(mode === 'repair' && !props.diagnosed)) {
+      board.value = { ...board.value, locked: false, preset: false };
+      sentence.value = emptySentence(mode);
+      predictions.value = emptyPredictions();
+      editingSlot.value = logicCheck.slot;
+      message.value = logicCheck.message;
+      publish();
+      return;
+    }
+  } else if (board.value.locked && !(mode === 'repair' && !props.diagnosed)) {
+    const logicCheck = flowLogicGuidance(mode, board.value);
+    if (!logicCheck.ok) {
+      board.value = { ...board.value, locked: false, preset: false };
+      sentence.value = emptySentence(mode);
+      predictions.value = emptyPredictions();
+      editingSlot.value = logicCheck.slot;
+      message.value = logicCheck.message;
+      publish();
+      return;
+    }
+  }
   clearHelp(true);
   publish({ panel: '' });
   close?.('flow-panel', { action, flow: toPlain(board.value), sentence: toPlain(sentence.value), predictions: toPlain(predictions.value) });
 }
 function onKey(event: KeyboardEvent) {
   if (event.key !== 'Escape') return;
-  event.preventDefault(); event.stopPropagation(); finish('close');
+  event.preventDefault(); event.stopPropagation();
+  clearHelp(true);
+  publish({ panel: '' });
+  close?.('flow-panel', { action: 'close', flow: toPlain(board.value), sentence: toPlain(sentence.value), predictions: toPlain(predictions.value) });
 }
 onMounted(() => {
   const initial = lockFlow(mode, { ...board.value, locked: false });
   if (board.value.locked && initial.ok && initial.config) lockedConfig.value = initial.config;
   if (board.value.locked && !sentence.value.locked) sentence.value = sentenceFromFlow(mode, board.value);
   if (props.preview === 'predict') { sentence.value = lockSentence(mode, sentenceFromFlow(mode, board.value), board.value).sentence; }
+  const ctxRuns = (getContext()?.runs || []).slice(getContext()?.evidenceStart || 0);
+  const hadWrong = ctxRuns.some((r: any) => r.correct === false);
+  const logicCheck = flowLogicGuidance(mode, board.value);
+  if (board.value.locked && !board.value.preset && (hadWrong || !logicCheck.ok) && (mode !== 'repair' || props.diagnosed)) {
+    board.value = { ...board.value, locked: false, preset: false };
+    sentence.value = emptySentence(mode);
+    predictions.value = emptyPredictions();
+    editingSlot.value = logicCheck.ok ? 'diamond' : logicCheck.slot;
+    if (!logicCheck.ok) message.value = logicCheck.message;
+  }
   unsubscribe = subscribeContext(context => { support.value = context.support; showScaffold(context); });
   publish(); window.addEventListener('keydown', onKey, true);
   void nextTick(() => document.querySelector<HTMLElement>('.studio')?.focus());
@@ -264,7 +318,7 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
         <button type="button" @click="reviewKnowledge">📖 巡检手册</button>
         <button type="button" :disabled="!history.length || toolBusy" @click="undo">↶ 撤回上一步</button>
         <button type="button" :disabled="!canUseTool(support, toolBusy)" @click="useTool">✨ 通关法宝 · 还剩 {{ support?.remaining ?? '—' }} 次</button>
-        <button type="button" class="guided-close" aria-label="关闭面板" @click="finish('close')">×</button>
+        <button type="button" class="guided-close" aria-label="关闭面板" @click="onKey({ key: 'Escape', preventDefault(){}, stopPropagation(){} } as KeyboardEvent)">×</button>
       </header>
       <p class="studio-kicker">{{ mode === 'repair' ? '返修控制柜 · 分步向导工作台' : mode === 'cross' ? '智能导行屏 · 分步向导工作台' : mode === 'minimum' ? '节能配电柜 · 分步向导工作台' : '规则控制柜 · 分步向导工作台' }}</p>
       <ol class="wizard-steps" aria-label="控制柜四步向导">
@@ -416,7 +470,7 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
 .inactive-tray { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0; padding: 5px 10px; border-radius: 8px; background: #f1f5f9; color: #64748b; font-size: 12px; opacity: 0.78; }
 .inactive-chip { padding: 2px 8px; border-radius: 6px; border: 1px dashed #94a3b8; background: #e2e8f0; }
 .studio-lock { margin-top: 8px; background: #1c624d; color: white; border-color: #1c624d; }
-.studio-message { margin: 8px 0; padding: 8px 10px; background: #fff1f0; border-left: 4px solid #a33b32; font-weight: 700; }
+.studio-message { margin: 8px 0; padding: 10px 14px; background: #fff1f0; border: 2px solid #dc2626; border-left: 6px solid #dc2626; border-radius: 10px; color: #7f1d1d; font-size: 16px; font-weight: 800; }
 .guided-tools { position: sticky; top: -12px; z-index: 20; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding: 6px 0; margin: -4px 0 8px; background: #fffaf0; }
 .guided-tools button { min-height: 40px; padding: 6px 10px; border: 2px solid #73957a; border-radius: 10px; background: #fffef8; color: #163e31; font: inherit; }
 .guided-tools button:disabled { opacity: .55; }
@@ -428,7 +482,7 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
 .tool-answer button { position: absolute; right: 8px; top: 8px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: #f2dfab; color: #163e31; font-size: 24px; }
 .studio-actions .primary-next { background: linear-gradient(135deg, #1c624d, #0f766e); color: #fff; border: 3px solid #ffd166; padding: 10px 20px; font-weight: 800; box-shadow: 0 4px 14px #0f766e55; }
 .pulse-cta { animation: cta-bounce 1.2s ease-in-out infinite; }
-@keyframes cta-bounce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); box-shadow: 0 0 0 4px #ff149344, 0 6px 18px #0f766e77; } }
+@keyframes cta-bounce { 0%, 100% { box-shadow: 0 4px 14px #0f766e55; } 50% { box-shadow: 0 0 0 5px #ff149366, 0 6px 20px #0f766e99; border-color: #ff1493; } }
 .studio-actions .edit-program { padding: 8px 12px; font-size: 14px; }
 .predict-call-badge { width: 100%; font-size: 15px; color: #9d174d; background: #fdf2f8; padding: 6px 10px; border-radius: 8px; border: 1.5px solid #ff80ab; }
 .predict-option { padding: 10px 18px; font-weight: 800; border: 2.5px solid #1c624d !important; }

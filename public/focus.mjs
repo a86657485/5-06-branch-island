@@ -78,9 +78,23 @@ function sameProgram(runConfig, config) {
 }
 
 /** 核验之后：错了回控制柜，温度没测完换一个，三测都对去找园艺员。 */
+function isConfigRuleValid(levelId, config) {
+  if (!config) return false;
+  if (levelId === 'sale' || levelId === 'repair') {
+    return (config.operator === '>=' && config.yes === 'on' && config.no === 'off') || (config.operator === '<' && config.yes === 'off' && config.no === 'on');
+  }
+  if (levelId === 'cross') {
+    return config.yes === 'bridge' && config.no === 'crossing';
+  }
+  if (levelId === 'minimum') {
+    return (config.operator === '<' && config.yes === 'a' && config.no === 'b') || (config.operator === '>' && config.yes === 'b' && config.no === 'a');
+  }
+  return true;
+}
+
 function saleAfterVerify(runs, evidenceStart, config) {
   const current = (runs || []).slice(Math.max(0, evidenceStart || 0)).filter(run => sameProgram(run.config, config));
-  const wrong = current.some(run => run.correct === false);
+  const wrong = current.some(run => run.correct === false) || !isConfigRuleValid('sale', config);
   const complete = [29, 30, 31].every(temperature => current.some(run => run.input?.temperature === temperature && run.correct !== false));
   return { wrong, complete };
 }
@@ -162,12 +176,29 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
     if(!tried){const place=levelId==='cross'?'observe':'batteryA';return pack({id:place,step:'2',kind:'map',goto:true,hint:levelId==='cross'?'新路口，先重新观察设施。':'新电池组，先读取A的电量。',strong:'点自动前往，先看这次的现场数据。',target:at(mapId,place)});}
   }
   if (saved && !scene.measured) {
+    if (levelId === 'repair' && (!draft?.diagnoseAnswer || !revised)) {
+      const open = panel === 'flow';
+      if (!draft?.diagnoseAnswer) {
+        if (runs && runs.length === 0) {
+          return pack({ id: 'sensor', step: '2', kind: 'map', thinking: false, goto: true, hint: '换一个还没测过的温度再试。', strong: '点自动前往，走近并开始。', target: at(mapId, 'sensor') });
+        }
+        return pack({
+          id: open ? 'diagnose-cards' : 'control', step: '3', kind: open ? 'panel' : 'map', thinking: open, goto: !open,
+          hint: open ? '点一张：问题出在哪里？' : '回控制柜，点一张诊断。',
+          strong: open ? '三张诊断一起看。' : '点自动前往，打开控制柜。',
+          target: open ? {} : at(mapId, 'control')
+        });
+      }
+      return pack({ id: 'control', step: '4', kind: 'map', thinking: false, goto: true, hint: '单击卡片，放进当前亮着的空格。', strong: '单击卡片，放进当前亮着的空格。', target: at(mapId, 'control') });
+    }
     const current = (runs || []).slice(Math.max(0,evidenceStart || 0)).filter(run=>sameProgram(run.config,draft?.config));
-    const wrong = current.some(run=>run.correct === false);
+    const hasHistory = Array.isArray(runs) && runs.length > 0;
+    const configInvalid = hasHistory && !!draft?.config && !isConfigRuleValid(levelId, draft?.config);
+    const wrong = !flow.locked || current.some(run=>run.correct === false) || configInvalid;
     const thermal = levelId === 'sale' || levelId === 'repair';
-    const complete = thermal ? [29,30,31].every(t=>current.some(run=>run.correct && run.input?.temperature===t))
+    const complete = !wrong && (thermal ? [29,30,31].every(t=>current.some(run=>run.correct && run.input?.temperature===t))
       : levelId === 'cross' ? [true,false].every(f=>current.some(run=>run.correct && run.input?.facility===f && (run.scene?.outcome==='arrived'||run.outcome==='arrived')))
-      : [{a:3,b:8},{a:9,b:2}].every(pair=>current.some(run=>run.correct && run.input?.a===pair.a && run.input?.b===pair.b));
+      : [{a:3,b:8},{a:9,b:2}].every(pair=>current.some(run=>run.correct && run.input?.a===pair.a && run.input?.b===pair.b)));
     const place = complete ? (levelId==='cross' ? 'portal':'guide') : wrong ? 'control' : thermal ? 'sensor' : levelId==='cross' ? 'portal':'guide';
     const hint = complete ? '测试齐了，去向负责人汇报。' : wrong ? '结果不符，回控制柜改一处再试。' : thermal ? '换一个还没测过的温度再试。' : '去找负责人，更换另一组现场。';
     return pack({id:place,step:complete?'11':wrong?'3':'2',kind:'map',goto:true,hint,strong:'点自动前往，继续当前任务。',target:at(mapId,place)});
