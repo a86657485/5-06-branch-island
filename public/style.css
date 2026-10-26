@@ -74,3 +74,16 @@
 .learn-success { padding:11px 14px; border-radius:10px; background:#e8f1e7; line-height:1.6; font-size:16px; }
 .learn-footnote { font-size:13px; }
 @media(max-width:650px){.learn-card{padding:20px 16px;}.learn-columns{grid-template-columns:1fr;gap:10px;}.learn-columns img{height:155px;}.learn-columns ol{font-size:17px;}.learn-mission{font-size:16px;}}
+
+
+/* 平板触控适配（2026-10-26）：站点卡与明细展开按钮加大到可触控尺寸 */
+@media (pointer: coarse){
+  .route-ribbon button{min-height:44px;padding-top:6px;padding-bottom:6px}
+  td button, th button{min-height:40px;min-width:44px}
+}
+
+
+/* 华为擎云 C5e 竖屏补充（2026-10-26）：600 宽时顶栏按钮被压到 27-29px，提到 40px */
+@media (pointer: coarse) and (max-width: 720px){
+  .topbar.slim .identity button{min-height:40px;padding-top:6px;padding-bottom:6px}
+}

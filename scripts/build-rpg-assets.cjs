@@ -23,6 +23,9 @@ const device = {
   portal: '<ellipse cx="36" cy="96" rx="31" ry="7" fill="#0f172a" opacity=".15"/><path d="M11 93V24a25 25 0 0 1 50 0v69" fill="#bfdbfe" stroke="#0284c7" stroke-width="7"/><path d="M15 92V25a21 21 0 0 1 42 0v67" fill="#dbeafe"/><path d="M23 56h25m-10-10 10 10-10 10" fill="none" stroke="#0284c7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>',
 };
 async function packCharacter(id, rows) {
+  // 注意：character 图集对四个方向只提供了一张静态侧面/背面像，packCharacter 会把同一张图
+  // 复制成 3 帧（只有中间帧上下错 2px），左右行走因此没有迈步。打包后必须再跑一次
+  // `python scripts/build-walk-frames.py` 合成左右与背面的迈步帧，否则手感会“卡”。
   const fw = 72, fh = 104, layers = [];
   for (let row = 0; row < 4; row++) {
     const [left,top,width,height] = rows[row] || rows[0];

@@ -13,6 +13,61 @@
     <link rel="modulepreload" crossorigin href="/rpgjs/assets/canvasengine-DjHPjr3v.js">
     <link rel="modulepreload" crossorigin href="/rpgjs/assets/pixi-CELqzPx0.js">
     <link rel="stylesheet" crossorigin href="/rpgjs/assets/index-GroSTLcr.css">
+    <style id="lesson-touch-ui">
+      /* 触屏摇杆（2026-10-26）：平板上给一个可持续按住的方向摇杆。
+         只在粗指针（触屏）或带触摸点的设备显示，桌面端保持键盘操作。 */
+      #lesson-joystick{
+        position:absolute;left:max(14px, env(safe-area-inset-left));bottom:max(16px, env(safe-area-inset-bottom));
+        width:132px;height:132px;border-radius:50%;display:none;z-index:60;
+        background:#fffaf0b8;border:3px solid #184c3b8c;box-shadow:0 4px 14px #102e2c40;
+        pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none;
+      }
+      #lesson-joystick.is-active{background:#fffaf0e6;border-color:#184c3b}
+      #lesson-joystick::after{
+        content:"";position:absolute;inset:14px;border-radius:50%;border:2px dashed #184c3b33;
+      }
+      #lesson-joystick-knob{
+        position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;
+        background:#1c624d;border:3px solid #fffaf0;box-shadow:0 2px 6px #0000004d;pointer-events:none;
+      }
+      #lesson-joystick-label{
+        position:absolute;left:0;right:0;top:-24px;text-align:center;font-size:12px;font-weight:700;
+        color:#fff;text-shadow:0 1px 3px #0e302d;pointer-events:none;
+      }
+      @media (pointer:coarse){ #lesson-joystick{display:block} }
+      html.lesson-touch #lesson-joystick{display:block}
+      /* 摇杆占了左下角，把反馈条与帮助卡抬起来，避免叠字 */
+      @media (pointer:coarse){
+        #engine-feedback{left:14px;right:14px;bottom:160px;max-width:none}
+        #engine-assistance{bottom:170px;left:14px;max-width:calc(100% - 28px)}
+      }
+      html.lesson-touch #engine-feedback{bottom:160px;left:14px;right:14px;max-width:none}
+      html.lesson-touch #engine-assistance{bottom:170px;left:14px;max-width:calc(100% - 28px)}
+      @media (max-width:600px){
+        #lesson-joystick{width:118px;height:118px;left:10px;bottom:12px}
+        #lesson-joystick-knob{width:52px;height:52px;margin:-26px 0 0 -26px}
+      }
+
+      /* 规则文本放大与强调（2026-10-26）：打包样式带 scoped 属性，这里用 !important 覆盖 */
+      #engine-task-hint{font-size:19px !important;font-weight:750 !important;line-height:1.55 !important}
+      .dialog-text{font-size:clamp(18px,2.05vw,23px) !important;font-weight:600 !important}
+      .dialog-program{font-size:19px !important;font-weight:700 !important;background:#eef6e5 !important;border:2px solid #7ba06f !important}
+      .dialog-program p{margin:8px 0 !important}
+      .dialog-hint{font-size:17px !important;font-weight:600 !important}
+      .dialog-choices button{font-size:18px !important;font-weight:700 !important}
+      .studio{font-size:17px !important}
+      .studio-kicker{font-size:19px !important}
+      .studio-order{font-size:16px !important;font-weight:650 !important}
+      .studio-card,.flow-slot,.sentence-slot{font-size:17px !important;font-weight:700 !important}
+      .predict-table{font-size:17px !important}
+
+      /* 短屏/平板：控制柜关闭按钮固定在面板内，底部操作条常驻（沿用上一轮修复） */
+      .studio{position:relative !important}
+      .studio .studio-close{position:absolute !important;right:8px !important;top:8px !important;margin-left:0 !important}
+      @media (max-height:760px){
+        .studio .studio-actions{position:sticky !important;bottom:0 !important;z-index:2;background:#fffaf0;padding:6px 0 4px}
+      }
+    </style>
   </head>
   <body>
     <div id="rpg"><div id="vue-gui-overlay"></div></div>
@@ -30,11 +85,16 @@
         <button id="engine-hint" type="button">通关法宝 5/5</button>
         <button id="engine-goto" type="button">前往下一目标</button>
       </nav>
+      <div id="lesson-joystick" role="group" aria-label="移动摇杆：按住并拖动可让巡检员走动">
+        <div id="lesson-joystick-knob" aria-hidden="true"></div>
+        <span id="lesson-joystick-label" aria-hidden="true">按住拖动</span>
+      </div>
     </div>
     <aside id="engine-status" role="alert" hidden>
       <p id="engine-status-text"></p>
       <button id="engine-reload" type="button" hidden>重新加载园区</button>
       <button id="engine-dismiss" type="button">返回现场</button>
     </aside>
+    <script src="/rpgjs/joystick.js"></script>
   </body>
 </html>
