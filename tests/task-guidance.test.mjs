@@ -112,13 +112,13 @@ test('sentence support explains the student program without filling or changing 
 });
 
 test('end-of-station help explains the existing reason choices, including the alternate repair', () => {
-  assert.match(hint('sale', draft(), { phase: 'reason' }).action, /刚好30℃也要开/);
-  assert.match(hint('repair', draft(), { phase: 'reason' }).action, /两边动作也要对调/);
+  assert.match(hint('sale', draft(), { phase: 'reason' }).action, /达到30℃就开，低于才关/);
+  assert.match(hint('repair', draft(), { phase: 'reason' }).action, /保留达到30℃，对调开关出口/);
   const restored = draft({ config: { model: 'ventilation', operator: '<', yes: 'off', no: 'on' } });
-  assert.match(hint('repair', restored, { phase: 'reason' }).action, /只改判断方向/);
-  assert.match(hint('repair', restored, { phase: 'reason' }).why, /改回＜30/);
-  assert.match(hint('cross', {}, { phase: 'reason' }).action, /只走选中的一路/);
-  assert.match(hint('minimum', {}, { phase: 'reason' }).action, /哪块少就先给哪块充/);
+  assert.match(hint('repair', restored, { phase: 'reason' }).action, /改回低于30℃，出口动作保留/);
+  assert.match(hint('repair', restored, { phase: 'reason' }).why, /改回.*30/);
+  assert.match(hint('cross', {}, { phase: 'reason' }).action, /先看设施，再走选中的一路/);
+  assert.match(hint('minimum', {}, { phase: 'reason' }).action, /先比电量，剩得少的先充/);
   assert.notEqual(hint('sale', draft(), { phase: 'reason' }).key, hint('sale', draft(), { phase: 'world', key: 'guide' }).key);
 });
 

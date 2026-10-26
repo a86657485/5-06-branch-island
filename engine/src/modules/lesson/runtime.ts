@@ -36,7 +36,7 @@ export async function predict(player:RpgPlayer){
  const symbols:Record<string,string>={'>=':'≥','<':'＜','>':'＞','<=':'≤'};
  const condition=id==='cross'?'附近有可用设施吗':id==='minimum'?`电量A${symbols[config.operator]||config.operator}B吗`:`温度${symbols[config.operator]||config.operator}30℃吗`;
  const label=(value:string)=>choices.find(choice=>choice.id===value)?.label||'尚未设置';
- const prompt=id==='cross'?`这里${input().facility?'有':'没有'}可用设施。你预测会指哪条路？`:id==='minimum'?`A=${input().a}%，B=${input().b}%。你预测会选哪块？`:`现在是${input().temperature}℃。你预测风机会怎样？`;
+ const prompt=id==='cross'?`现场${input().facility?'有':'没有'}可用设施。按屏上程序，游客会走哪一路？`:id==='minimum'?`A电量${input().a}%，B电量${input().b}%。按程序，哪块先接入？`:id==='repair'?`${faultSeen(ctx().runs)?'修后探头':'旧板'}读到${input().temperature}℃。按屏上程序，风机会怎样？`:`探头读到${input().temperature}℃。按你设的程序，风机会怎样？`;
  const program={condition,yes:label(config.yes),no:label(config.no)};
  const value=await say(player,'先预测，再运行',prompt,choices,undefined,{program});if(!value)return;
  await rpc('predict',{value,input:input(),config:ctx().draft.config});await patchScene(player,{...advance(scene(),'predict')});
@@ -93,19 +93,23 @@ export async function record(player:RpgPlayer,finalStep:string,outcome?:string){
  let nextStep=result.correct?'换一种现场，再判断一次。':'回控制柜改一处，再重新测试。';
  if(canReview())nextStep='测试齐了，去找负责人。';
  else if(result.correct&&(id==='sale'||id==='repair')){const temperature=[29,30,31].find(value=>!currentRuns().some(run=>run.input?.temperature===value&&run.correct));nextStep=`再读${temperature||'一个新温度'}℃，检验另一种情况。`;}
- const message=`${outcome==='blocked'?'通道受阻，先留在安全侧。':`条件${result.condition?'成立':'不成立'}，这次走“${result.branch==='yes'?'是':'否'}”出口。`}${nextStep}`;
+ const selected=id==='minimum'?ctx().draft.config[result.branch]:result.output;
+ const comparison=`与预测${ctx().draft.prediction===selected?'一致':'不同'}`;
+ const actual=id==='cross'?`${outcome==='blocked'?'通道受阻，先留在安全侧':`实际沿${result.output==='bridge'?'天桥':'人行横道'}走到对岸`}；${comparison}，${result.correct?'符合':'不符合'}路口约定。`:id==='minimum'?`实际接入电池${String(selected).toUpperCase()}（${result.output}%）；${comparison}，${result.correct?'符合':'不符合'}低电量优先约定。`:`风机实际${result.output==='on'?'启动':'关闭'}；${comparison}，${result.correct?'符合':'不符合'}告示。`;
+ const message=`${actual}${nextStep}`;
  const clean:Record<string,any>={...s,actions:[],phase:'assigned',measured:false,lastFeedback:message,visited:[...new Set([...(s.visited||[]),'verified'])],...(id==='minimum'?{collected:[]}:{})};delete clean.ticket;
  await commitScene(player,clean,{prediction:''});feedback(message,supportDetail(result.scaffold));return result;
 }
 
 export async function review(player:RpgPlayer){
+ const id=ctx().levelId;
  const reasons=ctx().reasons.map((r:any)=>Array.isArray(r)?{id:r[0],label:r[1]}:{id:r.value,label:r.label});
- const value=await say(player,'验收负责人','用刚才的记录，说明你为什么这样选。',reasons);if(!value)return;
+ const prompt=id==='sale'?'阿绿问：为何测试不能漏掉刚好30℃？':id==='repair'?'老修问：旧板30℃关闭，修后能开。你改了哪里，为何这样改？':id==='cross'?'小巡问：为何每次只走选中的一路？':'小电问：为何不能一直先接电池A？';
+ const value=await say(player,'验收负责人',prompt,reasons);if(!value)return;
  await rpc('reason',{value});const result=await rpc('complete');
  if(!result.passed){feedback('这次还没验收通过。对照记录再试一次。',supportDetail(result.scaffold));return;}
- const id=ctx().levelId;
  const choices=id==='cross'?[{id:'next',label:'进入基础检测'},{id:'optional',label:'去储能柜选做'}]:[{id:'next',label:id==='minimum'?'进入基础检测':'领取下一站委托'}];
- const next=await say(player,'验收记录',id==='cross'?'三站巡检完成。先进入基础检测。':id==='minimum'?'配电验证通过，选做加分已记录。':'本站验收通过。继续下一项委托。',choices);
+ const next=await say(player,'验收记录',id==='cross'?'有桥、没桥都走到对岸。三站完成，进入基础检测。':id==='minimum'?'两组都选中低电量电池。选做完成，可以回基础检测。':id==='repair'?'旧故障已留下，修后三个温度都重验通过。小巡在路口等你帮忙。':'29、30、31℃都符合告示。老修的备用板还等着验收。',choices);
  if(next==='next')await rpc('next');else if(next==='optional')await rpc('next',{optional:true});
 }
 

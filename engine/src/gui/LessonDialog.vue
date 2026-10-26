@@ -125,7 +125,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="dialog-shade" @pointerdown.stop @click.stop>
     <section ref="panel" class="lesson-dialog" role="dialog" aria-modal="true" :aria-label="title || name" tabindex="-1">
-      <header class="dialog-tools"><button type="button" @click="reviewKnowledge">回顾知识</button>
+      <header class="dialog-tools"><button type="button" @click="reviewKnowledge">巡检手册</button>
       <button class="dialog-undo" type="button" :disabled="undoBusy || toolBusy || !undoAvailable" @click="undo">撤回上一步</button>
       <button class="dialog-tool" type="button" :disabled="!canUseTool(support, toolBusy)" @click="useTool">通关法宝 · 还剩 {{ support?.remaining ?? '—' }} 次</button>
       <button class="dialog-close" data-focus="story-skip" aria-label="跳过剧情" @click="finish(null)">×</button></header>

@@ -49,7 +49,7 @@ async function roadGuide(player: RpgPlayer, east = false) {
   const nextFacility=verified.length?([true,false].find(value=>!verified.some(run=>run.input?.facility===value))??scene().facility):scene().facility!==false;
   const change=!first&&nextFacility!==scene().facility;
   const returning=!first&&!change&&east&&!scene().ticket;
-  const choice=await say(player,'巡检员小巡',first?'准备好了，就先观察路口设施。':change?'这里已经测对。再检查另一种现场。':returning?'还要再验一次。先沿安全路线回到西岸。':'先观察，再到导行屏作预测。运行后，沿选中的路去核验。',[{id:first?'accept':change?'next-case':returning?'return':'continue',label:first?'领取巡检任务':change?(nextFacility?'检查有可用设施的路口':'检查没有可用设施的路口'):returning?'沿安全路线回西岸':'继续本次巡检'}]);
+  const choice=await say(player,'巡检员小巡',first?'游客不知该往哪走。请先观察设施，再替导行屏配好规则。':change?'这里已经测对。再检查另一种现场。':returning?'还要再验一次。先沿安全路线回到西岸。':'先观察，再到导行屏作预测。运行后，沿选中的路去核验。',[{id:first?'accept':change?'next-case':returning?'return':'continue',label:first?'领取巡检任务':change?(nextFacility?'检查有可用设施的路口':'检查没有可用设施的路口'):returning?'沿安全路线回西岸':'继续本次巡检'}]);
   if (choice === 'return') {
     player.setVariable('returnToWest', true);
     await patchScene(player, { ...(scene().facility ? {} : { signal: 'green' }) });
@@ -242,7 +242,7 @@ async function energyGuide(player: RpgPlayer) {
   const verified=currentRuns().filter(run=>run.correct);
   const pair=verified.length?(verified.some(run=>run.input?.a<run.input?.b)?'pair-b':'pair-a'):(scene().pair||'pair-a');
   const change=!first&&pair!==(scene().pair||'pair-a');
-  const choice=await say(player,'园区能源工程师',first?'先分别点A、B，读取两块电量。':change?'这一组已经测对。换另一组电量再试。':'先读两块电量，再让控制台比较。两组都要检验。',[{id:first?'accept':change?'next-case':'continue',label:first?'领取节能配电任务':change?(pair==='pair-b'?'换一组：A 9%，B 2%':'换一组：A 3%，B 8%'):'继续调试配电程序'}]);
+  const choice=await say(player,'储能柜小电',first?'只有一个优先充电口，我担心电量少的等太久。请先读两块电量。':change?'这一组已经测对。换另一组电量再试。':'先读两块电量，再让控制台比较。两组都要检验。',[{id:first?'accept':change?'next-case':'continue',label:first?'领取节能配电任务':change?(pair==='pair-b'?'换一组：A 9%，B 2%':'换一组：A 3%，B 8%'):'继续调试配电程序'}]);
   if (choice === 'accept') {
     await patchScene(player, { phase: 'assigned' });return;
   }

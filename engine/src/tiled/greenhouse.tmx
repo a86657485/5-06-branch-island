@@ -76,12 +76,12 @@
 1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537,1537
 </data></layer>
  <objectgroup id="3" name="Lesson events"><properties><property name="z" type="float" value="1"/></properties>
-  <object id="1" name="start" class="start" x="560" y="505"><point/></object>
-  <object id="2" name="guide" x="460" y="445"><point/></object>
-  <object id="3" name="sensor" x="375" y="425"><point/></object>
-  <object id="4" name="control" x="330" y="490"><point/></object>
-  <object id="5" name="fan" x="270" y="470"><point/></object>
-  <object id="6" name="verify" x="465" y="500"><point/></object>
-  <object id="7" name="portal" x="605" y="535"><point/></object>
+  <object id="1" name="start" class="start" x="780" y="620"><point/></object>
+  <object id="2" name="guide" x="520" y="430"><point/></object>
+  <object id="3" name="sensor" x="360" y="430"><point/></object>
+  <object id="4" name="control" x="260" y="500"><point/></object>
+  <object id="5" name="fan" x="420" y="520"><point/></object>
+  <object id="6" name="verify" x="600" y="500"><point/></object>
+  <object id="7" name="portal" x="700" y="530"><point/></object>
  </objectgroup>
 </map>

@@ -3,6 +3,11 @@ type Point = {x:number,y:number};
 type Target = Point & {place?:string};
 export function clickWaypoints(from:Point,target:Target,context:{levelId:string,scene?:Record<string,any>}):Point[]{
  const s=context.scene || {};
+ if(context.levelId==='sale' || context.levelId==='repair'){
+  // 西侧道路边缘先竖直回到路面，24px 身位才不会在斜走时擦到花坛角。
+  const departure=from.x<500 && from.y<430?[{x:from.x,y:430}]:from.x<500 && from.y>520?[{x:from.x,y:500}]:[];
+  return [...departure,{x:560,y:480},target];
+ }
  if(context.levelId!=='cross')return [target];
  const route=s.ticket?.output || (s.facility?'bridge':'crossing');
  const y=route==='bridge'?336:680;

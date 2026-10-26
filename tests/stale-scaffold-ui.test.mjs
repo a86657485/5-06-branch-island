@@ -11,13 +11,13 @@ const vue = require('../engine/node_modules/vue');
 const model = require('../engine/src/gui/flow-model.ts');
 const focus = require('../engine/src/gui/assisted-focus.ts');
 const script = fs.readFileSync(new URL('../engine/src/gui/FlowPanel.vue', import.meta.url), 'utf8').match(/<script setup lang="ts">([\s\S]*?)<\/script>/)[1];
-const compiled = ts.transpileModule(`${script}\nmodule.exports = { editFlow, choose, undo, showScaffold, highlightChoice, step, toolAnswer };`, {
+const compiled = ts.transpileModule(`${script}\nmodule.exports = { editFlow, choose, undo, showScaffold, highlightChoice, step, stepTitle, toolAnswer };`, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true }
 }).outputText;
 
-function harness(flow = { diamond: 'ge30', yes: 'on', no: 'off', locked: true }) {
-  const context = { levelId: 'sale', draft: { config: { model: 'ventilation', operator: '>=', yes: 'on', no: 'off' } } };
-  const props = { mode: 'sale', flow, sentence: { slots: [], locked: true }, predictions: { 29: 'off', 30: 'on', 31: 'on', locked: true } };
+function harness(flow = { diamond: 'ge30', yes: 'on', no: 'off', locked: true }, mode='sale') {
+  const context = { levelId: mode, draft: { config: { model: 'ventilation', operator: '>=', yes: 'on', no: 'off' } } };
+  const props = { mode, flow, sentence: { slots: [], locked: true }, predictions: { 29: 'off', 30: 'on', 31: 'on', locked: true } };
   const module = { exports: {} };
   const imports = {
     vue: { ...vue, inject: (_key, fallback) => fallback, onMounted() {}, onUnmounted() {} },
@@ -71,4 +71,12 @@ test('撤回也清除尚未展示的帮助，返回旧槽位时不会补亮旧�
   assert.equal(h.step.value.slot, 'yes');
   h.showScaffold(h.context);
   assert.equal(h.highlightChoice('on'), false);
+});
+
+test('控制柜的问题点明本次设备，学生知道在帮谁作决定',()=>{
+ for(const [mode,subject] of [['sale','风机'],['repair','风机'],['cross','导行屏'],['minimum','充电柜']]){
+  const h=harness({diamond:'',yes:'',no:'',locked:false},mode);
+  assert.ok(h.stepTitle.value.includes(subject),`${mode}: ${h.stepTitle.value}`);
+  assert.ok([...h.stepTitle.value].length<=25);
+ }
 });

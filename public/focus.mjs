@@ -1,7 +1,7 @@
 /** 任何时刻只返回一个焦点。提示只说去哪里、怎么点，不说选哪一张。 */
 
 const PLACES = {
-  greenhouse: { guide: [460, 445], sensor: [375, 425], control: [330, 490], fan: [270, 470], verify: [465, 500], portal: [605, 535] },
+  greenhouse: { guide: [520, 430], sensor: [360, 430], control: [260, 500], fan: [420, 520], verify: [600, 500], portal: [700, 530] },
   workshop: { guide: [1035, 245], sensor: [970, 225], control: [1120, 225], fan: [1245, 225], verify: [1180, 235], portal: [955, 330] },
   energy: { guide: [540, 270], batteryA: [300, 155], batteryB: [440, 180], control: [365, 190], monitor: [435, 245], portal: [610, 300] },
   crossing: { guide: [350, 600], observe: [430, 515], control: [410, 595], signal: [474, 608], bridgeWest: [470, 326], bridgeEast: [1080, 326], crossingWest: [470, 681], crossingEast: [1080, 681], verify: [1135, 535], portal: [1190, 590] },
@@ -64,7 +64,7 @@ export function routeDots(mapId, output = 'bridge') {
 
 /** 前往按钮的说明。过街那句只在亲自走的时候出现，流程面板打开时不挂在按钮上。 */
 export function gotoTitle(focus, processPanel = false) {
-  if (focus?.goto) return '前往下一目标';
+  if (focus?.goto) return '自动前往';
   if (processPanel && focus?.gotoReason === '这段要你亲自走过去') return '';
   return focus?.gotoReason || '';
 }
@@ -95,7 +95,7 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
   const walked = (scene.actions || []).includes('route');
   const crossingWalk = levelId === 'cross' && scene.ticket && !walked && !level?.valid;
   if (crossingWalk) {
-    if (scene.ticket.output === 'crossing' && scene.signal !== 'green') return pack({id:'signal',step:'10',kind:'map',goto:true,hint:'先到信号灯，等绿灯再通行。',strong:'点下一步，去信号灯。',target:at(mapId,'signal')});
+    if (scene.ticket.output === 'crossing' && scene.signal !== 'green') return pack({id:'signal',step:'10',kind:'map',goto:true,hint:'先到信号灯，等绿灯再通行。',strong:'点自动前往，去信号灯。',target:at(mapId,'signal')});
     const useCrossing = scene.ticket.output === 'crossing' || scene.deviceOutput === 'crossing';
     const place = mapId === 'crossing-east'
       ? (useCrossing ? 'crossingEast' : 'bridgeEast')
@@ -103,8 +103,8 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
     const focus = pack({
       id: place, step: '10', kind: 'map', thinking: false, goto: true,
       gotoReason: '这段要你亲自走过去',
-      hint: '点下一步，沿选中的路线走过去。',
-      strong: '点下一步，角色会沿路线行走。',
+      hint: '点自动前往，沿选中的路线走过去。',
+      strong: '点自动前往，角色会沿路线行走。',
       pause: scene.signal === 'red',
       target: at(mapId, place)
     });
@@ -112,7 +112,7 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
     return focus;
   }
   if (level?.valid) {
-    return pack({ id: 'guide', step: 'done', kind: 'map', thinking: false, goto: true, hint: '本站已验收，去找负责人汇报。', strong: '点下一步，找负责人继续。', target: at(mapId, 'guide') });
+    return pack({ id: 'guide', step: 'done', kind: 'map', thinking: false, goto: true, hint: '本站已验收，去找负责人汇报。', strong: '点自动前往，找负责人继续。', target: at(mapId, 'guide') });
   }
   if (panel === 'flow' && (!flow.diamond || !flow.yes || !flow.no)) {
     const repair = levelId === 'repair';
@@ -135,11 +135,11 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
   if (!scene.phase || scene.phase === 'start') {
     if (levelId === 'repair') {
       const spot = at('greenhouse', 'guide');
-      const focus = pack({ id: 'guide', step: '1', kind: 'map', thinking: false, goto: true, hint: '沿箭头走到返修点，听维修员说问题。', strong: '点下一步，走近并开始。', target: spot });
+      const focus = pack({ id: 'guide', step: '1', kind: 'map', thinking: false, goto: true, hint: '点自动前往，听维修员说问题。', strong: '点自动前往，走近并开始。', target: spot });
       focus.dots = [1, 2, 3, 4].map(step => ({ x: spot.x + step * 32, y: spot.y + step * 16 }));
       return focus;
     }
-    return pack({ id: 'guide', step: '1', kind: 'map', thinking: false, goto: true, hint: opening(levelId), strong: '点下一步，走近并开始。', target: at(mapId, 'guide') });
+    return pack({ id: 'guide', step: '1', kind: 'map', thinking: false, goto: true, hint: opening(levelId), strong: '点自动前往，走近并开始。', target: at(mapId, 'guide') });
   }
   const saved = (scene.visited || []).includes('verified');
   const ran = !!scene.ticket || saved;
@@ -148,18 +148,18 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
     const connect = levelId === 'minimum' && !(scene.actions || []).includes('route');
     const selected = draft?.config?.[scene.ticket.branch] || scene.ticket.output;
     const place = connect ? (selected === 'b' ? 'batteryB' : 'batteryA') : levelId === 'minimum' ? 'monitor' : 'verify';
-    if(connect)return pack({id:place,step:'9',kind:'map',goto:true,hint:'先接入程序选中的电池。',strong:'点下一步，接入选中的电池。',target:at(mapId,place)});
-    return pack({ id: place, step: '9', kind: 'map', thinking: false, goto: true, hint: '到核验处保存这次结果。', strong: '点下一步，走近并开始。', target: at(mapId, place) });
+    if(connect)return pack({id:place,step:'9',kind:'map',goto:true,hint:'先接入程序选中的电池。',strong:'点自动前往，接入选中的电池。',target:at(mapId,place)});
+    return pack({ id: place, step: '9', kind: 'map', thinking: false, goto: true, hint: '到核验处保存这次结果。', strong: '点自动前往，走近并开始。', target: at(mapId, place) });
   }
   if (!scene.measured && (levelId === 'minimum' && scene.phase === 'reading' || !saved)) {
     const place = levelId === 'cross' ? 'observe' : levelId === 'minimum' ? ((scene.collected || []).includes('a') ? 'batteryB' : 'batteryA') : 'sensor';
     const hint = levelId === 'repair' ? '选 30℃，先运行原程序看看。' : levelId === 'cross' ? '到观察点看看路口附近。' : levelId === 'minimum' ? '去读两组电池的电量。' : '到温度探头，选一个温度。';
-    return pack({ id: place, step: '2', kind: 'map', thinking: false, goto: true, hint, strong: '点下一步，走近并开始。', target: at(mapId, place) });
+    return pack({ id: place, step: '2', kind: 'map', thinking: false, goto: true, hint, strong: '点自动前往，走近并开始。', target: at(mapId, place) });
   }
   if (saved && !scene.measured && Array.isArray(runs) && ['cross','minimum'].includes(levelId)) {
     const caseInput=levelId==='cross'?{facility:!!scene.facility}:scene.pair==='pair-b'?{a:9,b:2}:{a:3,b:8};
     const tried=(runs||[]).slice(Math.max(0,evidenceStart||0)).some(run=>sameProgram(run.config,draft?.config)&&Object.keys(caseInput).every(key=>run.input?.[key]===caseInput[key]));
-    if(!tried){const place=levelId==='cross'?'observe':'batteryA';return pack({id:place,step:'2',kind:'map',goto:true,hint:levelId==='cross'?'新路口，先重新观察设施。':'新电池组，先读取A的电量。',strong:'点下一步，先看这次的现场数据。',target:at(mapId,place)});}
+    if(!tried){const place=levelId==='cross'?'observe':'batteryA';return pack({id:place,step:'2',kind:'map',goto:true,hint:levelId==='cross'?'新路口，先重新观察设施。':'新电池组，先读取A的电量。',strong:'点自动前往，先看这次的现场数据。',target:at(mapId,place)});}
   }
   if (saved && !scene.measured) {
     const current = (runs || []).slice(Math.max(0,evidenceStart || 0)).filter(run=>sameProgram(run.config,draft?.config));
@@ -170,17 +170,17 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
       : [{a:3,b:8},{a:9,b:2}].every(pair=>current.some(run=>run.correct && run.input?.a===pair.a && run.input?.b===pair.b));
     const place = complete ? (levelId==='cross' ? 'portal':'guide') : wrong ? 'control' : thermal ? 'sensor' : levelId==='cross' ? 'portal':'guide';
     const hint = complete ? '测试齐了，去向负责人汇报。' : wrong ? '结果不符，回控制柜改一处再试。' : thermal ? '换一个还没测过的温度再试。' : '去找负责人，更换另一组现场。';
-    return pack({id:place,step:complete?'11':wrong?'3':'2',kind:'map',goto:true,hint,strong:'点下一步，继续当前任务。',target:at(mapId,place)});
+    return pack({id:place,step:complete?'11':wrong?'3':'2',kind:'map',goto:true,hint,strong:'点自动前往，继续当前任务。',target:at(mapId,place)});
   }
   if (levelId === 'repair' && saved && !draft?.diagnoseAnswer) {
     if (!scene.measured) {
-      return pack({ id: 'sensor', step: '2', kind: 'map', thinking: false, goto: true, hint: '到温度探头，选一个温度。', strong: '点下一步，走近并开始。', target: at(mapId, 'sensor') });
+      return pack({ id: 'sensor', step: '2', kind: 'map', thinking: false, goto: true, hint: '到温度探头，选一个温度。', strong: '点自动前往，走近并开始。', target: at(mapId, 'sensor') });
     }
     const open = panel === 'flow';
     return pack({
       id: open ? 'diagnose-cards' : 'control', step: '3', kind: open ? 'panel' : 'map', thinking: open, goto: !open,
       hint: open ? '点一张：问题出在哪里？' : '回控制柜，点一张诊断。',
-      strong: open ? '三张诊断一起看。' : '点下一步，打开控制柜。',
+      strong: open ? '三张诊断一起看。' : '点自动前往，打开控制柜。',
       target: open ? {} : at(mapId, 'control')
     });
   }
@@ -188,39 +188,39 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
     return pack({ id: 'control', step: '4', kind: 'map', thinking: false, goto: true, hint: '单击卡片，放进当前亮着的空格。', strong: '单击卡片，放进当前亮着的空格。', target: at(mapId, 'control') });
   }
   if (levelId === 'sale' && saved && !scene.measured) {
-    const back = pack({ id: 'control', step: '3', kind: 'map', thinking: false, goto: true, hint: '对照结果，回控制柜改图。', strong: '点下一步，打开控制柜。', target: at(mapId, 'control') });
+    const back = pack({ id: 'control', step: '3', kind: 'map', thinking: false, goto: true, hint: '对照结果，回控制柜改图。', strong: '点自动前往，打开控制柜。', target: at(mapId, 'control') });
     if (!flow.locked) return back;
     const progress = saleAfterVerify(runs, evidenceStart, draft?.config);
     if (progress.wrong) return back;
-    if (!progress.complete) return pack({ id: 'sensor', step: '2', kind: 'map', thinking: false, goto: true, hint: '换一个温度再试。', strong: '点下一步，走近并开始。', target: at(mapId, 'sensor') });
-    return pack({ id: 'guide', step: '11', kind: 'map', thinking: false, goto: true, hint: '回园艺员那里汇报。', strong: '点下一步，找负责人继续。', target: at(mapId, 'guide') });
+    if (!progress.complete) return pack({ id: 'sensor', step: '2', kind: 'map', thinking: false, goto: true, hint: '换一个温度再试。', strong: '点自动前往，走近并开始。', target: at(mapId, 'sensor') });
+    return pack({ id: 'guide', step: '11', kind: 'map', thinking: false, goto: true, hint: '回园艺员那里汇报。', strong: '点自动前往，找负责人继续。', target: at(mapId, 'guide') });
   }
   if (!flow.locked) {
     const drawHint = levelId === 'repair' ? '先运行原程序，看 30℃。' : levelId === 'cross' ? '到导行屏，设置两种情况的动作。' : '到控制柜，设置条件和两个动作。';
-    return pack({ id: 'control', step: '3', kind: 'map', thinking: false, goto: true, hint: drawHint, strong: '点下一步，走近并开始。', target: at(mapId, 'control') });
+    return pack({ id: 'control', step: '3', kind: 'map', thinking: false, goto: true, hint: drawHint, strong: '点自动前往，走近并开始。', target: at(mapId, 'control') });
   }
   const sentenceFirst = !sentence.locked && !(levelId === 'cross' && scene.ticket) && !(levelId === 'sale' && !predictions.locked) && !(ran && (levelId === 'sale' || levelId === 'repair') && !(revised && !scene.ticket));
   if (sentenceFirst) {
-    return pack({ id: 'control', step: '6', kind: 'map', thinking: false, goto: true, hint: '回控制柜，确认如果与否则的动作。', strong: '点下一步，确认自己的安排。', target: at(mapId, 'control') });
+    return pack({ id: 'control', step: '6', kind: 'map', thinking: false, goto: true, hint: '回控制柜，确认如果与否则的动作。', strong: '点自动前往，确认自己的安排。', target: at(mapId, 'control') });
   }
   if ((levelId === 'sale' || levelId === 'repair') && !predictions.locked && !scene.ticket) {
     if (panel && panel !== 'predict') {
       return pack({ id: 'predict-tab', step: '7', kind: 'panel', thinking: false, goto: false, hint: '按顺序预测三个温度的动作。', strong: '按顺序预测三个温度的动作。', target: {} });
     }
-    return pack({ id: 'control', step: '7', kind: 'map', thinking: false, goto: true, hint: '回控制柜，依次预测三种温度。', strong: '点下一步，先预测再运行。', target: at(mapId, 'control') });
+    return pack({ id: 'control', step: '7', kind: 'map', thinking: false, goto: true, hint: '回控制柜，依次预测三种温度。', strong: '点自动前往，先预测再运行。', target: at(mapId, 'control') });
   }
   if (levelId === 'repair' && !scene.measured) {
-    return pack({ id: 'sensor', step: '2', kind: 'map', thinking: false, goto: true, hint: '到温度探头，选一个温度。', strong: '点下一步，走近并开始。', target: at(mapId, 'sensor') });
+    return pack({ id: 'sensor', step: '2', kind: 'map', thinking: false, goto: true, hint: '到温度探头，选一个温度。', strong: '点自动前往，走近并开始。', target: at(mapId, 'sensor') });
   }
   if (!scene.ticket && ['cross','minimum'].includes(levelId)) {
     const predicted = (scene.actions || [])[1] === 'predict';
-    return pack({id:'control',step:predicted?'8':'7',kind:'map',goto:true,hint:predicted?'运行程序，看它选哪一条。':'先预测这次会选哪一条。',strong:'点下一步，继续控制柜的任务。',target:at(mapId,'control')});
+    return pack({id:'control',step:predicted?'8':'7',kind:'map',goto:true,hint:predicted?'运行程序，看它选哪一条。':'先预测这次会选哪一条。',strong:'点自动前往，继续控制柜的任务。',target:at(mapId,'control')});
   }
   if (!scene.ticket) {
     return pack({ id: 'control', step: '8', kind: 'map', thinking: false, goto: true, hint: '点执行本次温度。', strong: '在控制柜里点执行。', target: at(mapId, 'control') });
   }
   const place = levelId === 'minimum' ? 'monitor' : 'verify';
-  return pack({ id: place, step: '9', kind: 'map', thinking: false, goto: true, hint: '到核验处保存这次结果。', strong: '点下一步，走近并开始。', target: at(mapId, place) });
+  return pack({ id: place, step: '9', kind: 'map', thinking: false, goto: true, hint: '到核验处保存这次结果。', strong: '点自动前往，走近并开始。', target: at(mapId, place) });
 }
 
 function gateFocus(intro) {
@@ -232,7 +232,7 @@ function gateFocus(intro) {
   if (!blank.sawSign) return pack({ id: 'gate-sign', step: '5', kind: 'map', thinking: false, goto: false, hint: '看告示，和闸机出的票比一比。', strong: '点告示，对照闸机的票。', target: { place: 'gate-sign' } });
   if (!blank.idea) return pack({ id: 'gate-lead', step: '6', kind: 'map', thinking: false, goto: false, hint: '回运维主管处，回答一个问题。', strong: '点一个你的想法。', target: { place: 'gate-lead' } });
   if (!blank.done) return pack({ id: 'gate-portal', step: '7', kind: 'map', thinking: false, goto: false, hint: '从北边园区通道去温室。', strong: '点通道进入温室。', target: { place: 'gate-portal' } });
-  return pack({ id: 'guide', step: '1', kind: 'map', thinking: false, goto: true, hint: opening('sale'), strong: '点下一步，走近并开始。', target: {} });
+  return pack({ id: 'guide', step: '1', kind: 'map', thinking: false, goto: true, hint: opening('sale'), strong: '点自动前往，走近并开始。', target: {} });
 }
 
 function examFocus(exam) {
@@ -272,7 +272,7 @@ function overlayFocus(overlay, exam) {
     return pack({ id: 'patrol-checklist', step: '0', kind: 'overlay', thinking: false, goto: false, pause: true, hint: '打开巡检单，确认本站任务。', strong: '点当前这一站。', target: {} });
   }
   if (overlay === 'route') {
-    return pack({ id: 'route-arrow', step: 'P1', kind: 'map', thinking: false, goto: true, hint: '沿箭头去下一巡检站。', strong: '点下一步，走近并开始。', target: {} });
+    return pack({ id: 'route-arrow', step: 'P1', kind: 'map', thinking: false, goto: true, hint: '沿箭头去下一巡检站。', strong: '点自动前往，走近并开始。', target: {} });
   }
   if (overlay === 'exam') return exam ? examFocus(exam) : examFocus({ open: true, tier: 'base', allFilled: false });
   return null;

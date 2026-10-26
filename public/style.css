@@ -33,6 +33,7 @@
 .gate-compare,.gate-readonly{margin:12px 0;padding:12px 14px;border-radius:12px;background:#fffaf0;border:2px solid #c5a048;line-height:1.7}
 .gate-readonly h2{margin:0 0 8px;font-size:18px}
 #exam-missing{margin:8px 0 16px;line-height:1.8}
+.play-shell>.demo-banner{flex:none}
 .play-shell{height:100vh;display:flex;flex-direction:column;background:#173b31}
 .topbar.slim{height:56px;flex:none;padding:0 12px;gap:10px}
 .route-ribbon{display:flex;align-items:center;gap:4px;list-style:none;margin:0;padding:0;min-width:0}
@@ -47,13 +48,13 @@
 .stage-full .rpg-frame{flex:1;width:100%;height:100%;min-height:0}
 .stage-notice,.stage-save{position:absolute;z-index:4;margin:0;padding:6px 8px;border-radius:8px;background:#ffffffe8}
 .stage-notice{left:12px;bottom:12px;max-width:46vw}
-.stage-save{right:12px;bottom:12px}
+.stage-save{right:12px;bottom:2px;padding:2px 6px;font-size:10px;line-height:1.2;pointer-events:none}
 .screen-overlay{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:20px;background:#102e2ccc}
 .screen-overlay[hidden]{display:none}
 .overlay-card{position:relative;width:min(880px,100%);max-height:min(92vh,920px);overflow:auto;padding:28px 24px 20px;border:3px solid #184c3b;border-radius:20px;background:#fffaf0;box-shadow:0 18px 50px #061e2b66}
 .overlay-close{position:absolute;top:10px;right:12px;width:44px;height:44px;border-radius:50%;font-size:28px;line-height:1}
 .story-card img{display:block;width:100%;max-height:280px;object-fit:contain;border-radius:14px;background:#e7f2ea}
-.story-line{font-size:22px;line-height:1.65;min-height:2.4em}
+.story-line{white-space:pre-line;font-size:22px;line-height:1.65;min-height:2.4em}
 .patrol-list{display:grid;gap:8px;margin:12px 0 16px}
 .check-row{display:flex;gap:10px;width:100%;text-align:left;align-items:center}
 .check-row.current{outline:3px solid #e39b00;outline-offset:2px}

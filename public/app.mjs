@@ -42,10 +42,10 @@ const defaults = {
  minimum:{config:{operator:'',yes:'',no:''},input:{a:3,b:8},prediction:'',reason:'',hint:0}
 };
 const reasonOptions = {
- sale:[['both','达到30℃，两个动作都做'],['boundary','刚好30℃也要开，低于30℃才关'],['small','30比30小，所以关风机']],
- repair:[['symbol','只改判断方向，动作不变'],['swap','判断换了，两边动作也要对调'],['both','把两边设成同一个动作就能修好']],
- cross:[['one','先看条件，这次只走选中的一路'],['none','没有天桥，就可以随便过街'],['both','先走天桥，再走斑马线']],
- minimum:[['always','A排在前面，每次都先充A'],['compare','先比电量，哪块少就先给哪块充'],['both','一次把两块都接入优先充电口']]
+ sale:[['both','达到30℃，两个动作都做'],['boundary','达到30℃就开，低于才关'],['small','30比30小，所以关风机']],
+ repair:[['symbol','改回低于30℃，出口动作保留'],['swap','保留达到30℃，对调开关出口'],['both','把两边设成同一个动作就能修好']],
+ cross:[['one','先看设施，再走选中的一路'],['none','没有天桥，就可以随便过街'],['both','先走天桥，再走斑马线']],
+ minimum:[['always','A排在前面，每次都先充A'],['compare','先比电量，剩得少的先充'],['both','一次把两块都接入优先充电口']]
 };
 async function api(path, body) {
  const response = await fetch(path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(8000)});
@@ -145,8 +145,9 @@ function bindChrome(){
  const brand=$('.brand'); if(brand) brand.onclick=e=>{ e.preventDefault(); closePatrol(); goToTask(lastStation==='quiz'?'sale':(current==='quiz'?lastStation:'sale')); };
  const switcher=$('#switch-user'); if(switcher) switcher.onclick=()=>{ destroyScene(); saveLocal(); localStorage.removeItem('branch-island-identity'); user=null; selectedStudent=''; manual=''; notice=''; lastRun=null; storySession=null; if(demo){ location.href='/teacher.html'; return; } login(); };
  const patrolBtn=$('#open-patrol'); if(patrolBtn) patrolBtn.onclick=()=>openPatrol();
- const helpBtn=$('#open-help'); if(helpBtn) helpBtn.onclick=()=>showHelp('<h2>怎么操作</h2><ol><li>你是园区巡检员。巡检单按温室→返修→路口，不能跳站。</li><li>点“下一步”，角色会走近并开始。</li><li>对白、流程图、预测和巡检单都是浮层，右上角 × 或 Esc 可关闭。</li><li>关掉浮层不会替你提交没确认的答案。</li></ol>');
+ const helpBtn=$('#open-help'); if(helpBtn) helpBtn.onclick=()=>showHelp('<h2>怎么操作</h2><ol><li>你是园区巡检员。巡检单按温室→返修→路口，不能跳站。</li><li>可以用摇杆走近，再点交谈或操作；也可点“自动前往”。</li><li>对白、流程图、预测和巡检单都是浮层，右上角 × 或 Esc 可关闭。</li><li>关掉浮层不会替你提交没确认的答案。</li></ol>');
  const learnBtn=$('#open-learn');if(learnBtn){learnBtn.hidden=current==='quiz';learnBtn.onclick=()=>showLearnCard(current,true);}
+ const missionBtn=$('#review-mission');if(missionBtn){missionBtn.hidden=current==='quiz';missionBtn.onclick=()=>{closePatrol();showStory(current,'opening',true);};}
  const examBtn=$('#open-exam'); if(examBtn) examBtn.onclick=()=>{ closePatrol(); goToTask('quiz'); };
 }
 function updateChrome(){
@@ -165,7 +166,7 @@ function renderPlay(){
  const app = $('#app');
  const mounted = app?.querySelector?.('#play-shell') || String(app?.innerHTML || '').includes('id="play-shell"');
  if(!mounted){
-  $('#app').innerHTML=`${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<div id="play-shell" class="play-shell"><header class="topbar slim"><a class="brand" href="#">分支冒险岛<span>园区巡检</span></a>${routeMarkup()}<div class="identity"><span>${demo?'演示巡检员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${esc(pointsLabel(state))}</strong><button id="open-patrol" type="button">巡检单</button><button id="open-learn" type="button" class="quiet">知识回顾</button><button id="open-help" type="button" class="quiet">帮助</button><button id="switch-user" class="quiet">切换身份</button></div></header><div class="stage-full"><main id="workbench" class="workbench game-workbench"></main><p id="sync-notice" class="save-status stage-notice" role="status" ${notice?'':'hidden'}>${esc(notice)}</p><div id="save-status" class="save-status stage-save" role="status">${syncStatus()}</div></div><div id="patrol-overlay" class="screen-overlay" hidden><section class="overlay-card" role="dialog" aria-modal="true" aria-label="巡检单"><button type="button" id="patrol-close" class="overlay-close" aria-label="关闭巡检单">×</button><p class="eyebrow">园区巡检员</p><h2>巡检单</h2><p>固定顺序：温室 → 返修 → 路口。储能柜是选做。</p><div id="patrol-list" class="patrol-list">${checklistMarkup()}</div><button type="button" id="open-exam" class="primary">考核入口</button></section></div><div id="story-overlay" class="screen-overlay" hidden><section class="overlay-card story-card" role="dialog" aria-modal="true" aria-label="剧情"><button type="button" id="story-skip" class="overlay-close" data-focus="story-skip" aria-label="跳过剧情">×</button><img id="story-art" alt="" /><p id="story-speaker" class="eyebrow"></p><p id="story-line" class="story-line"></p><button type="button" id="story-next" class="primary">继续</button></section></div><div id="learn-overlay" class="screen-overlay learn-overlay" hidden><section class="overlay-card learn-card" role="dialog" aria-modal="true" aria-label="进站先学卡"><button type="button" id="learn-close" class="overlay-close" aria-label="关闭先学卡">×</button><div id="learn-content"></div><button type="button" id="learn-continue" class="primary">去现场试一试</button></section></div><div id="exam-overlay" class="screen-overlay" hidden><section class="overlay-card exam-card" role="dialog" aria-modal="true" aria-label="考核"><button type="button" id="exam-close" class="overlay-close" aria-label="关闭考核">×</button><div id="exam-body"></div></section></div></div>`;
+  $('#app').innerHTML=`<div id="play-shell" class="play-shell">${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar slim"><a class="brand" href="#">分支冒险岛<span>园区巡检</span></a>${routeMarkup()}<div class="identity"><span>${demo?'演示巡检员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${esc(pointsLabel(state))}</strong><button id="open-patrol" type="button">巡检单</button><button id="open-learn" type="button" class="quiet">巡检手册</button><button id="open-help" type="button" class="quiet">帮助</button><button id="switch-user" class="quiet">切换身份</button></div></header><div class="stage-full"><main id="workbench" class="workbench game-workbench"></main><p id="sync-notice" class="save-status stage-notice" role="status" ${notice?'':'hidden'}>${esc(notice)}</p><div id="save-status" class="save-status stage-save" role="status">${syncStatus()}</div></div><div id="patrol-overlay" class="screen-overlay" hidden><section class="overlay-card" role="dialog" aria-modal="true" aria-label="巡检单"><button type="button" id="patrol-close" class="overlay-close" aria-label="关闭巡检单">×</button><p class="eyebrow">园区巡检员</p><h2>巡检单</h2><p>固定顺序：温室 → 返修 → 路口。储能柜是选做。</p><div id="patrol-list" class="patrol-list">${checklistMarkup()}</div><button type="button" id="review-mission" type="button" class="quiet">回看当前委托</button><button type="button" id="open-exam" class="primary">考核入口</button></section></div><div id="story-overlay" class="screen-overlay" hidden><section class="overlay-card story-card" role="dialog" aria-modal="true" aria-label="剧情"><button type="button" id="story-skip" class="overlay-close" data-focus="story-skip" aria-label="跳过剧情">×</button><img id="story-art" alt="" /><p id="story-speaker" class="eyebrow"></p><p id="story-line" class="story-line"></p><button type="button" id="story-next" class="primary">继续</button></section></div><div id="learn-overlay" class="screen-overlay learn-overlay" hidden><section class="overlay-card learn-card" role="dialog" aria-modal="true" aria-label="巡检手册"><button type="button" id="learn-close" class="overlay-close" aria-label="关闭巡检手册">×</button><div id="learn-content"></div><button type="button" id="learn-continue" class="primary">回到现场继续</button></section></div><div id="exam-overlay" class="screen-overlay" hidden><section class="overlay-card exam-card" role="dialog" aria-modal="true" aria-label="考核"><button type="button" id="exam-close" class="overlay-close" aria-label="关闭考核">×</button><div id="exam-body"></div></section></div></div>`;
   $('#patrol-close').onclick=()=>closePatrol();
   $('#story-skip').onclick=()=>closeStory(true);
   $('#story-next').onclick=()=>advanceStory();
@@ -195,14 +196,15 @@ function closePatrol(){
  const overlay=$('#patrol-overlay'); if(overlay) overlay.hidden=true;
  if(!storySession && ($('#exam-overlay')?.hidden!==false)) activeScene?.setOverlay?.('');
 }
-function showStory(levelId, beat){
+function showStory(levelId, beat, replay=false){
  if(legacy)return;
  const script=storyScript(levelId, beat); if(!script)return;
- const key=storyKey(levelId, beat);
+ const baseKey=storyKey(levelId, beat);
+ const key=beat==='opening'?`story-v2:${baseKey}`:baseKey;
  const patrol=loadPatrol();
- if(beat==='result_fail' && patrol.seen[key])return;
- if(beat!=='result_fail' && beat!=='result_ok' && patrol.seen[key])return;
- if(beat==='result_ok' && patrol.seen[key])return;
+ if(!replay && beat==='result_fail' && patrol.seen[key])return;
+ if(!replay && beat!=='result_fail' && beat!=='result_ok' && patrol.seen[key])return;
+ if(!replay && beat==='result_ok' && patrol.seen[key])return;
  const overlay=$('#story-overlay'); if(!overlay)return;
  storySession={ key, lines: script.lines, index: 0, image: script.image, npc: script.npc, beat };
  overlay.hidden=false;
@@ -214,10 +216,10 @@ function showStory(levelId, beat){
 }
 function paintStoryLine(){
  if(!storySession)return;
- $('#story-line').textContent=storySession.lines[storySession.index]||'';
- $('#story-next').textContent=storySession.index<storySession.lines.length-1?'下一句':'进入现场';
+ $('#story-line').textContent=storySession.lines.slice(storySession.index,storySession.index+2).join('\n');
+ $('#story-next').textContent=storySession.index+2<storySession.lines.length?'继续了解':'去现场调查';
 }
-function advanceStory(){ if(!storySession)return; if(storySession.index<storySession.lines.length-1){ storySession.index+=1; paintStoryLine(); return; } closeStory(false); }
+function advanceStory(){ if(!storySession)return; if(storySession.index+2<storySession.lines.length){ storySession.index+=2; paintStoryLine(); return; } closeStory(false); }
 function closeStory(skipped){
  if(!storySession)return;
  const finished=storySession;
@@ -226,19 +228,19 @@ function closeStory(skipped){
  storySession=null;
  const overlay=$('#story-overlay'); if(overlay) overlay.hidden=true;
  activeScene?.setOverlay?.($('#exam-overlay')?.hidden===false?'exam':($('#patrol-overlay')?.hidden===false?'checklist':''));
- if(finished.key==='brief') showLearnCard(current==='quiz'?lastStation:current,false);
+ if(finished.key==='brief') showStory(current==='quiz'?lastStation:current,'opening');
 }
 function showStationStory(id){
  if(legacy||!id||id==='quiz'||storySession)return;
  const patrol=loadPatrol();
  if(!patrol.briefSeen){ showStory('brief','brief'); return; }
- showLearnCard(id,false);
+ showStory(id,'opening');
 }
 function showLearnCard(id, replay=false){
  if(legacy||!ids.includes(id)||(!replay&&!learnDue(loadPatrol(),id)))return {opened:false};
  const card=learnCard(id),brief=stationBrief(id),overlay=$('#learn-overlay');if(!overlay)return {opened:false};
  learnStation=id;
- $('#learn-content').innerHTML=`<p class="eyebrow">${esc(storyScript(id,'opening')?.npc||'园区委托')} · ${esc(card.duration)}</p><h2>${esc(card.title)}</h2><p class="learn-mission">${esc(brief.problem)}<br>${esc(card.purpose)}</p><div class="learn-columns"><figure><img src="${esc(card.image.src)}" alt="${esc(card.image.alt)}"><figcaption>${esc(card.image.page)} · 教材局部图</figcaption></figure><ol>${card.lines.map(line=>`<li>${esc(line)}</li>`).join('')}</ol></div><p class="learn-success"><b>这站做到：</b>${esc(brief.success.replace('，','。'))}</p><p class="muted learn-footnote">这是方法提示。具体怎么选，等你到现场判断。</p>`;
+ $('#learn-content').innerHTML=`<p class="eyebrow">${esc(storyScript(id,'opening')?.npc||'园区委托')} · 巡检手册</p><h2>${esc(card.title)}</h2><p class="learn-mission">${esc(brief.problem)}<br>${esc(card.purpose)}</p><div class="learn-columns"><figure><img src="${esc(card.image.src)}" alt="${esc(card.image.alt)}"><figcaption>${esc(card.image.page)} · 教材局部图</figcaption></figure><ol>${card.lines.map(line=>`<li>${esc(line)}</li>`).join('')}</ol></div><p class="learn-success"><b>这站做到：</b>${esc(brief.success.replace('，','。'))}</p><p class="muted learn-footnote">需要时翻手册，再回现场试一试。</p>`;
  overlay.hidden=false;activeScene?.setOverlay?.('learn');return {opened:true};
 }
 function closeLearnCard(){
@@ -343,7 +345,7 @@ function renderTask(idx){
   onNext(options={}){if(!sameOwner())return;const next=nextTask(id,!!options.optional);if(!legacy&&next==='quiz'){setTimeout(()=>{if(sameOwner())goToTask('quiz');},0);return {levelId:'quiz'};}return goToTask(next);},
   onLearn(){if(!sameOwner())return {opened:false};return showLearnCard(id,true);},
   onFlow(){showHelp(`<h2>${titles[idx]} · 当前执行过程</h2><div class="scene-flow-preview">${flow()}</div><p>根据条件是否成立，一次只执行“是”或“否”对应的一条路径。</p>`);},
-  onHelp(){showHelp(`<h2>智慧园区 · 怎么操作</h2><ol><li>${legacy?'点击NPC或设备的名称，角色会沿步道走近，抵达后交谈或操作。':'单击“下一步”，角色走近当前任务点。'}</li><li>按任务卡依次选择，错误可撤回上一步。</li><li>先领取委托、读取现场输入，在设备旁设置规则并预测。</li><li>亲自执行、到核验点观察结果，再向NPC汇报。不同情况都要验证。</li></ol><p>对话右上角的×可随时关闭，进度会保留。帮助不扣积分。</p><p class="muted">场景参考深圳智慧园林；地图、人物和30℃规则均为教学仿真。</p>`);},
+  onHelp(){showHelp(`<h2>智慧园区 · 怎么操作</h2><ol><li>${legacy?'点击NPC或设备的名称，角色会沿步道走近，抵达后交谈或操作。':'用摇杆走近人物或设备，点交谈或操作；也可点“自动前往”。'}</li><li>按任务卡依次选择，错误可撤回上一步。</li><li>先领取委托、读取现场输入，在设备旁设置规则并预测。</li><li>亲自执行、到核验点观察结果，再向NPC汇报。不同情况都要验证。</li></ol><p>对话右上角的×可随时关闭，进度会保留。帮助不扣积分。</p><p class="muted">场景参考深圳智慧园林；地图、人物和30℃规则均为教学仿真。</p>`);},
   onNavHelp(data){if(!sameOwner())return null;send('nav_help',id,{trigger:data.trigger||'button',strength:data.strength??0,idleMs:data.idleMs||0,step:data.step||'',focusId:data.focusId||'',mapId:data.mapId||'',levelId:id});return {saved:true};},
   async onToolHint({step}={}){
    if(!sameOwner())throw new Error('身份已切换，请继续当前任务。');

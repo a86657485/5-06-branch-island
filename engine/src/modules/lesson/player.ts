@@ -8,13 +8,40 @@ import { checkRoute } from './routes';
 import { mapForContext,registerActivePlayer,clearActivePlayer } from './active-player';
 import { standBeside } from './approach';
 import { ensureGreenhouseActors } from './thermal';
-import { currentFocus } from '../../../../public/focus.mjs';
+import { GREENHOUSE_ACTORS, actorIdOf } from './greenhouse-cast';
+import { nearestInteraction, interactionLabel } from './interaction';
 const spawn=Object.fromEntries(Object.entries(layout).map(([id,m])=>[id,{x:m.positions.start[0],y:m.positions.start[1]}]));
 const mapFor=mapForContext;
-type Runtime={map:string,lastSave:number,active:RpgPlayer,unsub?:()=>void,changing:boolean,checkpointTimer?:ReturnType<typeof setTimeout>,enter:(c:any)=>Promise<void>};
+type ActorSnapshot={player:RpgPlayer,map:any,levelId:string,deviceOutput:string,events:any[],positions:string};
+type Runtime={map:string,lastSave:number,active:RpgPlayer,unsub?:()=>void,changing:boolean,checkpointTimer?:ReturnType<typeof setTimeout>,actorSync?:ActorSnapshot,actorQueue?:Promise<void>,enter:(c:any)=>Promise<void>};
 // RPGJS rehydrates a new player object on room transfers; the stable id survives.
 const sessions=new Map<string,Runtime>();
 const directions = { up: Direction.Up, down: Direction.Down, left: Direction.Left, right: Direction.Right };
+let lastInteraction = '';
+function publishInteraction(player:RpgPlayer) {
+ const map=player.getCurrentMap(),near=nearestInteraction(player,map,Infinity);
+ const detail={mapId:map?.id||'',label:near?interactionLabel(near.event,ctx().levelId):'交谈 / 操作',inRange:!!near&&near.distance<=48};
+ const key=JSON.stringify(detail);if(key===lastInteraction)return;lastInteraction=key;
+ window.dispatchEvent(new CustomEvent('lesson-interaction-target',{detail}));
+}
+function actorEvents(map:any,player:RpgPlayer){return (map.getEvents?.()||[]).filter((event:any)=>map.isEventVisibleForPlayer?.(event,player)!==false);}
+function actorPositions(events:any[]){return JSON.stringify(events.map(event=>[event.id,event.x?.(),event.y?.()]));}
+async function syncActorContext(runtime:Runtime,c:any){
+ const pending=(runtime.actorQueue||Promise.resolve()).catch(()=>undefined).then(async()=>{
+  const player=runtime.active,map=player.getCurrentMap?.();if(!map||map.id!==mapFor(c))return;
+  const levelId=c.levelId||'',deviceOutput=c.draft.scene?.deviceOutput||'off',events=actorEvents(map,player),previous=runtime.actorSync;
+  const castReady=map.id!=='greenhouse'||GREENHOUSE_ACTORS.every(actor=>events.some((event:any)=>actorIdOf(event.id)===actor.id));
+  if(castReady&&previous?.player===player&&previous.map===map&&previous.levelId===levelId&&previous.deviceOutput===deviceOutput&&previous.positions===actorPositions(events)&&previous.events.length===events.length&&events.every((event:any,index:number)=>event===previous.events[index])&&player.getVariable('lessonLevel')===levelId&&player.getVariable('deviceOutput')===deviceOutput)return;
+  // RPGJS setVariable already synchronizes. Checkpoints do not change these values.
+  if(player.getVariable('lessonLevel')!==levelId)player.setVariable('lessonLevel',levelId);
+  if(player.getVariable('deviceOutput')!==deviceOutput)player.setVariable('deviceOutput',deviceOutput);
+  await ensureGreenhouseActors(map,player,levelId);
+  const synced=actorEvents(map,player);
+  runtime.actorSync={player,map,levelId,deviceOutput,events:synced,positions:actorPositions(synced)};
+  publishInteraction(player);
+ });
+ runtime.actorQueue=pending;await pending;
+}
 let pendingApproach: { mapId: string, direction: Direction } | null = null;
 let navigation = 0;
 if (typeof window !== 'undefined') window.addEventListener('lesson-goto', event => {
@@ -85,9 +112,8 @@ export const player:RpgPlayerHooks={
  if(!ctx().draft.scene){const c=ctx(),s={version:1,x:400,y:420,facing:'down',phase:'start',measured:false,actions:[],visited:[],actorId:c.levelId==='cross'?'cross-open':c.levelId==='minimum'?'pair-a':'sensor30',temperatureCase:30,facility:true,pair:'pair-a',collected:[],signal:'red'};await rpc('change',{patch:{scene:s}});}
  const runtime:Runtime={map:'',lastSave:0,active:player,changing:false,enter:async()=>{}};sessions.set(player.id,runtime);
  runtime.enter=async c=>{
- if(runtime.active){runtime.active.setVariable('lessonLevel',c.levelId||'');const here=runtime.active.getCurrentMap?.();if(here){await ensureGreenhouseActors(here,runtime.active,c.levelId||'');runtime.active.syncChanges();}}
  if(!c.draft.scene){const s={version:1,x:400,y:420,facing:'down',phase:'start',measured:false,actions:[],visited:[],actorId:c.levelId==='cross'?'cross-open':c.levelId==='minimum'?'pair-a':'sensor30',temperatureCase:30,facility:true,pair:'pair-a',collected:[],signal:'red'};await rpc('change',{patch:{scene:s}});return;}
- const map=mapFor(c);if(runtime.map===map||runtime.changing)return;runtime.changing=true;
+ const map=mapFor(c);if(runtime.changing)return;if(runtime.map===map){await syncActorContext(runtime,c);return;}runtime.changing=true;
  try{runtime.map=map;const saved=c.draft.rpg;const pos=saved?.mapId===map?saved.position:spawn[map];await runtime.active.changeMap(map,pos);}
  catch(error){runtime.map='';console.error(error);window.dispatchEvent(new CustomEvent('lesson-bridge-error',{detail:'地图加载未完成，请刷新重试。'}));}
  finally{runtime.changing=false;const latest=getContext();if(latest&&mapFor(latest)!==runtime.map&&runtime.map)void runtime.enter(latest);}
@@ -96,37 +122,32 @@ export const player:RpgPlayerHooks={
  window.addEventListener('pagehide',()=>{runtime.unsub?.();clearTimeout(runtime.checkpointTimer);clearActivePlayer(player.id);sessions.delete(player.id);},{once:true});
  },
  async onJoinMap(player,map){
- const runtime=sessions.get(player.id);if(!runtime)return;clearTimeout(runtime.checkpointTimer);runtime.active=player;runtime.map=map.id;registerActivePlayer(player,map.id);
- window.dispatchEvent(new CustomEvent('lesson-map-changed'));
+ const runtime=sessions.get(player.id);if(!runtime)return;clearTimeout(runtime.checkpointTimer);runtime.active=player;runtime.map=map.id;runtime.actorSync=undefined;registerActivePlayer(player,map.id);
+ lastInteraction='';window.dispatchEvent(new CustomEvent('lesson-map-changed'));
  map.setAutoTick(true);
  player.setHitbox(24,24);
  const saved=ctx().draft.rpg;if(saved?.mapId===map.id){const direction=directions[saved.direction as keyof typeof directions];if(direction)player.changeDirection(direction);}
  if(pendingApproach?.mapId===map.id)holdFacing(player,pendingApproach.direction,{x:player.x(),y:player.y()});
- const levelId=ctx().levelId||'';
- player.setVariable('lessonLevel',levelId);player.setVariable('lessonBusy',false);player.setVariable('deviceOutput',ctx().draft.scene?.deviceOutput||'off');
- await ensureGreenhouseActors(map,player,levelId);player.syncChanges();
+ if(player.getVariable('lessonBusy')!==false)player.setVariable('lessonBusy',false);
+ await syncActorContext(runtime,ctx());publishInteraction(player);
  if(mapFor(ctx())!==map.id)void runtime.enter(ctx());
  },
  async onInput(player, input){
   const action=(input as {action?:string,input?:string})?.action ?? (input as {input?:string})?.input ?? input;
-  if(action!=='action' || player.getVariable('lessonBusy'))return;
+  if(!['action','lesson:interact'].includes(action as string) || player.getVariable('lessonBusy'))return;
   const here=player.getCurrentMap(); if(!here?.getEvents)return;
-  const events=here.getEvents() as Array<{id?:string,x:()=>number,y:()=>number,execMethod?:Function}>;
-  const nearest=events
-    .map(item=>({item,d:Math.hypot(item.x()-player.x(), item.y()-player.y())}))
-    .filter(entry=>entry.d<=48 && typeof entry.item.execMethod==='function')
-    .sort((a,b)=>a.d-b.d)[0]?.item;
-  if(nearest){ await nearest.execMethod?.('onAction',[player,input]); return; }
-  const context=getContext(); if(!context)return;
-  const focus=currentFocus({levelId:context.levelId,scene:context.draft?.scene,draft:context.draft,level:context.level});
-  const target=focus?.target as {x?:number,y?:number}|undefined;
-  if(typeof target?.x!=='number' || typeof target?.y!=='number')return;
-  if(Math.hypot(player.x()-target.x, player.y()-target.y)>56)return;
-  const hit=events.find(item=>Math.hypot(item.x()-target.x!, item.y()-target.y!)<20);
-  if(hit?.execMethod)await hit.execMethod('onAction',[player,input]);
+  if(action==='action'){
+   // Default keyboard actions already dispatch collision events in RPGJS before this hook.
+   const map=here as any,collisions=new Set<string>(map.getCollisions?.(player.id)||[]);
+   for(const id of map.getInteractionCollisions?.(player.id,player.direction())||[])collisions.add(id);
+   if(here.getEvents().some(event=>collisions.has(event.id)&&map.isEventVisibleForPlayer?.(event,player)!==false))return;
+  }
+  const nearest=nearestInteraction(player,here);
+  if(nearest)await nearest.event.execMethod('onAction',[player,input]);
  },
  async onMove(player){
  const runtime=sessions.get(player.id);if(!runtime||runtime.changing||mapFor(ctx())!==runtime.map||!getContext()?.draft.scene)return;
+ publishInteraction(player);
  const lock=player.getVariable('faceLock');
  if(lock){
   const at=player.getVariable('faceLockAt') as {x?:number,y?:number}|undefined;

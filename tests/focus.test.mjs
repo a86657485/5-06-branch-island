@@ -14,9 +14,9 @@ test('同一时刻只有一个焦点，单击目标可开始行走和交互', ()
   assert.equal([...start.hint].length <= 30, true);
   assert.equal(start.hint.includes('≥'), false);
   const repairStart = currentFocus({ levelId: 'repair', scene: { phase: 'start' } });
-  assert.equal(repairStart.hint, '沿箭头走到返修点，听维修员说问题。');
+  assert.equal(repairStart.hint, '点自动前往，听维修员说问题。');
   assert.equal(repairStart.goto, true);
-  assert.match(repairStart.strong, /点下一步/);
+  assert.match(repairStart.strong, /点自动前往/);
   assert.equal(repairStart.target.mapId, 'greenhouse');
   assert.equal(repairStart.target.place, 'guide');
   assert.equal(currentFocus({ levelId: 'cross', scene: { phase: 'start' } }).hint, '听巡检员说导行屏的任务。');
@@ -161,7 +161,7 @@ test('脚印沿两条腿走，大约每 32 像素一点，不落在终点上', (
     panelOpen: false
   });
   assert.equal(zebraAfterBridge.step, '10');
-  assert.equal(zebraAfterBridge.hint, '点下一步，沿选中的路线走过去。');
+  assert.equal(zebraAfterBridge.hint, '点自动前往，沿选中的路线走过去。');
   assert.equal(zebraAfterBridge.goto, true);
   assert.equal(zebraAfterBridge.target.place, 'crossingWest');
   assert.equal(zebraAfterBridge.dots.length > 3, true);
@@ -202,9 +202,9 @@ test('单击开始过街与普通地图目标使用相同的前往入口', () =>
     scene: { phase: 'executed', measured: true, facility: true, ticket: { output: 'bridge' }, actions: [] },
     level: { valid: false }
   });
-  assert.equal(gotoTitle(walk, false), '前往下一目标');
-  assert.equal(gotoTitle(walk, true), '前往下一目标');
-  assert.equal(gotoTitle({ goto: true, gotoReason: '' }, true), '前往下一目标');
+  assert.equal(gotoTitle(walk, false), '自动前往');
+  assert.equal(gotoTitle(walk, true), '自动前往');
+  assert.equal(gotoTitle({ goto: true, gotoReason: '' }, true), '自动前往');
 });
 
 test('温室和返修已经跑过时，不先跳去拼句', () => {

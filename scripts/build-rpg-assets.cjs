@@ -59,7 +59,7 @@ const parkPaths = [
  [[975,430],[1145,470],[1320,510],[1536,520],[1536,650],[1330,625],[1100,550],[1000,525]],
 ];
 const stations = {
- greenhouse: {start:[560,505],guide:[460,445],sensor:[375,425],control:[330,490],fan:[270,470],verify:[465,500],portal:[605,535]},
+ greenhouse: {start:[780,620],guide:[520,430],sensor:[360,430],control:[260,500],fan:[420,520],verify:[600,500],portal:[700,530]},
  workshop: {start:[945,280],guide:[1035,245],sensor:[970,225],control:[1120,225],fan:[1245,225],verify:[1180,235],portal:[955,330]},
  energy: {start:[575,275],guide:[540,270],batteryA:[300,155],batteryB:[440,180],control:[365,190],monitor:[435,245],portal:[610,300]},
  crossing: {start:[350,810],guide:[350,600],observe:[430,515],control:[410,595],bridgeWest:[470,326],bridgeEast:[1080,326],crossingWest:[470,681],crossingEast:[1080,681],verify:[1135,535],portal:[1190,590]},

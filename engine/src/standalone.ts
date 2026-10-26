@@ -21,6 +21,7 @@ let dialogOpen = false;
 let auxiliaryBusy = false;
 let autoWalking = false;
 let processPanelOpen = false;
+let studioOpen = false;
 const controls = document.getElementById('engine-controls');
 const status = document.getElementById('engine-status');
 const statusText = document.getElementById('engine-status-text');
@@ -39,7 +40,7 @@ function stopMovement() {
 }
 
 function canControl() {
-  return !!engine && !dialogOpen && !auxiliaryBusy && !autoWalking && status?.hidden !== false && !engine.stopProcessingInput;
+  return !!engine && !dialogOpen && !studioOpen && !hostOverlay && !auxiliaryBusy && !autoWalking && status?.hidden !== false && !engine.stopProcessingInput;
 }
 
 function moveWhileHeld() {
@@ -56,14 +57,14 @@ function showStatus(message: string, startup = false) {
   if (reloadButton) reloadButton.hidden = !startup;
   if (dismissButton) dismissButton.hidden = startup;
   if (status) status.hidden = false;
+  paintControlState();
 }
 
 document.getElementById('engine-action')?.addEventListener('click', () => {
-  if (!canControl()) return;
+  if (!canControl() || !interactionTarget.inRange) return;
   stopMovement();
   noteActivity();
-  const direction = engine!.getCurrentPlayer()?.direction?.();
-  engine!.processAction('action', { direction });
+  engine!.processAction('lesson:interact');
 });
 
 for (const method of ['help', 'flow', 'learn'] as const) {
@@ -71,11 +72,12 @@ for (const method of ['help', 'flow', 'learn'] as const) {
     if (!canControl()) return;
     stopMovement();
     auxiliaryBusy = true;
+    paintControlState();
     const previousBlock = engine!.stopProcessingInput;
     engine!.stopProcessingInput = true;
     try { if(method==='learn')await request('learn');else await request(method, { levelId: getContext()?.levelId }); }
     catch (error) { showStatus(error instanceof Error ? error.message : '暂未打开，请重试。'); }
-    finally { engine!.stopProcessingInput = previousBlock; auxiliaryBusy = false; }
+    finally { engine!.stopProcessingInput = previousBlock; auxiliaryBusy = false; paintControlState(); }
   });
 }
 
@@ -84,6 +86,43 @@ const focusMarker = document.getElementById('focus-marker');
 const focusLabel = document.getElementById('focus-label');
 const focusArrow = focusMarker?.querySelector('.focus-arrow');
 const pathDots = document.getElementById('path-dots');
+const hintButton = document.getElementById('engine-hint') as HTMLButtonElement | null;
+const undo = document.getElementById('engine-undo') as HTMLButtonElement | null;
+const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
+const actionButton = document.getElementById('engine-action') as HTMLButtonElement | null;
+const actionLabel = document.getElementById('engine-action-label');
+const actionHelp = document.getElementById('engine-action-help');
+let interactionTarget = { label: '交谈 / 操作', inRange: false };
+let lastControlsBlocked: boolean | undefined;
+function setText(node: Element | null | undefined, value: string) { if (node && node.textContent !== value) node.textContent = value; }
+function setClass(node: Element, name: string, value: boolean) { if (node.classList.contains(name) !== value) node.classList.toggle(name, value); }
+function setStyle(node: HTMLElement, name: string, value: string) { if (node.style.getPropertyValue(name) !== value) node.style.setProperty(name, value); }
+function setHidden(node: HTMLElement, value: boolean) { if (node.hidden !== value) node.hidden = value; }
+function setDisabled(node: HTMLButtonElement, value: boolean) { if (node.disabled !== value) node.disabled = value; }
+function setData(node: HTMLElement, name: string, value: string) { if (node.dataset[name] !== value) node.dataset[name] = value; }
+function paintControlState() {
+  const blocked = !canControl();
+  if (actionButton) setDisabled(actionButton, blocked || !interactionTarget.inRange);
+  setText(actionLabel, interactionTarget.label);
+  setText(actionHelp, interactionTarget.inRange ? '点此交互' : '请先靠近目标');
+  if (lastControlsBlocked === blocked) return;
+  lastControlsBlocked = blocked;
+  if (controls) controls.dataset.blocked = String(blocked);
+  if (blocked) stopMovement();
+  window.dispatchEvent(new CustomEvent('lesson-controls-state', { detail: { blocked } }));
+}
+window.addEventListener('lesson-interaction-target', event => {
+  interactionTarget = (event as CustomEvent<typeof interactionTarget>).detail;
+  paintControlState();
+});
+let panelFocusDirty = true;
+let highlightedPanel: Element | null = null;
+let highlightedId = '';
+new MutationObserver(() => {
+  panelFocusDirty = true;
+  studioOpen = !!document.querySelector('.studio');
+  syncIdle();
+}).observe(document.getElementById('vue-gui-overlay') || document.body, { childList: true, subtree: true });
 let lastMoveReset = 0;
 const idle = createIdleTimer({
   onStrength(detail) {
@@ -95,7 +134,7 @@ const idle = createIdleTimer({
 });
 let hostOverlay = '';
 function lessonFocus(context = getContext()) {
-  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level, draft: context?.draft, panelOpen: !!document.querySelector('.studio'), runs: context?.runs, evidenceStart: context?.evidenceStart, overlay: hostOverlay || undefined });
+  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level, draft: context?.draft, panelOpen: studioOpen, runs: context?.runs, evidenceStart: context?.evidenceStart, overlay: hostOverlay || undefined });
 }
 function noteActivity() {
   idle.reset();
@@ -115,12 +154,16 @@ function mapViewport() {
   viewportCache = findViewport((engine as any)?.canvasApp?.stage);
   return viewportCache;
 }
-function projectTarget(target: { x?: number, y?: number, mapId?: string, place?: string }) {
-  const canvas = document.querySelector('#rpg canvas') as HTMLCanvasElement | null;
+let canvasCache: HTMLCanvasElement | null = null;
+function projectionFrame() {
+  if (!canvasCache || !canvasCache.isConnected) canvasCache = document.querySelector('#rpg canvas');
+  return canvasCache ? { rect: canvasCache.getBoundingClientRect(), viewport: mapViewport() } : null;
+}
+type Projection = ReturnType<typeof projectionFrame>;
+function projectTarget(target: { x?: number, y?: number, mapId?: string, place?: string }, projection: Projection) {
   const footprint = focusFootprint(target);
-  if (!canvas || !footprint) return null;
-  const rect = canvas.getBoundingClientRect();
-  const viewport = mapViewport();
+  if (!projection || !footprint) return null;
+  const { rect, viewport } = projection;
   let sx = rect.left + rect.width / 2;
   let sy = rect.top + rect.height / 2;
   let scaleX = 1;
@@ -154,13 +197,11 @@ function projectTarget(target: { x?: number, y?: number, mapId?: string, place?:
     halfWidth: footprint.halfWidth * scaleX
   };
 }
-function projectWorld(target: { x?: number, y?: number }) {
-  const canvas = document.querySelector('#rpg canvas') as HTMLCanvasElement | null;
+function projectWorld(target: { x?: number, y?: number }, projection: Projection) {
   const x = Number(target?.x);
   const y = Number(target?.y);
-  if (!canvas || !Number.isFinite(x) || !Number.isFinite(y)) return null;
-  const rect = canvas.getBoundingClientRect();
-  const viewport = mapViewport();
+  if (!projection || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const { rect, viewport } = projection;
   if (!viewport) return null;
   const global = viewport.toGlobal({ x, y });
   if (!Number.isFinite(global?.x) || !Number.isFinite(global?.y)) return null;
@@ -169,10 +210,16 @@ function projectWorld(target: { x?: number, y?: number }) {
   return { x: sx, y: sy, offscreen: sx < rect.left || sx > rect.right || sy < rect.top || sy > rect.bottom };
 }
 function paintPanelFocus(focus: { kind?: string, id?: string }) {
-  document.querySelectorAll('.card-tray.focus-target, .flow-slot.focus-target, .studio.focus-target, .predict-option.focus-target, .studio-tabs .focus-target, .studio-lock.focus-target, .predict-table.focus-target').forEach(node => node.classList.remove('focus-target'));
-  if (focus.kind !== 'panel' || !focus.id) return;
-  const id=focus.id==='sentence-slot-next'?'sentence-lock':focus.id;
-  document.querySelector(`[data-focus="${id}"]`)?.classList.add('focus-target');
+  const id = focus.kind === 'panel' ? (focus.id === 'sentence-slot-next' ? 'sentence-lock' : focus.id || '') : '';
+  if (!panelFocusDirty && id === highlightedId && (!highlightedPanel || highlightedPanel.isConnected)) return;
+  const next = id ? document.querySelector(`[data-focus="${id}"]`) : null;
+  if (next !== highlightedPanel) {
+    if (highlightedPanel) setClass(highlightedPanel, 'focus-target', false);
+    if (next) setClass(next, 'focus-target', true);
+    highlightedPanel = next;
+  }
+  highlightedId = id;
+  panelFocusDirty = false;
 }
 function worldStep(){const focus=lessonFocus();return JSON.stringify([getContext()?.levelId,focus.id,focus.step]);}
 function clearAssistance(){activeWorldHelp=null;if(assistanceCard)assistanceCard.hidden=true;focusMarker?.classList.remove('assisted-marker');}
@@ -191,62 +238,71 @@ window.addEventListener('lesson-feedback',event=>{
 });
 document.getElementById('engine-assistance-close')?.addEventListener('click',clearAssistance);
 
-function paintDots(dots: Array<{ x: number, y: number }> = []) {
+const dotPool: HTMLElement[] = [];
+function paintDots(dots: Array<{ x: number, y: number }> = [], projection: Projection) {
   if (!pathDots) return;
-  pathDots.replaceChildren();
-  const visible = dots.map(dot => projectWorld(dot)).filter(point => point && !point.offscreen);
-  pathDots.hidden = visible.length === 0;
-  for (const point of visible) {
-    const mark = document.createElement('span');
-    mark.className = 'path-dot';
-    mark.style.left = `${point!.x}px`;
-    mark.style.top = `${point!.y}px`;
-    pathDots.appendChild(mark);
+  let used = 0;
+  for (const dot of dots) {
+    const point = projectWorld(dot, projection);
+    if (!point || point.offscreen) continue;
+    let mark = dotPool[used];
+    if (!mark) {
+      mark = document.createElement('span');
+      mark.className = 'path-dot';
+      dotPool.push(mark);
+      pathDots.appendChild(mark);
+    }
+    setHidden(mark, false);
+    setStyle(mark, 'left', `${point.x}px`);
+    setStyle(mark, 'top', `${point.y}px`);
+    used++;
   }
+  for (let index = used; index < dotPool.length; index++) setHidden(dotPool[index], true);
+  setHidden(pathDots, used === 0);
 }
 function paintFocus(focus = lessonFocus()) {
   if (new URLSearchParams(location.search).has('preview')) return;
-  if (hostOverlay && focusMarker) focusMarker.hidden = true;
+  if (hostOverlay && focusMarker) setHidden(focusMarker, true);
   const focusStrength = idle.strength();
+  const projection = projectionFrame();
+  paintControlState();
   if(activeWorldHelp && activeWorldHelp.stepKey!==worldStep())clearAssistance();
   if (taskHint) {
-    taskHint.textContent = focusStrength ? focus.strong : focus.hint;
-    taskHint.hidden = false;
-    taskHint.dataset.strength = focus.kind==='panel'?'0':String(focusStrength);
-    taskHint.classList.toggle('focus-target', true);
-    taskHint.classList.toggle('tap-hand', focusStrength >= 2 && focus.goto);
+    setText(taskHint, focusStrength ? focus.strong : focus.hint);
+    setHidden(taskHint, false);
+    setData(taskHint, 'strength', focus.kind==='panel'?'0':String(focusStrength));
+    setClass(taskHint, 'focus-target', true);
+    setClass(taskHint, 'tap-hand', focusStrength >= 2 && focus.goto);
   }
   if (focusMarker && focusLabel) {
-    const point = projectTarget(focus.target || {});
-    focusMarker.hidden = !!hostOverlay || !point;
-    focusMarker.dataset.strength = String(focusStrength);
-    focusMarker.classList.toggle('edge', !!point?.offscreen);
-    focusMarker.classList.toggle('tap-hand', focusStrength >= 2 && focus.kind === 'map' && !point?.offscreen);
+    const point = projectTarget(focus.target || {}, projection);
+    setHidden(focusMarker, !!hostOverlay || !point);
+    setData(focusMarker, 'strength', String(focusStrength));
+    setClass(focusMarker, 'edge', !!point?.offscreen);
+    setClass(focusMarker, 'tap-hand', focusStrength >= 2 && focus.kind === 'map' && !point?.offscreen);
     if (point) {
-      focusMarker.style.left = `${point.x}px`;
-      focusMarker.style.top = `${point.y}px`;
-      focusMarker.style.setProperty('--ring-width', `${point.ringWidth}px`);
-      focusMarker.style.setProperty('--ring-height', `${point.ringHeight}px`);
-      focusMarker.style.setProperty('--target-half-width', `${point.halfWidth}px`);
-      if (focusArrow) focusArrow.textContent = point.arrow;
+      setStyle(focusMarker, 'left', `${point.x}px`);
+      setStyle(focusMarker, 'top', `${point.y}px`);
+      setStyle(focusMarker, '--ring-width', `${point.ringWidth}px`);
+      setStyle(focusMarker, '--ring-height', `${point.ringHeight}px`);
+      setStyle(focusMarker, '--target-half-width', `${point.halfWidth}px`);
+      setText(focusArrow, point.arrow);
     }
     const showingTarget=!!activeWorldHelp && activeWorldHelp.target?.focusKey===focus.target?.place;
-    focusMarker.classList.toggle('assisted-marker',showingTarget);
-    focusLabel.textContent = showingTarget?'法宝位置':point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '';
+    setClass(focusMarker, 'assisted-marker',showingTarget);
+    setText(focusLabel, showingTarget?'法宝位置':point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '');
   }
-  paintDots(hostOverlay ? [] : (focus.dots || []));
+  paintDots(hostOverlay ? [] : (focus.dots || []), projection);
   paintPanelFocus(focus);
   const hints=getContext()?.support?.hints||[];
-  const hintButton=document.getElementById('engine-hint') as HTMLButtonElement|null;
-  if(hintButton){hintButton.textContent=`通关法宝 ${Math.max(0,5-hints.length)}/5`;hintButton.disabled=hints.length>=5||auxiliaryBusy;}
-  const undo=document.getElementById('engine-undo') as HTMLButtonElement|null;
-  if(undo)undo.disabled=!getContext()?.undoAvailable||autoWalking;
-  const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
+  if(hintButton){setText(hintButton, `通关法宝 ${Math.max(0,5-hints.length)}/5`);setDisabled(hintButton, hints.length>=5||auxiliaryBusy);}
+  if(undo)setDisabled(undo, !getContext()?.undoAvailable||autoWalking);
   if (goto) {
-    goto.disabled = !focus.goto || autoWalking;
-    goto.textContent=autoWalking?'正在走向任务点…':'下一步 · 去现场并开始';
-    goto.title = gotoTitle(focus, processPanelOpen);
-    goto.classList.toggle('focus-target', focusStrength >= 2 && focus.goto);
+    setDisabled(goto, !focus.goto || !canControl());
+    setText(goto, autoWalking?'自动行走中…':'自动前往任务点');
+    const title = gotoTitle(focus, processPanelOpen);
+    if (goto.title !== title) goto.title = title;
+    setClass(goto, 'focus-target', focusStrength >= 2 && focus.goto);
   }
 }
 function syncIdle(paused = dialogOpen || auxiliaryBusy || document.hidden) {
@@ -256,7 +312,7 @@ function syncIdle(paused = dialogOpen || auxiliaryBusy || document.hidden) {
   idle.setPaused(paused || focus.pause);
   paintFocus(focus);
 }
-window.addEventListener('lesson-walking',event=>{autoWalking=!!(event as CustomEvent).detail?.moving;paintFocus();});
+window.addEventListener('lesson-walking',event=>{autoWalking=!!(event as CustomEvent).detail?.moving;if(autoWalking)stopMovement();paintFocus();});
 window.addEventListener('lesson-process-panel', event => {
   processPanelOpen = !!(event as CustomEvent<{ open: boolean }>).detail?.open;
   paintFocus();
@@ -273,10 +329,10 @@ window.addEventListener('message', event => {
 window.addEventListener('lesson-dialog-state', event => {
   dialogOpen = !!(event as CustomEvent<{ open: boolean }>).detail.open;
   if (dialogOpen) stopMovement();
-  if (controls) controls.inert = dialogOpen;
+  if (controls) controls.inert = dialogOpen || !!hostOverlay;
   syncIdle();
 });
-window.addEventListener('lesson-map-changed', () => { clearAssistance();if(feedbackLine)feedbackLine.hidden=true;stopMovement(); syncIdle(true); window.setTimeout(() => syncIdle(), 800); });
+window.addEventListener('lesson-map-changed', () => { interactionTarget = { label: '交谈 / 操作', inRange: false }; clearAssistance();if(feedbackLine)feedbackLine.hidden=true;stopMovement(); syncIdle(true); window.setTimeout(() => syncIdle(), 800); });
 window.addEventListener('keydown', event => {
   if (event.key !== 'Escape' || window.parent === window) return;
   window.parent.postMessage({ type: 'rpgjs-overlay-close' }, window.location.origin);
@@ -320,13 +376,14 @@ window.addEventListener('lesson-bridge-error', event => showStatus((event as Cus
 window.addEventListener('blur', stopMovement);
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopMovement(); syncIdle(); });
 reloadButton?.addEventListener('click', () => window.location.reload());
-dismissButton?.addEventListener('click', () => { if (status) status.hidden = true; });
+dismissButton?.addEventListener('click', () => { if (status) status.hidden = true; paintFocus(); });
 
 async function start() {
   await ready();
   const context = await startGame(mergeConfig(configClient, { providers: [provideRpg(startServer)] }));
   engine = inject(RpgClientEngine, context);
   if (controls) controls.hidden = false;
+  paintFocus();
 }
 
 const previewing = new URLSearchParams(location.search).has('preview');

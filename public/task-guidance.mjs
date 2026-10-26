@@ -1,12 +1,12 @@
 /** 各站短委托与确定性法宝内容；仅返回文字，不改答案或学习状态。 */
 const BRIEFS = {
   sale: {
-    problem: '温室里的小苗有点蔫，风机还不会自己看温度。',
+    problem: '新风机还没设自动开关，阿绿没法守着。',
     purpose: '本次约定达到30℃就开风机，请教会控制柜做决定。',
     success: '我的程序能按告示开关风机，29、30、31℃都测对。'
   },
   repair: {
-    problem: '有人改过控制器，到了30℃风机却不转了。',
+    problem: '老修换上备用控制板后，到了30℃风机却停了。',
     purpose: '先保留原程序看故障，再查条件和两边动作是否配合。',
     success: '我能说清改了哪里，并用修改后的程序重新测过。'
   },
@@ -159,14 +159,14 @@ export function toolHint(levelId, draft = {}, step = {}) {
   else if (phase === 'reason') {
     const reverted = config.operator === '<' && config.yes === 'off' && config.no === 'on';
     content = levelId === 'sale'
-      ? { action: '选“刚好30℃也要开，低于30℃才关”。', why: '30与30相等，也属于达到30℃。' }
+      ? { action: '选“达到30℃就开，低于才关”。', why: '30与30相等，也属于达到30℃。' }
       : levelId === 'repair'
         ? reverted
-          ? { action: '选“只改判断方向，动作不变”。', why: '这次改回＜30，原来的动作又配合了。并不是任意改条件都能保留原出口。' }
-          : { action: '选“判断换了，两边动作也要对调”。', why: '同一个温度的判断变了，动作也要跟着配合。' }
+          ? { action: '选“改回低于30℃，出口动作保留”。', why: '这次改回低于30℃，原动作又配合了。并不是任意改条件都能保留原出口。' }
+          : { action: '选“保留达到30℃，对调开关出口”。', why: '同一个温度的判断变了，动作也要跟着配合。' }
         : levelId === 'cross'
-          ? { action: '选“先看条件，这次只走选中的一路”。', why: '一次判断得到一个结果，只走对应的一路。' }
-          : { action: '选“先比电量，哪块少就先给哪块充”。', why: '谁电量低会变化，要先比较才能决定。' };
+          ? { action: '选“先看设施，再走选中的一路”。', why: '一次判断得到一个结果，只走对应的一路。' }
+          : { action: '选“先比电量，剩得少的先充”。', why: '谁电量低会变化，要先比较才能决定。' };
   }
   else content = worldHint(levelId, draft, step.key || '');
   return { key, ...content, conceptual: !['confirm','confirm-predictions','run'].includes(phase), target: assistedTarget(levelId, draft, step) };

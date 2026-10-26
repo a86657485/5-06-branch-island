@@ -98,6 +98,7 @@ test('路口和储能控制台只打开当前一步：画图、预测、运行�
 });
 
 test('四站负责人初次只给领取委托，未跑齐不提供验收捷径', async () => {
+  const problems={sale:/没法.*守.*读温度/,repair:/备用.*30℃.*先.*旧程序/,cross:/游客.*不知.*观察/,minimum:/一个.*充电口.*读.*电量/};
   for (const id of ['sale', 'repair', 'cross', 'minimum']) {
     const h = harness(id); h.context.draft.scene.phase = 'start';
     const events = ['sale', 'repair'].includes(id) ? h.thermal.greenhouseEvents : id === 'cross' ? h.routes.crossingEvents : h.routes.energyEvents;
@@ -105,7 +106,7 @@ test('四站负责人初次只给领取委托，未跑齐不提供验收捷径',
     await h.act(events, eventId);
     assert.equal(h.dialogs[0].choices.length, 1, id);
     assert.equal(h.dialogs[0].choices[0].id, 'accept', id);
-    assert.match(h.dialogs[0].text, /准备|先|开始|委托|巡检|规则|温室|控制器|导行屏|电池/, id);
+    assert.match(h.dialogs[0].text, problems[id], id);
     assert.equal(h.calls.some(call => call.method === 'complete'), false, id);
   }
 });
@@ -142,10 +143,24 @@ test('现场核验只显示一条结果与下一步，不重复演出或让学�
     assert.equal(h.dialogs.length, 0, id);
     assert.equal(h.feedbacks.length, 1, id);
     assert.match(h.feedbacks[0].text, /换一种|负责人|再读/, id);
+    assert.match(h.feedbacks[0].text, id === 'cross' ? /实际.*对岸.*预测.*一致.*约定/ : /实际接入电池A.*3%.*预测.*一致.*低电量/, id);
     assert.equal(h.calls.filter(call => call.method === 'experiment').length, 1, id);
     assert.equal(h.context.runs.length, 1, id);
     assert.equal(h.context.draft.scene.ticket, undefined, id);
   }
+});
+
+test('路口错误选中不可用天桥时核验反馈保留受阻结果，不冒称已经到岸', async () => {
+  const h=harness('cross');
+  h.context.draft.config.no='bridge';
+  h.context.draft.scene.facility=false;
+  h.context.draft.prediction='bridge';
+  h.context.draft.scene.actions=['observe','predict'];
+  h.context.draft.scene.ticket=rules.evaluate('cross',h.context.draft.config,{facility:false});
+  await h.act(h.routes.crossingEvents,'bridge-entrance');
+  assert.equal(h.calls.filter(call=>call.method==='experiment').length,1);
+  assert.match(h.feedbacks[0].text,/受阻.*安全侧.*预测.*一致.*不符合.*约定/);
+  assert.doesNotMatch(h.feedbacks[0].text,/实际.*对岸/);
 });
 
 test('负责人先完成当前现场，再换未正确核验的一种；改程序后不能借旧记录跳验收', async () => {
@@ -220,6 +235,41 @@ test('锁定错误程序核验后控制台重新打开编辑器，随后某次�
     assert.ok(dialog.program?.condition,id);
     assert.ok(dialog.program?.yes && dialog.program?.no,id);
     assert.notEqual(dialog.program.yes,dialog.program.no,id);
+    assert.equal(h.calls.length,0,id);
+  }
+});
+
+test('现场预测追问当前程序，故障旧板和错误出口仍按真实程序展示', async () => {
+  const prompts={sale:/探头读到30℃.*按你设的程序.*风机/,repair:/旧板.*30℃.*按屏上程序.*风机/,cross:/现场.*可用设施.*按屏上程序.*游客.*哪一路/,minimum:/A.*3%.*B.*8%.*按程序.*哪块.*先接/};
+  for(const id of ['sale','repair','cross','minimum']){
+    const h=harness(id);
+    if(id==='sale')h.context.draft.config={model:'ventilation',operator:'>',yes:'on',no:'off'};
+    if(id==='cross')h.context.draft.config={yes:'crossing',no:'bridge'};
+    if(id==='minimum')h.context.draft.config={operator:'<',yes:'b',no:'a'};
+    await h.runtime.predict(h.player);
+    const dialog=h.dialogs[0];
+    assert.match(dialog.text,prompts[id],id);
+    if(id==='sale')assert.match(dialog.program.condition,/＞30/);
+    if(id==='repair')assert.equal(dialog.program.yes,'关闭风机');
+    if(id==='cross')assert.equal(dialog.program.yes,'走人行横道');
+    if(id==='minimum')assert.equal(dialog.program.yes,'先给电池B充电');
+    assert.equal(h.calls.length,0,id);
+  }
+  const fixed=harness('repair');
+  fixed.context.runs.push(run('repair',fixed.context.draft.config,{temperature:30},false));
+  fixed.context.draft.config={model:'ventilation',operator:'>=',yes:'on',no:'off'};
+  fixed.context.draft.scene.temperatureCase=29;
+  await fixed.runtime.predict(fixed.player);
+  assert.match(fixed.dialogs[0].text,/修后.*29℃.*按屏上程序/);
+});
+
+test('验收追问刚才现场的理由，仍只提交原有理由一次', async () => {
+  const prompts={sale:/阿绿.*为何.*30℃/,repair:/老修.*旧板.*30℃.*关.*修后.*开.*哪里.*为何/,cross:/小巡.*为何.*每次.*一路/,minimum:/小电.*为何.*一直.*A/};
+  for(const id of ['sale','repair','cross','minimum']){
+    const h=harness(id);
+    await h.runtime.review(h.player);
+    assert.equal(h.dialogs[0].name,'验收负责人');
+    assert.match(h.dialogs[0].text,prompts[id],id);
     assert.equal(h.calls.length,0,id);
   }
 });

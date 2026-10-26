@@ -30,7 +30,7 @@ function paintLabel(target: any, label: string, graphic: string) {
     return;
   }
   const place = labelPlace[actorIdOf(target.id)] || { marginBottom: 8, marginLeft: 0, width: 80 };
-  target.setComponentsTop?.(Components.text(label, { fill: '#163e31', fontSize: 15 }), place);
+  target.setComponentsTop?.(Components.text(label, { fill: '#163e31', stroke: '#fffaf0', fontSize: 15 }), place);
 }
 
 const guide = {
@@ -39,7 +39,7 @@ const guide = {
     if(canReview())return review(player);
     const first=!scene().phase||scene().phase==='start';
     const next=repair?(!faultSeen(ctx().runs)?'先读30℃，猜猜旧程序会做什么。运行后，到核验仪看故障。':'故障已留下，先改条件和两边动作。再测29、30、31℃。'):'先去探头读温度。29、30、31℃都要检验。';
-    const choice=await say(player,guideLabel(repair),first?'准备好了吗？先点探头读温度。':next, [{id:first?'accept':'continue',label:first?'领取这项委托':'继续现场调试'}]);
+    const choice=await say(player,guideLabel(repair),first?(repair?'备用板到了30℃却停机。先别修改，读30℃后照旧程序运行。':'我没法一直守着新风机。请先读温度，再替它配好自动规则。'):next, [{id:first?'accept':'continue',label:first?'领取这项委托':'继续现场调试'}]);
     if(choice==='accept')await patchScene(player,{phase:'assigned'});
   }),
   onChanges(player: any) {

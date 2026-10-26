@@ -28,8 +28,8 @@
       .engine-pad [data-direction=left] { grid-column: 1; grid-row: 2; }
       .engine-pad [data-direction=right] { grid-column: 3; grid-row: 2; }
       .engine-pad [data-direction=down] { grid-column: 2; grid-row: 3; }
-      #engine-controls #engine-action { position: absolute; bottom: max(24px, env(safe-area-inset-bottom)); right: max(20px, env(safe-area-inset-right)); width: 86px; height: 70px; background: #1c624d; color: white; font-size: 19px; }
-      #engine-action small { display: block; font-size: 10px; margin-top: 4px; font-weight: 500; }
+      #engine-controls #engine-action { position: absolute; bottom: max(24px, env(safe-area-inset-bottom)); right: max(20px, env(safe-area-inset-right)); width: 190px; height: 70px; background: #1c624d; color: white; font-size: 19px; }
+      #engine-action small { display: block; font-size: 13px; margin-top: 4px; font-weight: 500; }
       .engine-pad-caption { position: absolute; bottom: 0; left: 175px; color: white; text-shadow: 0 1px 3px #0e302d; font-size: 11px; white-space: nowrap; }
       #engine-task-hint { position:absolute;left:14px;top:10px;max-width:min(580px,calc(100% - 215px));padding:10px 14px;margin:0;border:2px solid #93ad7e;border-radius:12px;background:#fffaf0ef;color:#1b4434;z-index:80;font-size:16px;line-height:1.5;pointer-events:none;}
       #focus-marker { position:absolute; left:0; top:0; width:0; height:0; z-index:80; pointer-events:none; color:#173b31; font-weight:800; }
@@ -51,8 +51,8 @@
       #engine-status { position: absolute; inset: 22% 8% auto; padding: 22px; background: #fff9e9; color: #19392d; border: 3px solid #d6bd79; box-shadow: 0 15px 45px #092b2a66; border-radius: 18px; text-align: center; z-index: 1200; }
       #engine-status p { margin: 0 0 15px; line-height: 1.7; }
       #engine-status button { min-height: 44px; padding: 8px 20px; border: 0; border-radius: 9px; color: white; background: #1c624d; }
-      @media (max-width: 600px) { .engine-pad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 44px); gap: 3px; left: 10px; bottom: 10px; } .engine-pad-caption { display: none; } .engine-tools { top: 8px; right: 8px; gap: 5px; } .engine-tools button { font-size: 12px; padding: 6px 10px; } #engine-controls #engine-action { right: 12px; bottom: 20px; width: 72px; height: 62px; font-size: 17px; } }
-    #engine-goto { position:fixed;right:20px;bottom:24px;min-width:240px;min-height:56px;background:#1c624d!important;color:white!important;font-size:19px!important;box-shadow:0 4px 18px #153b3266;} #engine-goto:disabled {opacity:.65;} #engine-status p {white-space:pre-line;} @media(max-width:600px){#engine-goto{right:12px;bottom:16px;min-width:200px;font-size:16px!important;}}
+      @media (max-width: 600px) { .engine-pad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 44px); gap: 3px; left: 10px; bottom: 10px; } .engine-pad-caption { display: none; } .engine-tools { top: 8px; right: 8px; gap: 5px; } .engine-tools button { font-size: 12px; padding: 6px 10px; } #engine-controls #engine-action { right: 12px; bottom: 20px; width: 180px; height: 68px; font-size: 17px; } }
+    #engine-goto { position:fixed;right:20px;bottom:108px;min-width:240px;min-height:56px;background:#1c624d!important;color:white!important;font-size:19px!important;box-shadow:0 4px 18px #153b3266;} #engine-goto:disabled, #engine-action:disabled {opacity:.65;cursor:default;} #engine-status p {white-space:pre-line;} @media(max-width:600px){#engine-goto{right:12px;bottom:102px;min-width:200px;font-size:16px!important;}}
     #engine-feedback{position:absolute;left:16px;bottom:22px;max-width:calc(100% - 300px);padding:10px 14px;border-radius:12px;background:#fffaf0f2;color:#173b31;font-size:17px;line-height:1.5;z-index:85;pointer-events:none;}
 #engine-assistance{position:absolute;left:16px;bottom:90px;max-width:min(560px,calc(100% - 32px));padding:14px 46px 14px 16px;border:2px solid #ba8b28;border-radius:14px;background:#fff3cffa;color:#173b31;font-size:17px;line-height:1.5;z-index:90;}
 #engine-assistance p{white-space:pre-line;margin:6px 0 0;}#engine-assistance-close{position:absolute;top:6px;right:8px;width:32px;height:32px;border:0;border-radius:50%;background:#f2dfab;color:#173b31;font-size:25px;}
@@ -124,13 +124,14 @@
     <div id="focus-marker" hidden><span class="focus-ring" aria-hidden="true"></span><span class="focus-arrow" aria-hidden="true">→</span><span id="focus-label">下一目标</span></div>
     <div id="engine-controls" aria-label="园区操作" hidden>
       <nav class="engine-tools" aria-label="探究帮助">
-        <button id="engine-learn" type="button">回顾知识</button>
+        <button id="engine-learn" type="button">巡检手册</button>
         <button id="engine-flow" type="button">查看流程</button>
         <button id="engine-help" type="button">操作帮助</button>
         <button id="engine-undo" type="button" disabled>↶ 撤回上一步</button>
         <button id="engine-hint" type="button">通关法宝 5/5</button>
-        <button id="engine-goto" type="button">前往下一目标</button>
+        <button id="engine-goto" type="button">自动前往任务点</button>
       </nav>
+      <button id="engine-action" type="button" aria-describedby="engine-action-help" disabled><span id="engine-action-label">交谈 / 操作</span><small id="engine-action-help">请先靠近目标</small></button>
       <div id="lesson-joystick" role="group" aria-label="移动摇杆：按住并拖动可让巡检员走动">
         <div id="lesson-joystick-knob" aria-hidden="true"></div>
         <span id="lesson-joystick-label" aria-hidden="true">按住拖动</span>

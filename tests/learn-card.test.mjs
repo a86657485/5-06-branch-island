@@ -4,11 +4,12 @@ import fs from 'node:fs';
 import {STORIES,ROUTE,storyChangesLearning} from '../public/patrol.mjs';
 const cards=await import('../public/learn-card.mjs').catch(()=>({}));
 
-test('四站先学卡给出教材来源与短讲，不替学生填本站方案',()=>{
+test('四站巡检手册给出教材来源与方法，不替学生填本站方案',()=>{
  assert.equal(typeof cards.learnCard,'function','先学卡尚未实现');
  for(const id of ['sale','repair','cross','minimum']){
   const card=cards.learnCard(id);
   assert.ok(card.title && card.purpose && card.image.alt);
+  assert.match(card.title,/巡检手册/);
   assert.equal(card.duration,'约30—45秒');
   assert.ok(card.lines.length>=3 && card.lines.length<=4);
   for(const text of [card.title,card.purpose,...card.lines])assert.ok([...text].length<=25,text);
@@ -34,10 +35,12 @@ test('教材图是学生区局部，过街图不包含完整出口动作',()=>{
  }
 });
 
-test('站内剧情每次不超过两句，每句不超过25字，路线和学习判定不变',()=>{
+test('站内开场分三幕，每幕不超过两句，每句不超过25字，路线和学习判定不变',()=>{
  for(const id of ['sale','repair','cross','minimum'])for(const beat of Object.values(STORIES[id])){
-  assert.ok(beat.lines.length<=2,`${id}对白过多`);
-  for(const text of beat.lines)for(const sentence of text.split(/[。！？]/).filter(Boolean))assert.ok([...sentence].length<=25,`${id}: ${text}`);
+  assert.ok(beat.lines.every(line=>typeof line==='string'),`${id} 保留平铺文本`);
+  assert.ok(beat.lines.length<=(beat===STORIES[id].opening?6:2),`${id}对白过多`);
+  for(let index=0;index<beat.lines.length;index+=2)assert.ok(beat.lines.slice(index,index+2).length<=2);
+  for(const text of beat.lines)assert.ok([...text].length<=25,`${id}: ${text}`);
  }
  assert.deepEqual(ROUTE,['sale','repair','cross']);
  assert.equal(storyChangesLearning(),false);

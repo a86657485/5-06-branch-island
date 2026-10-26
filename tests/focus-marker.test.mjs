@@ -29,6 +29,6 @@ test('焦点保留透明中心、侧箭头、静态降级和画外方向', () =>
   assert.match(html, /prefers-reduced-motion:\s*reduce/);
   assert.match(html, /\.focus-arrow[^}]*pointer-events:\s*none/);
   assert.match(source, /offscreen \? arrow : '→'/);
-  assert.match(source, /focusMarker\.hidden = !!hostOverlay \|\| !point/);
-  assert.match(source, /goto\.disabled = !focus\.goto/);
+  assert.match(source, /setHidden\(focusMarker, !!hostOverlay \|\| !point\)/);
+  assert.match(source, /setDisabled\(goto, !focus\.goto/);
 });

@@ -13,15 +13,17 @@ import {
 
 const layout = JSON.parse(fs.readFileSync(new URL('../engine/src/tiled/layout.json', import.meta.url), 'utf8'));
 
-test('前往园艺员时站在东侧并面向他，不朝向南边的核验仪', () => {
+test('前往园艺员时面向他并避开其他对象，旧挤压布局也不误朝核验仪', () => {
   const places = layout.greenhouse.positions;
   const point = id => ({ x: places[id][0], y: places[id][1] });
   const others = ['sensor', 'control', 'fan', 'verify', 'portal'].map(point);
   const stand = standBeside(point('guide'), point('start'), others);
   assert.deepEqual(stand, { x: places.guide[0] + 16, y: places.guide[1], direction: 'left' });
   assert.equal(Math.hypot(stand.x - places.verify[0], stand.y - places.verify[1]) >= 40, true);
-  const south = { x: places.guide[0], y: places.guide[1] + 32 };
-  assert.equal(Math.hypot(south.x - places.verify[0], south.y - places.verify[1]) < 40, true);
+  assert.ok(others.every(other=>Math.hypot(stand.x-other.x,stand.y-other.y)>=40));
+  const oldGuide={x:460,y:445},oldVerify={x:465,y:500};
+  assert.deepEqual(standBeside(oldGuide,{x:560,y:505},[oldVerify]),{x:476,y:445,direction:'left'});
+  assert.ok(Math.hypot(oldGuide.x-oldVerify.x,oldGuide.y+32-oldVerify.y)<40);
 });
 
 test('面板数据先变成普通对象，才能发给课堂页', () => {

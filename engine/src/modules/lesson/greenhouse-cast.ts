@@ -1,12 +1,12 @@
 /** 温室一张图上的巡检角色。S1 与 S2 共用坐标，外观按当前站决定。 */
 
 export const GREENHOUSE_ACTORS = [
-  { id: 'guide', x: 460, y: 445, graphic: 'gardener', label: '园艺员阿绿' },
-  { id: 'sensor', x: 375, y: 425, graphic: 'sensor', label: '温度探头' },
-  { id: 'control', x: 330, y: 490, graphic: 'control', label: '规则控制柜' },
-  { id: 'fan', x: 270, y: 470, graphic: 'fan-off', label: '通风风机' },
-  { id: 'verify', x: 465, y: 500, graphic: 'monitor', label: '现场核验仪' },
-  { id: 'portal', x: 605, y: 535, graphic: 'portal', label: '下一站' }
+  { id: 'guide', x: 520, y: 430, graphic: 'gardener', label: '园艺员阿绿' },
+  { id: 'sensor', x: 360, y: 430, graphic: 'sensor', label: '温度探头' },
+  { id: 'control', x: 260, y: 500, graphic: 'control', label: '规则控制柜' },
+  { id: 'fan', x: 420, y: 520, graphic: 'fan-off', label: '通风风机' },
+  { id: 'verify', x: 600, y: 500, graphic: 'monitor', label: '现场核验仪' },
+  { id: 'portal', x: 700, y: 530, graphic: 'portal', label: '下一站' }
 ] as const;
 
 export function actorIdOf(eventId: string) {

@@ -35,11 +35,14 @@ const choices = computed(() => step.value.slot ? cardsForSlot(mode, step.value.s
 const alarm = computed(() => /菱形|不能用来/.test(message.value));
 const orderLine = computed(() => stationBrief(mode).purpose);
 const stepTitle = computed(() => {
-  if (step.value.phase === 'original') return '先看看原程序，暂时别修改';
+  if (step.value.phase === 'original') return '先看旧板怎样控制风机，暂时别改';
   if (step.value.phase === 'diagnose') return '刚才30℃时，问题可能在哪里？';
-  if (step.value.phase === 'flow') return step.value.slot === 'diamond' ? '第1步：设备要判断什么？' : step.value.slot === 'yes' ? '第2步：条件成立，做什么？' : '第3步：条件不成立，做什么？';
+  if (step.value.phase === 'flow') {
+    const device=mode==='cross'?'导行屏':mode==='minimum'?'充电柜':'风机';
+    return step.value.slot==='diamond'?`${device}要先判断什么？`:step.value.slot==='yes'?`回答“是”，${device}该做什么？`:`回答“否”，${device}该做什么？`;
+  }
   if (step.value.phase === 'lock') return '三张卡齐了，检查一下你的程序';
-  if (step.value.phase === 'sentence') return '把你的安排说给同伴听';
+  if (step.value.phase === 'sentence') return mode==='cross'?'给小巡说说你的指路安排':mode==='minimum'?'给小电说说你的充电安排':mode==='repair'?'给老修说说修改后的安排':'给阿绿说说你的风机安排';
   if (step.value.phase === 'predict') return step.value.temperature ? `先猜一猜：${step.value.temperature}℃时风机会怎样？` : '三种温度都猜好了，再到现场检验';
   return props.measured === false ? '程序准备好了，先去读取现场数据' : thermal ? '预测已记下，现在去现场运行' : '程序准备好了，回现场先作本次预测';
 });
@@ -187,7 +190,7 @@ onUnmounted(() => { unsubscribe?.(); window.removeEventListener('keydown', onKey
   <div class="studio-shade">
     <section class="studio" :class="{ 'studio-alarm': alarm }" role="dialog" aria-label="规则控制柜" tabindex="-1">
       <header class="guided-tools">
-        <button type="button" @click="reviewKnowledge">回顾知识</button>
+        <button type="button" @click="reviewKnowledge">巡检手册</button>
         <button type="button" :disabled="!history.length || toolBusy" @click="undo">撤回上一步</button>
         <button type="button" :disabled="!canUseTool(support, toolBusy)" @click="useTool">通关法宝 · 还剩 {{ support?.remaining ?? '—' }} 次</button>
         <button type="button" class="guided-close" aria-label="关闭面板" @click="finish('close')">×</button>
