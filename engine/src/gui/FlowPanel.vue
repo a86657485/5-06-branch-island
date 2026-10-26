@@ -210,11 +210,24 @@ function choose(id: string) { if (step.value.phase === 'flow' && step.value.slot
 function putCard(slot: 'diamond' | 'yes' | 'no', cardId: string) {
   const blocked = repairEditMessage(mode === 'repair', !!props.diagnosed);
   if (blocked) { message.value = blocked; return; }
-  if (step.value.phase !== 'flow' || slot !== step.value.slot || !cardId) return;
+  if ((step.value.phase !== 'flow' && step.value.phase !== 'lock') || !cardId) return;
   remember();
-  board.value = placeCard(board.value, slot, cardId);
+  const nextBoard = placeCard(board.value, slot, cardId);
+  board.value = nextBoard;
   predictions.value = emptyPredictions(); sentence.value = emptySentence(mode);
-  editingSlot.value = slot === 'diamond' ? 'yes' : slot === 'yes' ? 'no' : '';
+  const emptyNext = nextSlot(nextBoard);
+  if (emptyNext) {
+    editingSlot.value = emptyNext;
+  } else {
+    const check = flowLogicGuidance(mode, nextBoard);
+    if (check.ok) {
+      editingSlot.value = '';
+    } else if (slot !== 'no' && check.slot !== slot) {
+      editingSlot.value = check.slot;
+    } else {
+      editingSlot.value = slot === 'diamond' ? 'yes' : slot === 'yes' ? 'no' : '';
+    }
+  }
   message.value = ''; publish();
 }
 function onDrop(slot: 'diamond' | 'yes' | 'no', event: DragEvent) {
@@ -283,7 +296,8 @@ function lock() {
     triggerMistakeModal('flow');
     return;
   }
-  board.value = result.flow; message.value = result.message;
+  editingSlot.value = '';
+  board.value = result.flow; message.value = '';
   if (result.config) { lockedConfig.value = result.config; sentence.value = sentenceFromFlow(mode, result.flow); }
   publish();
 }
