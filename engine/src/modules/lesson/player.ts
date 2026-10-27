@@ -156,6 +156,7 @@ export const player:RpgPlayerHooks={
  },
  async onInput(player, input){
   const action=(input as {action?:string,input?:string})?.action ?? (input as {input?:string})?.input ?? input;
+  if(['up','down','left','right',Direction.Up,Direction.Down,Direction.Left,Direction.Right,1,2,3,4].includes(action as any)){player.directionFixed=false;player.setVariable('faceLock','');}
   if(!['action','lesson:interact'].includes(action as string) || player.getVariable('lessonBusy'))return;
   const here=player.getCurrentMap(); if(!here?.getEvents || here.id!==mapFor(ctx()) || sessions.get(player.id)?.active!==player)return;
   if(action==='action'){
@@ -174,7 +175,7 @@ export const player:RpgPlayerHooks={
  if(lock){
   const at=player.getVariable('faceLockAt') as {x?:number,y?:number}|undefined;
   const ax=typeof at?.x==='number'?at.x:player.x(),ay=typeof at?.y==='number'?at.y:player.y();
-  if(Math.hypot(player.x()-ax,player.y()-ay)>12){player.directionFixed=false;player.setVariable('faceLock','');}
+  if(Math.hypot(player.x()-ax,player.y()-ay)>2){player.directionFixed=false;player.setVariable('faceLock','');}
   else{const direction=directions[lock as keyof typeof directions];if(direction)player.changeDirection(direction);player.directionFixed=true;}
  }
  pendingApproach=null;
