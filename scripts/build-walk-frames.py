@@ -102,8 +102,13 @@ def build(sheet_path: Path) -> Image.Image:
 def main() -> None:
     parser = argparse.ArgumentParser(description="补齐左右/背面行走帧")
     parser.add_argument("--dry-run", action="store_true", help="只写预览图，不改精灵表")
+    parser.add_argument("--force", action="store_true", help="v2 素材存在时仍强制合成")
     args = parser.parse_args()
 
+    v2 = ROOT / "scripts/assets/spritesheets_v2/engineer.png"
+    if v2.exists() and not args.force:
+        print("v2 精灵已自带四向三帧，无需合成；确需覆盖请加 --force。")
+        return
     if not BASE.exists():
         raise SystemExit("缺少原始精灵表 %s，请先用 scripts/build-rpg-assets.cjs 重新打包。" % BASE)
     image = build(BASE)
