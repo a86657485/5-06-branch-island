@@ -19,7 +19,7 @@ test('S1 与 S2 同在温室，单击沿箭头去返修并交互，不能传送'
   assert.equal(repair.target.y, sale.target.y);
   assert.equal(repair.target.place, 'guide');
   assert.equal(repair.goto, true);
-  assert.match(repair.strong, /点自动前往/);
+  assert.match(repair.strong, /走到发光处/);
   assert.equal(repair.dots.length > 0, true);
   assert.equal(repair.dots.some(dot => dot.x === repair.target.x && dot.y === repair.target.y), false);
   const closed = currentFocus({ levelId: 'quiz', exam: { open: false, missing: [{ id: 'repair', title: '控制器返修' }, { id: 'cross', title: '路口导行屏' }] } });

@@ -81,13 +81,13 @@ test('温室自动行走从起点及任一设备抵达其它互动站位时绕�
   }
 });
 
-test('地图导航提示使用实际的自动前往按钮名', () => {
+test('地图导航提示与实际操作方式一致', () => {
   for (const levelId of ['sale', 'repair', 'cross', 'minimum']) {
     const focus = currentFocus({ levelId, scene: { phase: 'start' } });
     assert.equal(gotoTitle(focus), '自动前往');
-    assert.match(focus.strong, /自动前往/);
+    assert.match(focus.strong, /走到发光处/);
     assert.equal(focus.strong.includes('下一步'), false);
     assert.equal([...focus.strong].length <= 25, true);
   }
-  assert.equal(currentFocus({ levelId: 'repair', scene: { phase: 'start' } }).hint, '点自动前往，听维修员说问题。');
+  assert.equal(currentFocus({ levelId: 'repair', scene: { phase: 'start' } }).hint, '走到发光处，听维修员说问题。');
 });
