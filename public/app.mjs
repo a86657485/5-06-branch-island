@@ -117,6 +117,7 @@ function goToTask(id){
  current=id;lastRun=null;notice='';quizReview=false;
  if(id==='quiz'){saveLocal();openExam();return {levelId:'quiz'};}
  closeExam(false);
+ dismissStoryOverlay();
  if(activeScene?.engine==='rpgjs'){prepareSceneDraft(id);saveLocal();activeScene.navigate(id);activeScene.setOverlay?.('');updateChrome();showStationStory(id);return {levelId:id};}
  saveLocal();render();return {levelId:id};
 }
@@ -289,6 +290,12 @@ function closeStory(skipped){
  activeScene?.setOverlay?.($('#exam-overlay')?.hidden===false?'exam':($('#patrol-overlay')?.hidden===false?'checklist':''));
  if(finished.key==='brief') showStory(current==='quiz'?lastStation:current,'opening');
  return true;
+}
+function dismissStoryOverlay(){
+ if(!storySession && $('#story-overlay')?.hidden!==false) return;
+ storySession=null;
+ const overlay=$('#story-overlay'); if(overlay) overlay.hidden=true;
+ activeScene?.setOverlay?.('');
 }
 function showStationStory(id){
  if(legacy||!id||id==='quiz'||storySession)return;
