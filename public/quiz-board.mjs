@@ -154,7 +154,7 @@ export function mountQuiz(root, options) {
     ? `<p class="muted">① 先点一张卡片 ② 再点下面的分类筐；筐里的卡片点一下可以取回。</p><div class="quiz-cards">${cards}</div>${groupingMarkup(question, value, pending)}${progress}`
     : `<p class="muted">① 先点一张卡片 ② 再点标着「空」的位置。放满后点「确认本题」，才可以去下一题。</p>${figure}${frameBlock}<div class="quiz-cards">${cards}</div>${figureSlots.size || frameBlock ? '' : `<div class="quiz-slots">${slotButtons}</div>`}${progress}`;
   const single = question.type === 'single_choice'
-    ? `<div class="answers">${question.options.map((text, index) => `<button type="button" data-single="${index}" class="answer ${value === index ? 'chosen' : ''}" ${pending ? 'disabled' : ''} aria-pressed="${value === index}"><span>${index + 1}</span>${esc(text)}</button>`).join('')}</div>`
+    ? `${figure}<div class="answers">${question.options.map((text, index) => `<button type="button" data-single="${index}" class="answer ${value === index ? 'chosen' : ''}" ${pending ? 'disabled' : ''} aria-pressed="${value === index}"><span>${index + 1}</span>${esc(text)}</button>`).join('')}</div>`
     : `${answerArea}<div class="qf-actions"><button id="confirm-question" class="primary" ${pending || !done ? 'disabled' : ''}>确认本题</button></div>`;
   const review = options.review;
   const focus = options.focus || { id: 'quiz-card-current', hint: '读题作答。整道题一起看，不标选项。', strong: '先点卡片区，再点空格。' };
