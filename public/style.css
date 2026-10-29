@@ -33,3 +33,174 @@
 .gate-compare,.gate-readonly{margin:12px 0;padding:12px 14px;border-radius:12px;background:#fffaf0;border:2px solid #c5a048;line-height:1.7}
 .gate-readonly h2{margin:0 0 8px;font-size:18px}
 #exam-missing{margin:8px 0 16px;line-height:1.8}
+.play-shell>.demo-banner{flex:none}
+.play-shell{height:100vh;display:flex;flex-direction:column;background:#173b31}
+.topbar.slim{height:56px;flex:none;padding:0 12px;gap:10px}
+.route-ribbon{display:flex;align-items:center;gap:4px;list-style:none;margin:0;padding:0;min-width:0}
+.route-ribbon button{padding:6px 8px;font-size:12px;white-space:nowrap}
+.route-ribbon .current button{outline:3px solid #e39b00;outline-offset:2px}
+.route-ribbon .done button{background:#d1eae6}
+.route-arrow{color:#147d78;font-weight:900;font-size:18px}
+.stage-full{position:relative;flex:1;min-height:0}
+.stage-full .workbench,.stage-full .game-workbench{height:100%;max-width:none;margin:0;padding:0!important}
+.stage-full .rpg-shell{height:100%;border:0;border-radius:0;box-shadow:none;display:flex;flex-direction:column}
+.stage-full .rpg-heading,.stage-full .rpg-status{display:none}
+.stage-full .rpg-frame{flex:1;width:100%;height:100%;min-height:0}
+.stage-notice,.stage-save{position:absolute;z-index:4;margin:0;padding:6px 8px;border-radius:8px;background:#ffffffe8}
+.stage-notice{left:12px;bottom:12px;max-width:46vw}
+.stage-save{right:12px;bottom:2px;padding:2px 6px;font-size:10px;line-height:1.2;pointer-events:none}
+.screen-overlay{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:20px;background:#102e2ccc}
+.screen-overlay[hidden]{display:none}
+.overlay-card{position:relative;width:min(880px,100%);max-height:min(92vh,920px);overflow:auto;padding:28px 24px 20px;border:3px solid #184c3b;border-radius:20px;background:#fffaf0;box-shadow:0 18px 50px #061e2b66}
+.overlay-close{position:absolute;top:10px;right:12px;width:44px;height:44px;border-radius:50%;font-size:28px;line-height:1}
+.story-card img{display:block;width:100%;max-height:280px;object-fit:contain;border-radius:14px;background:#e7f2ea}
+.story-line{white-space:pre-line;font-size:22px;line-height:1.65;min-height:2.4em}
+.patrol-list{display:grid;gap:8px;margin:12px 0 16px}
+.check-row{display:flex;gap:10px;width:100%;text-align:left;align-items:center}
+.check-row.current{outline:3px solid #e39b00;outline-offset:2px}
+.check-row small{display:block;color:#55718a;font-size:12px}
+.exam-card{width:min(1080px,100%);background:#f4f8fb}
+@media(max-width:750px){.topbar.slim{height:auto;flex-wrap:wrap;padding:8px}.route-ribbon{order:3;width:100%;overflow:auto}.stage-full .rpg-frame{min-height:0;height:100%}}
+
+/* 先学卡只解释方法，关闭后回到原来的现场或面板。 */
+.learn-card { width:min(930px,96vw); padding:26px; }
+.learn-card h2 { margin:6px 46px 12px 0; }
+.learn-mission { font-size:18px; line-height:1.65; margin:0 0 14px; }
+.learn-columns { display:grid; grid-template-columns:minmax(180px, .85fr) minmax(260px, 1.15fr); gap:22px; align-items:center; }
+.learn-columns figure { margin:0; text-align:center; padding:10px; border-radius:12px; background:#fff; }
+.learn-columns img { display:block; max-width:100%; height:230px; object-fit:contain; margin:auto; }
+.learn-columns figcaption { margin-top:7px; font-size:13px; color:#53665d; }
+.learn-columns ol { margin:0; padding-left:26px; font-size:19px; line-height:1.6; }
+.learn-columns li { padding:5px 0; }
+.learn-success { padding:11px 14px; border-radius:10px; background:#e8f1e7; line-height:1.6; font-size:16px; }
+.learn-footnote { font-size:13px; }
+@media(max-width:650px){.learn-card{padding:20px 16px;}.learn-columns{grid-template-columns:1fr;gap:10px;}.learn-columns img{height:155px;}.learn-columns ol{font-size:17px;}.learn-mission{font-size:16px;}}
+
+
+/* 平板触控适配（2026-10-26）：站点卡与明细展开按钮加大到可触控尺寸 */
+@media (pointer: coarse){
+  .route-ribbon button{min-height:44px;padding-top:6px;padding-bottom:6px}
+  td button, th button{min-height:40px;min-width:44px}
+}
+
+
+/* 华为擎云 C5e 竖屏补充（2026-10-26）：600 宽时顶栏按钮被压到 27-29px，提到 40px */
+@media (pointer: coarse) and (max-width: 720px){
+  .topbar.slim .identity button{min-height:40px;padding-top:6px;padding-bottom:6px}
+}
+
+/* 角色选角与过关换装系统 + 剧情第1帧即刻跳过按钮（2026-10-26） */
+.skin-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px !important; background: #fff9ec; border: 2px solid #d8b54b; color: #183c30; font-weight: 750; }
+.skin-mini-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; display: inline-block; vertical-align: middle; }
+.skin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)); gap: 10px; margin: 12px 0 16px; }
+.skin-grid.compact { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0 12px; }
+.skin-card { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 8px; border: 2px solid #c7dfec; border-radius: 14px; background: #fffef8; color: #153758; text-align: center; transition: transform .12s ease, border-color .12s ease; }
+.skin-card:hover { transform: translateY(-2px); border-color: #147d78; }
+.skin-card.selected { border: 3px solid #e39b00; background: #fff8df; box-shadow: 0 4px 14px #e39b0033; }
+.skin-card img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
+.skin-grid.compact .skin-card img { width: 48px; height: 48px; }
+.skin-card strong { font-size: 13px; line-height: 1.3; }
+.skin-card small { font-size: 11px; line-height: 1.25; }
+.skin-unlocked { color: #0f766e; font-weight: 700; }
+.skin-preview { color: #8a651b; }
+.story-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
+
+.skin-card.locked { opacity: 0.52; filter: grayscale(0.65); cursor: not-allowed; background: #edf2f7; border-style: dashed; }
+.skin-locked { color: #64748b; font-weight: 700; }
+
+/* 教师大屏：可视化与全字段筛选（2026-10-27） */
+.topbar-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.sync-pill{font-size:12px;color:var(--teal);background:#e3f1eb;border:1px solid #b7d8cc;border-radius:999px;padding:6px 12px;white-space:nowrap}
+.filter-bar{background:#fff;border:1px solid var(--line);border-radius:15px;padding:18px 20px 14px;margin:0 0 20px}
+.filter-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+.filter-head h2{font-size:16px;margin:0}
+.filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(146px,1fr));gap:12px 14px}
+.filter-grid label{font-size:11px;font-weight:650;color:var(--muted);gap:5px;min-width:0}
+.filter-grid select,.filter-grid input{min-height:38px;padding:7px 9px;font-size:13px;border-radius:9px}
+.filter-actions{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+.filter-actions button{font-size:12px;padding:8px 14px}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chips .chip{background:#e8f1e7;border:1px solid #b9d3b4;color:#1d4b3c;border-radius:999px;padding:5px 11px;font-size:11px;line-height:1.4}
+.stat-with-ring{display:flex;align-items:center;gap:14px}
+.stat-with-ring strong{font-size:28px}
+.donut{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:var(--muted)}
+.donut svg{display:block}
+.histogram{display:flex;align-items:flex-end;gap:10px;height:168px;margin:18px 0 6px}
+.histogram .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;font-size:11px;color:var(--muted);min-width:0}
+.histogram .col b{font-size:12px;color:#183c30}
+.histogram .bar{width:100%;border-radius:7px 7px 2px 2px;background:linear-gradient(180deg,#63b8a9,#147d78);min-height:3px;flex:none}
+.class-row{display:grid;grid-template-columns:58px 1fr 52px;align-items:center;gap:12px;margin:12px 0;font-size:12px}
+.class-name{font-weight:700}
+.class-bars{display:flex;flex-direction:column;gap:4px}
+.class-bar{position:relative;height:16px;background:#eef3f7;border-radius:5px;overflow:hidden}
+.class-bar i{display:block;height:100%;background:#6ca7cb;border-radius:5px;min-width:2px}
+.class-bar.pass i{background:var(--teal)}
+.class-bar em{position:absolute;left:8px;top:0;line-height:16px;font-size:10px;font-style:normal;color:#123c31;font-weight:650}
+.class-row>b{text-align:right;color:var(--muted);font-weight:600}
+.station-dots{display:flex;gap:4px}
+.station-dots i{width:26px;height:20px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:10px;font-weight:700;background:#eef3f7;border:1px solid #d3e0ea;color:#7d95a8}
+.station-dots i.done{background:#cfe6da;border-color:#8fc0aa;color:#1f5c46}
+.station-dots i.valid{background:#147d78;border-color:#0f5f5b;color:#fff}
+th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+th.sortable:hover{background:#d3e7f5}
+th.sortable:after{content:'⇅';font-size:10px;opacity:.45;margin-left:6px}
+.row-id{display:block;color:var(--muted);font-size:10px;font-weight:400}
+tr.row-open>td{background:#f4faf8}
+.empty-state{padding:26px;text-align:center;color:var(--muted)}
+.misconceptions{margin:6px 0 0;padding-left:20px}
+@media(max-width:900px){
+  .filter-grid{grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stat-with-ring{grid-column:1/-1}
+}
+
+
+/* 考核流程图（2026-10-29）：此前 interaction.figure 未渲染，学生只看到 s1/s2/s3 */
+.quiz-figure{margin:12px 0;padding:12px 14px 8px;border:1px dashed #a9c5b0;border-radius:12px;background:#f7fbf8}
+.qf-title{margin:0 0 10px;font-size:12px;color:var(--muted)}
+.qf-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;align-items:center}
+.qf-row{position:relative;display:flex;justify-content:center;align-items:flex-start;gap:16px;width:100%}
+.qf-row+.qf-row{margin-top:16px}
+.qf-row+.qf-row::before{content:'↓';position:absolute;top:-20px;left:50%;transform:translateX(-50%);color:#7d9db3;font-size:15px;line-height:20px}
+.qf-branch-row{padding-top:2px;align-items:flex-end}
+.qf-col{position:relative;display:flex;flex-direction:column;align-items:center;flex:1;max-width:250px;padding-top:15px}
+.qf-col .qf-node{width:100%}
+.qf-node{padding:6px 11px;border:2px solid #7d9db3;border-radius:10px;background:#fff;text-align:center;min-width:180px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.qf-terminator{border-radius:999px;background:#e8f1f7}
+.qf-io{border-style:dashed;background:#eef6fb}
+.qf-diamond{border-color:#d9a93a;background:#fff8e4;border-radius:14px;min-width:190px}
+.qf-text{font-weight:700}
+.qf-role{font-size:10px;color:var(--muted)}
+.qf-branch{position:absolute;top:0;left:50%;transform:translateX(-50%);padding:1px 10px;border-radius:999px;background:var(--teal);color:#fff;font-size:11px;font-weight:800;white-space:nowrap}
+.qf-slot{width:100%;align-items:center;min-height:42px;border-color:#73957a}
+.qf-slot b{font-size:15px}
+.qf-slot small{font-size:10px;color:var(--muted);font-weight:500}
+.qf-slot.filled{background:#e2f1eb;border-color:var(--teal)}
+.qf-legend{margin:12px 0 0;font-size:11px;color:var(--muted);text-align:center;line-height:1.6}
+@media(max-width:750px){.qf-row{gap:8px}.qf-node{min-width:0}.qf-slot{min-width:0}}
+/* 确认本题常驻可见：长图/平板上不用滚到底也能点到（2026-10-29） */
+.qf-actions{position:sticky;bottom:0;z-index:3;display:flex;justify-content:flex-end;gap:10px;padding:8px 0 4px;margin-top:10px;background:#fff;border-top:1px solid var(--line)}
+.question #confirm-question{box-shadow:0 6px 16px #15375833}
+.qf-progress{margin:10px 0 0;font-size:12px;font-weight:700;color:var(--teal)}
+.qf-progress.pending{color:var(--muted);font-weight:500}
+/* 考核页紧凑排版：平板上少占纵向空间，让题图与确认按钮同时可及（2026-10-29） */
+.quiz-root h1{font-size:24px;line-height:1.35;margin-bottom:6px}
+.quiz-root .task-heading .eyebrow{margin-bottom:2px}
+.quiz-root .question-nav{margin:14px 0;gap:6px;grid-template-columns:repeat(11,minmax(0,1fr))}
+.quiz-root .question-nav button{padding:7px 4px;font-size:13px}
+.quiz-root .question{padding:18px 18px 70px}
+.quiz-root>.muted{margin-bottom:0;font-size:12px}
+@media(max-width:820px){.quiz-root .question-nav{grid-template-columns:repeat(6,minmax(0,1fr))}}
+
+/* 分组与句子补全（2026-10-29）：挑战层 q27/q20 只有筐、q25 句子空格未渲染 */
+.qf-targets{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}
+.qf-target{flex:1;min-width:170px;border:2px dashed #73957a;border-radius:12px;background:#fffef8;padding:10px 12px}
+.qf-target-name{margin:0 0 8px;font-weight:800}
+.qf-chips{display:flex;flex-wrap:wrap;gap:6px}
+.qf-chip{display:inline-flex;align-items:center;gap:6px;background:#e2f1eb;border:1px solid var(--teal);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700}
+.qf-chip span{color:#b44237;font-weight:900}
+.qf-empty{font-size:12px;color:var(--muted)}
+.qf-sentence{font-size:17px;line-height:2.4;background:#f7fbf8;border:1px dashed #a9c5b0;border-radius:12px;padding:12px 16px;margin:12px 0}
+.qf-inline-slot{display:inline-flex;align-items:center;justify-content:center;min-width:96px;min-height:38px;margin:0 6px;padding:2px 12px;border:2px dashed #73957a;border-radius:9px;background:#fffef8;font-weight:700;vertical-align:middle}
+.qf-inline-slot.filled{border-style:solid;border-color:var(--teal);background:#e2f1eb}
+.qf-inline-echo{display:inline-flex;align-items:center;justify-content:center;min-width:80px;margin:0 6px;padding:1px 10px;border-bottom:2px solid var(--teal);font-weight:700}

@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import rules from '../public/rules.js';
 import {
-  conditionLine, emptyFlow, faultSeen, lockFlow, lockPredictions, lockSentence,
-  canRunVerify, placeCard, releaseAfterProgramEdit, repairPreset, sentenceTokens, thermalTrials
+  conditionLine, emptyFlow, faultSeen, flowLogicGuidance, lockFlow, lockPredictions, lockSentence,
+  canRunVerify, placeCard, releaseAfterProgramEdit, repairPreset, sentenceTokens, thermalTrials,
+  visibleCardsForSlot, buildMistakeModal
 } from '../engine/src/gui/flow-model.ts';
 
 test('动作卡放进菱形不能锁定，程序保持原样', () => {
@@ -120,4 +121,49 @@ test('重新打开已解开的图时，句子和预测可以再改', () => {
   const preset = releaseAfterProgramEdit(repairPreset(), predictions, sentence);
   assert.equal(preset.predictions.locked, true);
   assert.equal(preset.sentence.locked, true);
+});
+
+test('前置规则校验拦截反接或漏边界的错误流程图并给出具体槽位提示', () => {
+  const reversed = flowLogicGuidance('sale', { diamond: 'lt30', yes: 'on', no: 'off', locked: false });
+  assert.equal(reversed.ok, false);
+  assert.equal(reversed.slot, 'diamond');
+  assert.match(reversed.message, /温度≥30℃/);
+
+  const boundaryMiss = flowLogicGuidance('sale', { diamond: 'gt30', yes: 'on', no: 'off', locked: false });
+  assert.equal(boundaryMiss.ok, false);
+  assert.equal(boundaryMiss.slot, 'diamond');
+  assert.match(boundaryMiss.message, /刚好30℃/);
+
+  const validGe = flowLogicGuidance('sale', { diamond: 'ge30', yes: 'on', no: 'off', locked: true });
+  assert.equal(validGe.ok, true);
+
+  const validLt = flowLogicGuidance('sale', { diamond: 'lt30', yes: 'off', no: 'on', locked: true });
+  assert.equal(validLt.ok, true);
+});
+
+test('初始0错展示全部卡片不预过滤，点错后按1/2/3级递进生成手把手引导弹窗并缩范围', () => {
+  const initialCards = visibleCardsForSlot('sale', 'diamond', 0);
+  assert.equal(initialCards.length, 6);
+  assert.equal(initialCards.some(c => c.kind === 'condition'), true);
+  assert.equal(initialCards.some(c => c.kind === 'action'), true);
+
+  const afterOneMistake = visibleCardsForSlot('sale', 'diamond', 1);
+  assert.equal(afterOneMistake.length, 6);
+
+  const afterTwoMistakes = visibleCardsForSlot('sale', 'diamond', 2);
+  assert.equal(afterTwoMistakes.every(c => c.kind === 'condition'), true);
+
+  const m1 = buildMistakeModal('sale', { diamond: 'gt30', yes: 'on', no: 'off', locked: false }, 1);
+  assert.equal(m1.tier, 1);
+  assert.equal(m1.targetSlot, 'diamond');
+  assert.match(m1.summary, /30℃/);
+
+  const m2 = buildMistakeModal('repair', { diamond: 'ge30', yes: 'off', no: 'on', locked: false }, 2);
+  assert.equal(m2.tier, 2);
+  assert.equal(m2.showFaultMagnifier, true);
+  assert.equal(m2.steps.length, 3);
+
+  const m3 = buildMistakeModal('sale', { diamond: 'lt30', yes: 'on', no: 'off', locked: false }, 3);
+  assert.equal(m3.tier, 3);
+  assert.ok(m3.recommendedCardIds.includes('ge30'));
 });

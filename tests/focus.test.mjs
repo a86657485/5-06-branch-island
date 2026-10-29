@@ -5,7 +5,7 @@ import { advanceRoute, routeMark } from '../engine/src/modules/lesson/route-prog
 import { keepNewerScene } from '../engine/src/classroom-bridge.ts';
 import { createIdleTimer } from '../public/idle-timer.mjs';
 
-test('同一时刻只有一个焦点，过街行走时不能一键前往', () => {
+test('同一时刻只有一个焦点，单击目标可开始行走和交互', () => {
   const start = currentFocus({ levelId: 'sale', scene: { phase: 'start' }, level: { valid: false } });
   assert.equal(start.id, 'guide');
   assert.equal(start.goto, true);
@@ -13,7 +13,12 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
   assert.equal(start.hint, '先听园艺员说任务。');
   assert.equal([...start.hint].length <= 30, true);
   assert.equal(start.hint.includes('≥'), false);
-  assert.equal(currentFocus({ levelId: 'repair', scene: { phase: 'start' } }).hint, '听维修员说控制器的问题。');
+  const repairStart = currentFocus({ levelId: 'repair', scene: { phase: 'start' } });
+  assert.equal(repairStart.hint, '走到发光处，听维修员说问题。');
+  assert.equal(repairStart.goto, true);
+  assert.match(repairStart.strong, /走到发光处/);
+  assert.equal(repairStart.target.mapId, 'greenhouse');
+  assert.equal(repairStart.target.place, 'guide');
   assert.equal(currentFocus({ levelId: 'cross', scene: { phase: 'start' } }).hint, '听巡检员说导行屏的任务。');
   assert.equal(currentFocus({ levelId: 'minimum', scene: { phase: 'start' } }).hint, '听能源工程师说配电规则。');
 
@@ -23,8 +28,9 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
     level: { valid: false }
   });
   assert.equal(walk.step, '10');
-  assert.equal(walk.goto, false);
-  assert.equal(walk.gotoReason, '这段要你亲自走过去');
+  assert.equal(walk.goto, true);
+  assert.equal(walk.gotoReason, '');
+  assert.match(walk.strong, /沿路线行走/);
   assert.equal(walk.target.place, 'bridgeEast');
   assert.equal(walk.hint.includes('天桥'), false);
 
@@ -34,7 +40,11 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
     level: { valid: false }
   });
   assert.equal(wrongRoute.target.place, 'bridgeWest');
-  assert.equal(wrongRoute.goto, false);
+  assert.equal(wrongRoute.goto, true);
+  const redCrossing = currentFocus({ levelId: 'cross', scene: { phase: 'executed', measured: true, facility: false, ticket: { output: 'crossing' }, actions: ['observe', 'predict'], signal: 'red' }, level: { valid: false } });
+  assert.equal(redCrossing.id, 'signal');
+  assert.equal(redCrossing.goto, true);
+  assert.match(redCrossing.hint, /绿灯/);
   const closedPanel = currentFocus({
     levelId: 'cross',
     scene: walk && { phase: 'executed', measured: true, facility: true, ticket: { output: 'bridge' }, actions: [], signal: 'green' },
@@ -56,8 +66,8 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
   assert.equal(slot.id, 'slot-next');
   assert.equal(slot.step, '4');
   assert.equal(slot.thinking, true);
-  assert.equal(slot.hint, '把卡片拖进亮着的空格，或先点卡片再点空格。');
-  assert.equal(slot.strong, '把卡片拖进亮着的空格，或先点卡片再点空格。');
+  assert.equal(slot.hint, '单击卡片，放进当前亮着的空格。');
+  assert.equal(slot.strong, '单击卡片，放进当前亮着的空格。');
   assert.equal([...slot.strong].length <= 30, true);
   const sentence = currentFocus({
     levelId: 'sale',
@@ -72,14 +82,14 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
   });
   assert.equal(predictTab.id, 'predict-tab');
   assert.equal(predictTab.kind, 'panel');
-  assert.equal(predictTab.hint, '点「预测」，锁定三个温度的预测。');
+  assert.equal(predictTab.hint, '按顺序预测三个温度的动作。');
   const predictFromSentence = currentFocus({
     levelId: 'sale',
     scene: { phase: 'assigned', measured: true },
     draft: { panel: 'sentence', flow: { locked: true }, sentence: { locked: false }, predictionsLocked: { locked: false } }
   });
   assert.equal(predictFromSentence.id, 'predict-tab');
-  assert.equal(predictFromSentence.hint, '点「预测」，锁定三个温度的预测。');
+  assert.equal(predictFromSentence.hint, '按顺序预测三个温度的动作。');
   const predict = currentFocus({
     levelId: 'sale',
     scene: { phase: 'assigned', measured: true },
@@ -91,31 +101,28 @@ test('同一时刻只有一个焦点，过街行走时不能一键前往', () =>
   assert.equal(repairProbe.hint, '选 30℃，先运行原程序看看。');
   assert.equal(currentFocus({ levelId: 'sale', scene: { phase: 'assigned', measured: false } }).hint, '到温度探头，选一个温度。');
   const draw = currentFocus({ levelId: 'cross', scene: { phase: 'observed', measured: true, facility: true }, draft: { flow: { locked: false } }, level: { valid: false } });
-  assert.equal(draw.hint, '到导行屏，按 E 打开画图。');
+  assert.equal(draw.hint, '到导行屏，设置两种情况的动作。');
   assert.equal(draw.target.place, 'control');
   assert.equal(currentFocus({ levelId: 'repair', scene: { phase: 'measured', measured: true }, draft: { flow: { locked: false } } }).hint, '先运行原程序，看 30℃。');
 });
 
-test('闸机引导从运维主管开始，出票后还要看告示再回答', () => {
+test('旧闸机字段不占焦点，浮层打开时地图设备不再当焦点', () => {
   const fresh = currentFocus({ levelId: 'gate', intro: { accepted: false } });
-  assert.equal(fresh.step, '1');
-  assert.equal(fresh.id, 'gate-lead');
-  assert.equal(fresh.hint, '走到运维主管面前，按 E 交谈。');
-  const ruler = currentFocus({ levelId: 'gate', intro: { accepted: true } });
-  assert.equal(ruler.id, 'gate-ruler');
-  const judged = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116 } });
-  assert.equal(judged.id, 'i0-judge');
-  const ticket = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116, judged: 'half' } });
-  assert.equal(ticket.id, 'gate-turnstile');
-  const sign = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116, judged: 'half', ticket: '10' } });
-  assert.equal(sign.id, 'gate-sign');
-  assert.equal(sign.hint, '看告示，和闸机出的票比一比。');
-  const idea = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116, judged: 'half', ticket: '10', sawSign: true } });
-  assert.equal(idea.step, '6');
-  assert.equal(idea.hint, '回运维主管处，回答一个问题。');
-  const portal = currentFocus({ levelId: 'gate', intro: { accepted: true, heightCase: 116, judged: 'half', ticket: '10', sawSign: true, idea: '看情况收费' } });
-  assert.equal(portal.id, 'gate-portal');
-  assert.equal(portal.hint, '从北边园区通道去温室。');
+  assert.equal(fresh.id, 'guide');
+  assert.equal(fresh.hint, '先听园艺员说任务。');
+  const leftover = currentFocus({ levelId: 'sale', intro: { done: false, ticket: '10' }, scene: { phase: 'start' } });
+  assert.equal(leftover.id, 'guide');
+  assert.equal(leftover.target.place, 'guide');
+  const story = currentFocus({ levelId: 'sale', overlay: 'story', scene: { phase: 'assigned', measured: false } });
+  assert.equal(story.id, 'story-skip');
+  assert.equal(story.pause, true);
+  assert.equal(story.target.place, undefined);
+  const list = currentFocus({ overlay: 'checklist', levelId: 'repair', scene: { phase: 'start' } });
+  assert.equal(list.id, 'patrol-checklist');
+  assert.equal(list.hint, '打开巡检单，确认本站任务。');
+  const route = currentFocus({ overlay: 'route', levelId: 'sale' });
+  assert.equal(route.id, 'route-arrow');
+  assert.equal(route.hint, '沿箭头去下一巡检站。');
 });
 
 test('脚印沿两条腿走，大约每 32 像素一点，不落在终点上', () => {
@@ -126,7 +133,7 @@ test('脚印沿两条腿走，大约每 32 像素一点，不落在终点上', (
   });
   const west = currentFocus({
     levelId: 'cross',
-    scene: { phase: 'executed', measured: true, facility: false, ticket: { output: 'crossing' }, actions: [] },
+    scene: { phase: 'executed', measured: true, facility: false, ticket: { output: 'crossing' }, actions: [], signal: 'green' },
     level: { valid: false }
   });
   for (const focus of [east, west]) {
@@ -154,8 +161,8 @@ test('脚印沿两条腿走，大约每 32 像素一点，不落在终点上', (
     panelOpen: false
   });
   assert.equal(zebraAfterBridge.step, '10');
-  assert.equal(zebraAfterBridge.hint, '沿导行屏指的路，亲自走过去。');
-  assert.equal(zebraAfterBridge.goto, false);
+  assert.equal(zebraAfterBridge.hint, '走到发光处，沿选中的路线走过去。');
+  assert.equal(zebraAfterBridge.goto, true);
   assert.equal(zebraAfterBridge.target.place, 'crossingWest');
   assert.equal(zebraAfterBridge.dots.length > 3, true);
   assert.equal(zebraAfterBridge.dots.every(dot => dot.y >= 608 && dot.y <= 744), true);
@@ -189,15 +196,15 @@ test('只沿天桥脚印走会记成 route', () => {
   assert.equal(zebra.some(dot => dot.x >= 700 && dot.x <= 860), false);
 });
 
-test('过街说明只在亲自走时挂在按钮上', () => {
+test('单击开始过街与普通地图目标使用相同的前往入口', () => {
   const walk = currentFocus({
     levelId: 'cross',
     scene: { phase: 'executed', measured: true, facility: true, ticket: { output: 'bridge' }, actions: [] },
     level: { valid: false }
   });
-  assert.equal(gotoTitle(walk, false), '这段要你亲自走过去');
-  assert.equal(gotoTitle(walk, true), '');
-  assert.equal(gotoTitle({ goto: true, gotoReason: '' }, true), '前往下一目标');
+  assert.equal(gotoTitle(walk, false), '自动前往');
+  assert.equal(gotoTitle(walk, true), '自动前往');
+  assert.equal(gotoTitle({ goto: true, gotoReason: '' }, true), '自动前往');
 });
 
 test('温室和返修已经跑过时，不先跳去拼句', () => {
@@ -218,7 +225,7 @@ test('温室和返修已经跑过时，不先跳去拼句', () => {
     panelOpen: false
   });
   assert.equal(saleNext.step, '7');
-  assert.equal(saleNext.hint, '回控制柜，锁定三个温度的预测。');
+  assert.equal(saleNext.hint, '回控制柜，依次预测三种温度。');
 
   const beforeRun = currentFocus({
     levelId: 'sale',
@@ -227,14 +234,16 @@ test('温室和返修已经跑过时，不先跳去拼句', () => {
     panelOpen: false
   });
   assert.equal(beforeRun.step, '7');
-  assert.equal(beforeRun.hint, '回控制柜，锁定三个温度的预测。');
+  assert.equal(beforeRun.hint, '回控制柜，依次预测三种温度。');
   const sentenceAfterPredict = currentFocus({
     levelId: 'sale',
     scene: { phase: 'assigned', measured: true, visited: [] },
-    draft: { flow: { locked: true }, sentence: { locked: false }, predictionsLocked: { locked: true } },
+    draft: { flow: { locked: true }, sentence: { locked: true }, predictionsLocked: { locked: true } },
     panelOpen: false
   });
-  assert.equal(sentenceAfterPredict.hint, '回控制柜，用词块拼一句。');
+  assert.equal(sentenceAfterPredict.step, '8');
+  assert.equal(sentenceAfterPredict.id, 'control');
+  assert.equal(sentenceAfterPredict.hint, '点执行本次温度。');
 
   const repairRun = currentFocus({
     levelId: 'repair',
@@ -261,7 +270,7 @@ test('温室和返修已经跑过时，不先跳去拼句', () => {
     panelOpen: false
   });
   assert.equal(repairNeedsSample.id, 'sensor');
-  assert.equal(repairNeedsSample.hint, '到温度探头，选一个温度。');
+  assert.equal(repairNeedsSample.hint, '换一个还没测过的温度再试。');
 
   const repairEdit = currentFocus({
     levelId: 'repair',
@@ -270,26 +279,30 @@ test('温室和返修已经跑过时，不先跳去拼句', () => {
     panelOpen: false
   });
   assert.equal(repairEdit.step, '4');
-  assert.equal(repairEdit.hint, '先点新卡片再点格子，或拖放。');
+  assert.equal(repairEdit.hint, '单击卡片，放进当前亮着的空格。');
 
   const repairSentence = currentFocus({
     levelId: 'repair',
     scene: { phase: 'assigned', measured: true, visited: ['verified'] },
-    draft: { flow: { locked: true, preset: false, diamond: 'lt30', yes: 'on', no: 'off' }, sentence: { locked: false }, diagnoseAnswer: 'exit' },
+    draft: { flow: { locked: true, preset: false, diamond: 'lt30', yes: 'on', no: 'off' }, sentence: { locked: true }, diagnoseAnswer: 'exit' },
     panelOpen: false
   });
-  assert.equal(repairSentence.step, '6');
-  assert.equal(repairSentence.hint, '回控制柜，用词块拼一句。');
+  assert.equal(repairSentence.step, '7');
+  assert.equal(repairSentence.id, 'control');
+  assert.match(repairSentence.hint, /预测/);
 
   const cabinet = currentFocus({
     levelId: 'minimum',
-    scene: { phase: 'executed', measured: true, ticket: { output: 'a' } },
+    scene: { phase: 'executed', measured: true, ticket: { output: 'a' }, actions: ['collect', 'predict', 'route'] },
     draft: { flow: { locked: true }, sentence: { locked: false }, panel: 'sentence' },
     panelOpen: false
   });
   assert.equal(cabinet.step, '9');
   assert.equal(cabinet.id, 'monitor');
   assert.equal(cabinet.hint, '到核验处保存这次结果。');
+  const connect = currentFocus({ levelId: 'minimum', scene: { phase: 'executed', measured: true, ticket: { output: 'b' }, actions: ['collect', 'predict'] }, panelOpen: false });
+  assert.equal(connect.id, 'batteryB');
+  assert.equal(connect.hint, '先接入程序选中的电池。');
 });
 
 test('温室核验之后按结果去下一处，不再默认回探头', () => {
@@ -299,21 +312,21 @@ test('温室核验之后按结果去下一处，不再默认回探头', () => {
   const draft = { flow: { locked: true }, sentence: { locked: true }, predictionsLocked: { locked: true }, config };
   const nextTemp = currentFocus({ levelId: 'sale', scene, draft, runs: [run(29, true)], evidenceStart: 0, panelOpen: false });
   assert.equal(nextTemp.id, 'sensor');
-  assert.equal(nextTemp.hint, '换一个温度再试。');
+  assert.equal(nextTemp.hint, '换一个还没测过的温度再试。');
   const wrong = currentFocus({ levelId: 'sale', scene, draft, runs: [run(29, true), run(30, false), run(31, true)], evidenceStart: 0, panelOpen: false });
   assert.equal(wrong.id, 'control');
-  assert.equal(wrong.hint, '对照结果，回控制柜改图。');
+  assert.equal(wrong.hint, '结果不符，回控制柜改一处再试。');
   const done = currentFocus({ levelId: 'sale', scene, draft, runs: [run(29, true), run(30, true), run(31, true)], evidenceStart: 0, panelOpen: false });
   assert.equal(done.id, 'guide');
   assert.equal(done.step, '11');
-  assert.equal(done.hint, '回园艺员那里汇报。');
+  assert.equal(done.hint, '测试齐了，去向负责人汇报。');
   const repairPanel = currentFocus({
     levelId: 'repair',
     scene: { phase: 'assigned', measured: true },
     draft: { panel: 'flow', flow: { diamond: '', yes: '', no: '', locked: false } }
   });
-  assert.equal(repairPanel.hint, '先点新卡片再点格子，或拖放。');
-  assert.equal(repairPanel.strong, '先点新卡片再点格子，或拖放。');
+  assert.equal(repairPanel.hint, '单击卡片，放进当前亮着的空格。');
+  assert.equal(repairPanel.strong, '单击卡片，放进当前亮着的空格。');
 });
 
 test('考核页焦点框住整题或提交按钮，思考步骤用 40 秒', () => {

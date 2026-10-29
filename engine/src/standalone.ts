@@ -6,24 +6,142 @@ import { Direction } from '@rpgjs/common';
 import startServer from "./server";
 import configClient from "./config/config.client";
 import { createApp } from 'vue';
-import { dispose, getContext, ready, request, subscribeContext } from './classroom-bridge';
+import { dispose, getContext, ready, request, subscribeContext, setArtifactBarrier } from './classroom-bridge';
 import FlowPanel from './gui/FlowPanel.vue';
 import { createIdleTimer } from '../../public/idle-timer.mjs';
 import { currentFocus, gotoTitle } from '../../public/focus.mjs';
-import { emptyFlow, repairPreset } from './gui/flow-model';
+import { emptyFlow, faultSeen, repairPreset } from './gui/flow-model';
 import { toPlain } from './gui/plain';
+import { focusFootprint } from './focus-marker';
 
 let engine: RpgClientEngine | undefined;
 let heldDirection: Direction | undefined;
 let movementFrame = 0;
 let dialogOpen = false;
 let auxiliaryBusy = false;
+let autoWalking = false;
 let processPanelOpen = false;
+let studioOpen = false;
 const controls = document.getElementById('engine-controls');
 const status = document.getElementById('engine-status');
 const statusText = document.getElementById('engine-status-text');
 const reloadButton = document.getElementById('engine-reload') as HTMLButtonElement | null;
+const feedbackLine=document.getElementById('engine-feedback');
+const assistanceCard=document.getElementById('engine-assistance');
+let activeWorldHelp: {stepKey:string,target?:{focusKey?:string},origin?:string,level?:number}|null=null;
 const dismissButton = document.getElementById('engine-dismiss') as HTMLButtonElement | null;
+
+function actorBadgeDefs(levelId: string, mapId: string): Array<{ place: string; label: string; x: number; y: number }> {
+  if (mapId === 'greenhouse') {
+    const repair = levelId === 'repair';
+    return [
+      { place: 'guide', label: repair ? '🔧 维修员老修' : '👩‍🌾 园艺员阿绿', x: 575, y: 395 },
+      { place: 'sensor', label: '🌡️ 温度探头', x: 358, y: 398 },
+      { place: 'control', label: '🎛️ 规则控制柜', x: 185, y: 515 },
+      { place: 'fan', label: '🌀 通风风机', x: 415, y: 585 },
+      { place: 'verify', label: '🖥️ 现场核验仪', x: 715, y: 565 },
+      { place: 'portal', label: '🚪 下一站', x: 925, y: 520 },
+    ];
+  }
+  if (mapId === 'energy') {
+    return [
+      { place: 'guide', label: '⚡ 储能柜小电', x: 485, y: 285 },
+      { place: 'batteryA', label: '🔋 A 电池支路', x: 255, y: 160 },
+      { place: 'batteryB', label: '🔋 B 电池支路', x: 525, y: 165 },
+      { place: 'control', label: '🎛️ 配电控制台', x: 390, y: 150 },
+      { place: 'monitor', label: '🖥️ 充电核验台', x: 325, y: 275 },
+    ];
+  }
+  if (mapId === 'crossing' || mapId === 'crossing-east') {
+    return [
+      { place: 'guide', label: '👮 巡检员小巡', x: 335, y: 725 },
+      { place: 'observe', label: '🔭 设施观察点', x: 435, y: 445 },
+      { place: 'control', label: '🪧 智能指路牌', x: 345, y: 555 },
+      { place: 'bridgeWest', label: '🌉 天桥入口', x: 470, y: 326 },
+      { place: 'signal', label: '🚦 人行信号灯', x: 474, y: 608 },
+      { place: 'verify', label: '🖥️ 通行核验台', x: 1125, y: 485 },
+      { place: 'portal', label: '👮 东岸巡检员', x: 1195, y: 615 },
+    ];
+  }
+  return [];
+}
+
+function focusActionCallout(levelId: string, place?: string, step?: string): string {
+  if (!place) return '';
+  if (place === 'guide') return step === '11' || step === 'done' ? '👈 第4步：走近我汇报验收！' : '👈 第1步：走近我领任务！';
+  if (place === 'sensor') return '👈 第2步：走近我读温室温度！';
+  if (place === 'observe') return '👈 第2步：走近我观察路口设施！';
+  if (place === 'batteryA' || place === 'batteryB') return step === '9' ? '👈 走近我接入选中的电池！' : '👈 第2步：走近我读电池电量！';
+  if (place === 'control') return levelId === 'cross' ? '👈 第3步：走近我设指路规则！' : levelId === 'minimum' ? '👈 第3步：走近我比较电量！' : '👈 第3步：走近我装芯片/启动风机！';
+  if (place === 'signal') return '👈 先走近我：等绿灯亮起！';
+  if (place === 'bridgeEast' || place === 'bridgeWest' || place === 'crossingEast' || place === 'crossingWest') return '👈 沿发光路线走过马路！';
+  if (place === 'verify' || place === 'monitor') return '👈 第4步：走近我核验本次结果！';
+  if (place === 'portal') return '👈 走近我继续或找巡检员！';
+  return '👈 走近我操作';
+}
+
+function computeStationSteps(context: any, focus: { id?: string; step?: string; target?: { place?: string } }) {
+  const levelId = context?.levelId || 'sale';
+  const scene = context?.draft?.scene || {};
+  const runs = (context?.runs || []).slice(context?.evidenceStart || 0);
+  const config = context?.draft?.config || {};
+  const validRuns = runs.filter((r: any) => r.correct && ['model', 'operator', 'yes', 'no'].every(k => r.config?.[k] === config[k]));
+  const started = !!scene.phase && scene.phase !== 'start';
+  const place = focus.target?.place || '';
+  let activeIdx = 1;
+  if (!started) activeIdx = 1;
+  else if (place === 'sensor' || place === 'observe' || ((place === 'batteryA' || place === 'batteryB') && focus.step !== '9')) activeIdx = 2;
+  else if (place === 'control' || focus.step === '3' || focus.step === '4' || focus.step === '5' || focus.step === '6' || focus.step === '7' || focus.step === '8') activeIdx = 3;
+  else activeIdx = 4;
+
+  if (levelId === 'sale') {
+    const doneTemps = new Set(validRuns.map((r: any) => r.input?.temperature)).size;
+    return {
+      activeIdx,
+      steps: [
+        `① 找阿绿领任务`,
+        `② 探头采样温度(${doneTemps}/3)`,
+        `③ 控制柜装规则并启动`,
+        `④ 核验仪看结果(${doneTemps}/3)`
+      ]
+    };
+  }
+  if (levelId === 'repair') {
+    const seenFault = faultSeen(context?.runs || []);
+    const doneTemps = new Set(validRuns.map((r: any) => r.input?.temperature)).size;
+    return {
+      activeIdx,
+      steps: [
+        `① 听老修说故障`,
+        seenFault ? `② 旧故障已抓出✓` : `② 读30℃抓出旧故障`,
+        `③ 控制柜修好程序`,
+        `④ 重测三温验收(${doneTemps}/3)`
+      ]
+    };
+  }
+  if (levelId === 'cross') {
+    const doneRoads = new Set(validRuns.filter((r: any) => r.scene?.outcome === 'arrived').map((r: any) => r.input?.facility)).size;
+    return {
+      activeIdx,
+      steps: [
+        `① 找小巡领任务`,
+        `② 观察点看有无天桥`,
+        `③ 指路牌设规则并发车`,
+        `④ 过街到对岸核验(${doneRoads}/2)`
+      ]
+    };
+  }
+  const donePairs = new Set(validRuns.map((r: any) => (r.input?.a ?? 0) < (r.input?.b ?? 0))).size;
+  return {
+    activeIdx,
+    steps: [
+      `① 找小电领任务`,
+      `② 读A、B两块电池电量`,
+      `③ 控制台比大小并供电`,
+      `④ 接低电量电池核验(${donePairs}/2)`
+    ]
+  };
+}
 
 function stopMovement() {
   heldDirection = undefined;
@@ -34,7 +152,15 @@ function stopMovement() {
 }
 
 function canControl() {
-  return !!engine && !dialogOpen && !auxiliaryBusy && status?.hidden !== false && !engine.stopProcessingInput;
+  return !!engine && !dialogOpen && !studioOpen && !hostOverlay && !auxiliaryBusy && !autoWalking && status?.hidden !== false && !engine.stopProcessingInput;
+}
+
+function focusGameCanvas() {
+  try {
+    window.focus?.();
+    const canvas = document.querySelector<HTMLElement>('#rpg canvas');
+    canvas?.focus?.();
+  } catch { /* ignore */ }
 }
 
 function moveWhileHeld() {
@@ -51,54 +177,27 @@ function showStatus(message: string, startup = false) {
   if (reloadButton) reloadButton.hidden = !startup;
   if (dismissButton) dismissButton.hidden = startup;
   if (status) status.hidden = false;
-}
-
-for (const button of controls?.querySelectorAll<HTMLButtonElement>('[data-direction]') ?? []) {
-  button.addEventListener('pointerdown', event => {
-    event.preventDefault();
-    if (!canControl()) return;
-    stopMovement();
-    button.setPointerCapture(event.pointerId);
-    button.setAttribute('aria-pressed', 'true');
-    heldDirection = button.dataset.direction as Direction;
-    noteActivity();
-    moveWhileHeld();
-  });
-  button.addEventListener('pointerup', stopMovement);
-  button.addEventListener('pointercancel', stopMovement);
-  button.addEventListener('lostpointercapture', stopMovement);
-  button.addEventListener('keydown', event => {
-    if (![' ', 'Enter'].includes(event.key) || event.repeat || !canControl()) return;
-    event.preventDefault();
-    event.stopPropagation();
-    stopMovement();
-    heldDirection = button.dataset.direction as Direction;
-    button.setAttribute('aria-pressed', 'true');
-    moveWhileHeld();
-  });
-  button.addEventListener('keyup', event => {
-    if ([' ', 'Enter'].includes(event.key)) { event.preventDefault(); stopMovement(); }
-  });
+  paintControlState();
 }
 
 document.getElementById('engine-action')?.addEventListener('click', () => {
-  if (!canControl()) return;
+  if (!canControl() || !interactionTarget.inRange) return;
   stopMovement();
   noteActivity();
-  const direction = engine!.getCurrentPlayer()?.direction?.();
-  engine!.processAction('action', { direction });
+  engine!.processAction('lesson:interact');
 });
 
-for (const method of ['help', 'flow'] as const) {
+for (const method of ['help', 'flow', 'learn'] as const) {
   document.getElementById(`engine-${method}`)?.addEventListener('click', async () => {
     if (!canControl()) return;
     stopMovement();
     auxiliaryBusy = true;
+    paintControlState();
     const previousBlock = engine!.stopProcessingInput;
     engine!.stopProcessingInput = true;
-    try { await request(method, { levelId: getContext()?.levelId }); }
+    try { if(method==='learn')await request('learn');else await request(method, { levelId: getContext()?.levelId }); }
     catch (error) { showStatus(error instanceof Error ? error.message : '暂未打开，请重试。'); }
-    finally { engine!.stopProcessingInput = previousBlock; auxiliaryBusy = false; }
+    finally { engine!.stopProcessingInput = previousBlock; auxiliaryBusy = false; paintControlState(); }
   });
 }
 
@@ -107,6 +206,49 @@ const focusMarker = document.getElementById('focus-marker');
 const focusLabel = document.getElementById('focus-label');
 const focusArrow = focusMarker?.querySelector('.focus-arrow');
 const pathDots = document.getElementById('path-dots');
+const guideTrail = document.getElementById('guide-trail');
+const actorBadges = document.getElementById('actor-badges');
+const stationStepBar = document.getElementById('station-step-bar');
+const hintButton = document.getElementById('engine-hint') as HTMLButtonElement | null;
+const undo = document.getElementById('engine-undo') as HTMLButtonElement | null;
+const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
+const actionButton = document.getElementById('engine-action') as HTMLButtonElement | null;
+const actionLabel = document.getElementById('engine-action-label');
+const actionHelp = document.getElementById('engine-action-help');
+let interactionTarget = { label: '交谈 / 操作', inRange: false };
+let lastControlsBlocked: boolean | undefined;
+function setText(node: Element | null | undefined, value: string) { if (node && node.textContent !== value) node.textContent = value; }
+function setClass(node: Element, name: string, value: boolean) { if (node.classList.contains(name) !== value) node.classList.toggle(name, value); }
+function setStyle(node: HTMLElement, name: string, value: string) { if (node.style.getPropertyValue(name) !== value) node.style.setProperty(name, value); }
+function setHidden(node: HTMLElement, value: boolean) { if (node.hidden !== value) node.hidden = value; }
+function setDisabled(node: HTMLButtonElement, value: boolean) { if (node.disabled !== value) node.disabled = value; }
+function setData(node: HTMLElement, name: string, value: string) { if (node.dataset[name] !== value) node.dataset[name] = value; }
+function paintControlState() {
+  const blocked = !canControl();
+  if (actionButton) setDisabled(actionButton, blocked || !interactionTarget.inRange);
+  setText(actionLabel, interactionTarget.label);
+  setText(actionHelp, interactionTarget.inRange ? '点此交互' : '请先靠近目标');
+  if (lastControlsBlocked === blocked) return;
+  lastControlsBlocked = blocked;
+  if (controls) controls.dataset.blocked = String(blocked);
+  if (blocked) stopMovement();
+  else focusGameCanvas();
+  window.dispatchEvent(new CustomEvent('lesson-controls-state', { detail: { blocked } }));
+}
+window.addEventListener('lesson-interaction-target', event => {
+  interactionTarget = (event as CustomEvent<typeof interactionTarget>).detail;
+  paintControlState();
+});
+let panelFocusDirty = true;
+let highlightedPanel: Element | null = null;
+let highlightedId = '';
+new MutationObserver(() => {
+  panelFocusDirty = true;
+  const wasStudio = studioOpen;
+  studioOpen = !!document.querySelector('.studio');
+  if (wasStudio && !studioOpen) focusGameCanvas();
+  syncIdle();
+}).observe(document.getElementById('vue-gui-overlay') || document.body, { childList: true, subtree: true });
 let lastMoveReset = 0;
 const idle = createIdleTimer({
   onStrength(detail) {
@@ -116,8 +258,9 @@ const idle = createIdleTimer({
     void request('navHelp', { levelId: context?.levelId, mapId: focus.target.mapId || context?.draft?.rpg?.mapId || '', step: focus.step, focusId: focus.id, trigger: 'idle', strength: detail.strength, idleMs: detail.idleMs }).catch(() => undefined);
   }
 });
+let hostOverlay = '';
 function lessonFocus(context = getContext()) {
-  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level, draft: context?.draft, panelOpen: !!document.querySelector('.studio'), runs: context?.runs, evidenceStart: context?.evidenceStart });
+  return currentFocus({ levelId: context?.levelId, scene: context?.draft?.scene, level: context?.level, draft: context?.draft, panelOpen: studioOpen, runs: context?.runs, evidenceStart: context?.evidenceStart, overlay: hostOverlay || undefined });
 }
 function noteActivity() {
   idle.reset();
@@ -137,20 +280,28 @@ function mapViewport() {
   viewportCache = findViewport((engine as any)?.canvasApp?.stage);
   return viewportCache;
 }
-function projectTarget(target: { x?: number, y?: number, mapId?: string }) {
-  const canvas = document.querySelector('#rpg canvas') as HTMLCanvasElement | null;
-  const x = Number(target?.x);
-  const y = Number(target?.y);
-  if (!canvas || !Number.isFinite(x) || !Number.isFinite(y)) return null;
-  const rect = canvas.getBoundingClientRect();
-  const viewport = mapViewport();
+let canvasCache: HTMLCanvasElement | null = null;
+function projectionFrame() {
+  if (!canvasCache || !canvasCache.isConnected) canvasCache = document.querySelector('#rpg canvas');
+  return canvasCache ? { rect: canvasCache.getBoundingClientRect(), viewport: mapViewport() } : null;
+}
+type Projection = ReturnType<typeof projectionFrame>;
+function projectTarget(target: { x?: number, y?: number, mapId?: string, place?: string }, projection: Projection) {
+  const footprint = focusFootprint(target);
+  if (!projection || !footprint) return null;
+  const { rect, viewport } = projection;
   let sx = rect.left + rect.width / 2;
   let sy = rect.top + rect.height / 2;
+  let scaleX = 1;
+  let scaleY = 1;
   if (viewport) {
-    const global = viewport.toGlobal({ x, y });
+    const global = viewport.toGlobal({ x: footprint.x, y: footprint.y });
     if (Number.isFinite(global?.x) && Number.isFinite(global?.y)) {
       sx = rect.left + Number(global.x);
       sy = rect.top + Number(global.y);
+      const unit = viewport.toGlobal({ x: footprint.x + 1, y: footprint.y + 1 });
+      scaleX = Math.abs(unit.x - global.x);
+      scaleY = Math.abs(unit.y - global.y);
     }
   }
   const margin = 48;
@@ -166,16 +317,17 @@ function projectTarget(target: { x?: number, y?: number, mapId?: string }) {
     x: Math.min(maxX, Math.max(minX, sx)),
     y: Math.min(maxY, Math.max(minY, sy)),
     offscreen,
-    arrow: offscreen ? arrow : '↓'
+    arrow: offscreen ? arrow : '→',
+    ringWidth: footprint.radiusX * 2 * scaleX,
+    ringHeight: footprint.radiusY * 2 * scaleY,
+    halfWidth: footprint.halfWidth * scaleX
   };
 }
-function projectWorld(target: { x?: number, y?: number }) {
-  const canvas = document.querySelector('#rpg canvas') as HTMLCanvasElement | null;
+function projectWorld(target: { x?: number, y?: number }, projection: Projection) {
   const x = Number(target?.x);
   const y = Number(target?.y);
-  if (!canvas || !Number.isFinite(x) || !Number.isFinite(y)) return null;
-  const rect = canvas.getBoundingClientRect();
-  const viewport = mapViewport();
+  if (!projection || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const { rect, viewport } = projection;
   if (!viewport) return null;
   const global = viewport.toGlobal({ x, y });
   if (!Number.isFinite(global?.x) || !Number.isFinite(global?.y)) return null;
@@ -184,62 +336,214 @@ function projectWorld(target: { x?: number, y?: number }) {
   return { x: sx, y: sy, offscreen: sx < rect.left || sx > rect.right || sy < rect.top || sy > rect.bottom };
 }
 function paintPanelFocus(focus: { kind?: string, id?: string }) {
-  document.querySelectorAll('.card-tray.focus-target, .flow-slot.focus-target, .studio.focus-target, .predict-option.focus-target, .studio-tabs .focus-target, .studio-lock.focus-target, .predict-table.focus-target').forEach(node => node.classList.remove('focus-target'));
-  if (focus.kind !== 'panel' || !focus.id) return;
-  if (focus.id === 'predict-row-next' && document.querySelector('[data-focus="predict-lock"].next')) {
-    document.querySelector('[data-focus="predict-lock"]')?.classList.add('focus-target');
+  const id = focus.kind === 'panel' ? (focus.id === 'sentence-slot-next' ? 'sentence-lock' : focus.id || '') : '';
+  if (!panelFocusDirty && id === highlightedId && (!highlightedPanel || highlightedPanel.isConnected)) return;
+  const next = id ? document.querySelector(`[data-focus="${id}"]`) : null;
+  if (next !== highlightedPanel) {
+    if (highlightedPanel) setClass(highlightedPanel, 'focus-target', false);
+    if (next) setClass(next, 'focus-target', true);
+    highlightedPanel = next;
+  }
+  highlightedId = id;
+  panelFocusDirty = false;
+}
+function worldStep(){const focus=lessonFocus();return JSON.stringify([getContext()?.levelId,focus.id,focus.step]);}
+function clearAssistance(){activeWorldHelp=null;if(assistanceCard)assistanceCard.hidden=true;focusMarker?.classList.remove('assisted-marker');}
+function showAssistance(detail:any){
+ if(!assistanceCard)return;
+ activeWorldHelp={stepKey:worldStep(),target:detail.target,origin:detail.origin,level:detail.level};
+ const title=assistanceCard.querySelector('strong'),text=assistanceCard.querySelector('p');
+ if(title)title.textContent=detail.origin==='tool'?'法宝示范':'探究帮助';
+ if(text)text.textContent=[detail.action,detail.why || detail.text].filter(Boolean).join('\n');
+ assistanceCard.hidden=false;
+}
+window.addEventListener('lesson-feedback',event=>{
+ const detail=(event as CustomEvent).detail || {};
+ if(feedbackLine){feedbackLine.textContent=detail.text || '';feedbackLine.hidden=!detail.text;}
+ if(detail.level>0)showAssistance({...detail,origin:'scaffold'});
+});
+document.getElementById('engine-assistance-close')?.addEventListener('click',clearAssistance);
+
+const dotPool: HTMLElement[] = [];
+function paintDots(dots: Array<{ x: number, y: number }> = [], projection: Projection) {
+  if (!pathDots) return;
+  let used = 0;
+  for (const dot of dots) {
+    const point = projectWorld(dot, projection);
+    if (!point || point.offscreen) continue;
+    let mark = dotPool[used];
+    if (!mark) {
+      mark = document.createElement('span');
+      mark.className = 'path-dot';
+      dotPool.push(mark);
+      pathDots.appendChild(mark);
+    }
+    setHidden(mark, false);
+    setStyle(mark, 'left', `${point.x}px`);
+    setStyle(mark, 'top', `${point.y}px`);
+    used++;
+  }
+  for (let index = used; index < dotPool.length; index++) setHidden(dotPool[index], true);
+  setHidden(pathDots, used === 0);
+}
+
+const trailPool: HTMLElement[] = [];
+function paintGuideTrail(focus: { dots?: Array<{ x: number, y: number }>, target?: { x?: number, y?: number } }, projection: Projection) {
+  if (!guideTrail) return;
+  if (hostOverlay || studioOpen || dialogOpen || (focus.dots && focus.dots.length > 0) || !Number.isFinite(focus.target?.x) || !Number.isFinite(focus.target?.y)) {
+    setHidden(guideTrail, true);
     return;
   }
-  document.querySelector(`[data-focus="${focus.id}"]`)?.classList.add('focus-target');
-  if (focus.id === 'predict-row-next') document.querySelectorAll('.predict-row.next button').forEach(node => node.classList.add('focus-target'));
-  if (focus.id === 'slot-next' || focus.id === 'sentence-slot-next') {
-    const region = focus.id === 'sentence-slot-next' ? '[data-region="sentence-cards"]' : '[data-region="flow-cards"]';
-    document.querySelector(region)?.classList.add('focus-target');
+  const pos = (typeof window !== 'undefined' && (window as any).__lessonPlayerPos) || getContext()?.draft?.rpg?.position;
+  if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
+    setHidden(guideTrail, true);
+    return;
   }
-}
-function paintDots(dots: Array<{ x: number, y: number }> = []) {
-  if (!pathDots) return;
-  pathDots.replaceChildren();
-  const visible = dots.map(dot => projectWorld(dot)).filter(point => point && !point.offscreen);
-  pathDots.hidden = visible.length === 0;
-  for (const point of visible) {
-    const mark = document.createElement('span');
-    mark.className = 'path-dot';
-    mark.style.left = `${point!.x}px`;
-    mark.style.top = `${point!.y}px`;
-    pathDots.appendChild(mark);
+  const tx = Number(focus.target!.x) + 12;
+  const ty = Number(focus.target!.y) + 16;
+  const px = Number(pos.x) + 12;
+  const py = Number(pos.y) + 16;
+  const dist = Math.hypot(tx - px, ty - py);
+  if (dist < 64) {
+    setHidden(guideTrail, true);
+    return;
   }
+  const count = Math.min(6, Math.max(2, Math.floor(dist / 68)));
+  let used = 0;
+  for (let i = 1; i <= count; i++) {
+    const ratio = i / (count + 1);
+    const wx = px + (tx - px) * ratio;
+    const wy = py + (ty - py) * ratio;
+    const screenPt = projectWorld({ x: wx, y: wy }, projection);
+    if (!screenPt || screenPt.offscreen) continue;
+    let node = trailPool[used];
+    if (!node) {
+      node = document.createElement('span');
+      node.className = 'trail-step';
+      trailPool.push(node);
+      guideTrail.appendChild(node);
+    }
+    setHidden(node, false);
+    setStyle(node, 'left', `${Math.round(screenPt.x)}px`);
+    setStyle(node, 'top', `${Math.round(screenPt.y)}px`);
+    used++;
+  }
+  for (let index = used; index < trailPool.length; index++) setHidden(trailPool[index], true);
+  setHidden(guideTrail, used === 0);
 }
+
+const badgePool: HTMLButtonElement[] = [];
+function paintActorBadges(focus: { id?: string, step?: string, target?: { mapId?: string, place?: string } }, projection: Projection) {
+  if (!actorBadges) return;
+  if (hostOverlay || studioOpen || dialogOpen) {
+    setHidden(actorBadges, true);
+    return;
+  }
+  const context = getContext();
+  const levelId = context?.levelId || 'sale';
+  const mapId = focus.target?.mapId || context?.draft?.rpg?.mapId || (levelId === 'cross' ? (context?.draft?.scene?.facility === false ? 'crossing' : 'crossing-east') : levelId === 'minimum' ? 'energy' : 'greenhouse');
+  const items = actorBadgeDefs(levelId, mapId);
+  let used = 0;
+  for (const item of items) {
+    const point = projectWorld({ x: item.x + 12, y: item.y - 78 }, projection);
+    if (!point || point.offscreen) continue;
+    let badge = badgePool[used];
+    if (!badge) {
+      badge = document.createElement('button');
+      badge.type = 'button';
+      badge.className = 'actor-name-badge';
+      badge.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (!canControl() || !interactionTarget.inRange) return;
+        stopMovement();
+        noteActivity();
+        engine!.processAction('lesson:interact');
+      });
+      badgePool.push(badge);
+      actorBadges.appendChild(badge);
+    }
+    const isTarget = focus.target?.place === item.place;
+    const callout = isTarget ? focusActionCallout(levelId, item.place, focus.step) : '';
+    setHidden(badge, false);
+    setText(badge, callout ? `${item.label} · ${callout}` : item.label);
+    setData(badge, 'mapId', mapId);
+    setData(badge, 'place', item.place);
+    setData(badge, 'tx', String(item.x));
+    setData(badge, 'ty', String(item.y));
+    setClass(badge, 'is-focus', isTarget);
+    setStyle(badge, 'left', `${Math.round(point.x)}px`);
+    setStyle(badge, 'top', `${Math.round(point.y)}px`);
+    used++;
+  }
+  for (let index = used; index < badgePool.length; index++) setHidden(badgePool[index], true);
+  setHidden(actorBadges, used === 0);
+}
+
+let lastStepBarKey = '';
+function paintStationStepBar(focus: { id?: string; step?: string; target?: { place?: string } }) {
+  if (!stationStepBar) return;
+  if (hostOverlay || studioOpen) {
+    setHidden(stationStepBar, true);
+    return;
+  }
+  setHidden(stationStepBar, false);
+  const info = computeStationSteps(getContext(), focus);
+  const key = JSON.stringify(info);
+  if (key === lastStepBarKey) return;
+  lastStepBarKey = key;
+  stationStepBar.innerHTML = info.steps.map((label, idx) => {
+    const stepNum = idx + 1;
+    const cls = stepNum < info.activeIdx ? 'step-pill done' : stepNum === info.activeIdx ? 'step-pill active' : 'step-pill';
+    return `<span class="${cls}">${stepNum < info.activeIdx ? '✅ ' : stepNum === info.activeIdx ? '👉 ' : ''}${label}</span>`;
+  }).join('<span class="step-sep" aria-hidden="true">➔</span>');
+}
+
 function paintFocus(focus = lessonFocus()) {
   if (new URLSearchParams(location.search).has('preview')) return;
+  if (hostOverlay && focusMarker) setHidden(focusMarker, true);
   const focusStrength = idle.strength();
+  const projection = projectionFrame();
+  paintControlState();
+  if(activeWorldHelp && activeWorldHelp.stepKey!==worldStep())clearAssistance();
   if (taskHint) {
-    taskHint.textContent = focusStrength ? focus.strong : focus.hint;
-    taskHint.hidden = false;
-    taskHint.dataset.strength = String(focusStrength);
-    taskHint.classList.toggle('focus-target', true);
-    taskHint.classList.toggle('tap-hand', focusStrength >= 2 && focus.goto);
+    setText(taskHint, focusStrength ? focus.strong : focus.hint);
+    setHidden(taskHint, false);
+    setData(taskHint, 'strength', focus.kind==='panel'?'0':String(focusStrength));
+    setClass(taskHint, 'focus-target', true);
+    setClass(taskHint, 'tap-hand', focusStrength >= 2 && focus.goto);
   }
   if (focusMarker && focusLabel) {
-    const point = projectTarget(focus.target || {});
-    focusMarker.hidden = !point;
-    focusMarker.dataset.strength = String(focusStrength);
-    focusMarker.classList.toggle('edge', !!point?.offscreen);
-    focusMarker.classList.toggle('tap-hand', focusStrength >= 2 && focus.kind === 'map' && !point?.offscreen);
+    const point = projectTarget(focus.target || {}, projection);
+    setHidden(focusMarker, !!hostOverlay || !point);
+    setData(focusMarker, 'strength', String(focusStrength));
+    setClass(focusMarker, 'edge', !!point?.offscreen);
+    setClass(focusMarker, 'tap-hand', focusStrength >= 2 && focus.kind === 'map' && !point?.offscreen);
     if (point) {
-      focusMarker.style.left = `${point.x}px`;
-      focusMarker.style.top = `${point.y}px`;
-      if (focusArrow) focusArrow.textContent = point.arrow;
+      setStyle(focusMarker, 'left', `${point.x}px`);
+      setStyle(focusMarker, 'top', `${point.y}px`);
+      setStyle(focusMarker, '--ring-width', `${point.ringWidth}px`);
+      setStyle(focusMarker, '--ring-height', `${point.ringHeight}px`);
+      setStyle(focusMarker, '--target-half-width', `${point.halfWidth}px`);
+      setText(focusArrow, point.arrow);
     }
-    focusLabel.textContent = point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '';
+    const showingTarget=!!activeWorldHelp && activeWorldHelp.target?.focusKey===focus.target?.place;
+    setClass(focusMarker, 'assisted-marker',showingTarget);
+    setText(focusLabel, showingTarget?'法宝位置':point?.offscreen ? (focus.goto ? '下一目标' : '看方向') : '');
   }
-  paintDots(focus.dots || []);
+  paintDots(hostOverlay ? [] : (focus.dots || []), projection);
+  paintGuideTrail(focus, projection);
+  paintActorBadges(focus, projection);
+  paintStationStepBar(focus);
   paintPanelFocus(focus);
-  const goto = document.getElementById('engine-goto') as HTMLButtonElement | null;
+  const hints=getContext()?.support?.hints||[];
+  if(hintButton){setText(hintButton, `通关法宝 ${Math.max(0,5-hints.length)}/5`);setDisabled(hintButton, hints.length>=5||auxiliaryBusy);}
+  if(undo)setDisabled(undo, !getContext()?.undoAvailable||autoWalking);
   if (goto) {
-    goto.disabled = !focus.goto;
-    goto.title = gotoTitle(focus, processPanelOpen);
-    goto.classList.toggle('focus-target', focusStrength >= 2 && focus.goto);
+    setDisabled(goto, !focus.goto || !canControl());
+    setText(goto, autoWalking?'自动行走中…':'自动前往任务点');
+    const title = gotoTitle(focus, processPanelOpen);
+    if (goto.title !== title) goto.title = title;
+    setClass(goto, 'focus-target', focusStrength >= 2 && focus.goto);
   }
 }
 function syncIdle(paused = dialogOpen || auxiliaryBusy || document.hidden) {
@@ -249,53 +553,77 @@ function syncIdle(paused = dialogOpen || auxiliaryBusy || document.hidden) {
   idle.setPaused(paused || focus.pause);
   paintFocus(focus);
 }
+window.addEventListener('lesson-walking',event=>{autoWalking=!!(event as CustomEvent).detail?.moving;if(autoWalking)stopMovement();paintFocus();});
 window.addEventListener('lesson-process-panel', event => {
   processPanelOpen = !!(event as CustomEvent<{ open: boolean }>).detail?.open;
   paintFocus();
 });
+window.addEventListener('message', event => {
+  const message = event.data;
+  if (!message) return;
+  if (message.type === 'rpgjs-skin') {
+    window.dispatchEvent(new CustomEvent('lesson-skin', { detail: { skin: message.skin } }));
+    return;
+  }
+  if (message.type !== 'rpgjs-overlay') return;
+  hostOverlay = message.open ? (message.kind || 'overlay') : '';
+  if (hostOverlay) stopMovement();
+  else focusGameCanvas();
+  if (controls) controls.inert = !!hostOverlay || dialogOpen;
+  if (focusMarker && hostOverlay) focusMarker.hidden = true;
+  syncIdle(dialogOpen || auxiliaryBusy || document.hidden || !!hostOverlay);
+});
 window.addEventListener('lesson-dialog-state', event => {
   dialogOpen = !!(event as CustomEvent<{ open: boolean }>).detail.open;
   if (dialogOpen) stopMovement();
-  if (controls) controls.inert = dialogOpen;
+  else focusGameCanvas();
+  if (controls) controls.inert = dialogOpen || !!hostOverlay;
   syncIdle();
 });
-window.addEventListener('lesson-map-changed', () => { stopMovement(); syncIdle(true); window.setTimeout(() => syncIdle(), 800); });
+window.addEventListener('lesson-map-changed', () => { interactionTarget = { label: '交谈 / 操作', inRange: false }; clearAssistance();if(feedbackLine)feedbackLine.hidden=true;stopMovement(); syncIdle(true); window.setTimeout(() => syncIdle(), 800); });
+window.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || window.parent === window) return;
+  window.parent.postMessage({ type: 'rpgjs-overlay-close' }, window.location.origin);
+});
 function focusFrame() {
   idle.tick();
   paintFocus();
   requestAnimationFrame(focusFrame);
 }
 requestAnimationFrame(focusFrame);
-document.getElementById('engine-goto')?.addEventListener('click', () => {
-  const context = getContext();
-  const focus = lessonFocus(context);
-  if (!canControl() || !focus.goto) return;
-  noteActivity();
-  window.dispatchEvent(new CustomEvent('lesson-goto', { detail: { ...focus.target, goto: true } }));
-  void request('navHelp', { levelId: context?.levelId, mapId: focus.target.mapId || '', step: focus.step, focusId: focus.id, trigger: 'goto', strength: 0, idleMs: 0 }).catch(() => undefined);
+document.getElementById('engine-hint')?.addEventListener('click', async () => {
+  if(!canControl() || auxiliaryBusy)return;
+  stopMovement();noteActivity();auxiliaryBusy=true;paintFocus();
+  try{
+    const focus=lessonFocus(),requestedStep=worldStep();
+    const value=await request<any>('toolHint',{step:{phase:'world',key:focus.id}});
+    if(requestedStep===worldStep())showAssistance({...value.hint,origin:'tool'});
+  }catch(error){showStatus(error instanceof Error?error.message:'法宝暂未确认，次数没有扣。');}
+  finally{auxiliaryBusy=false;paintFocus();}
 });
-document.getElementById('engine-hint')?.addEventListener('click', () => {
-  if (!canControl()) return;
-  stopMovement();
-  noteActivity();
-  void request('conceptHint', { levelId: getContext()?.levelId }).catch(error => showStatus(error instanceof Error ? error.message : '求助暂时没有打开。'));
+document.getElementById('engine-undo')?.addEventListener('click',async()=>{
+ if(!canControl())return;
+ stopMovement();
+ try{await request('undo');syncIdle();}catch(error){showStatus(error instanceof Error?error.message:'请再点一次撤回。');}
 });
 document.getElementById('engine-help')?.addEventListener('click', () => {
   const focus = lessonFocus();
   noteActivity();
   void request('navHelp', { levelId: getContext()?.levelId, mapId: focus.target.mapId || '', step: focus.step, focusId: focus.id, trigger: 'button', strength: 0, idleMs: 0 }).catch(() => undefined);
 });
+window.addEventListener('lesson-level-changed',()=>{clearAssistance();if(feedbackLine)feedbackLine.hidden=true;});
 window.addEventListener('lesson-bridge-error', event => showStatus((event as CustomEvent<string>).detail));
 window.addEventListener('blur', stopMovement);
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopMovement(); syncIdle(); });
 reloadButton?.addEventListener('click', () => window.location.reload());
-dismissButton?.addEventListener('click', () => { if (status) status.hidden = true; });
+dismissButton?.addEventListener('click', () => { if (status) status.hidden = true; paintFocus(); });
 
 async function start() {
   await ready();
   const context = await startGame(mergeConfig(configClient, { providers: [provideRpg(startServer)] }));
   engine = inject(RpgClientEngine, context);
   if (controls) controls.hidden = false;
+  paintFocus();
 }
 
 const previewing = new URLSearchParams(location.search).has('preview');
@@ -307,18 +635,19 @@ if (!previewing) start().catch(error => {
 window.addEventListener('pagehide', () => { stopMovement(); dispose(); }, { once: true });
 
 let artifactQueue = Promise.resolve();
+setArtifactBarrier(()=>artifactQueue);
 window.addEventListener('lesson-artifact', event => {
   if (window.parent === window) return;
   let patch: Record<string, unknown>;
   try { patch = toPlain((event as CustomEvent<Record<string, unknown>>).detail || {}); }
   catch (error) {
     console.warn('流程图没有保存', error);
-    showStatus('流程图没有保存，请再点一次卡片和空格。');
+    showStatus('刚才的选择没有保存，请再点一次卡片。');
     return;
   }
   const context = getContext();
   if (context?.draft) {
-    for (const key of ['flow', 'sentence', 'predictionsLocked', 'diagnoseAnswer', 'panel', 'config']) {
+    for (const key of ['flow', 'sentence', 'predictionsLocked', 'diagnoseAnswer', 'flowMistakes', 'panel', 'config']) {
       if (key in patch) context.draft[key] = patch[key];
     }
   }
@@ -346,6 +675,7 @@ function mountPreview() {
       mode,
       preview,
       diagnosed: true,
+      initialMistakes: Number(params.get('mistakes') || 0),
       flow
     }).mount(host);
     return;
