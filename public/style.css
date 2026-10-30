@@ -238,3 +238,8 @@ tr.row-open>td{background:#f4faf8}
 /* 完整场景的「下一步」常驻提示（2026-10-30） */
 .rpg-next-hint{margin:0;padding:9px 17px;background:#fff4c9;border-top:1px solid #e7cf80;border-bottom:1px solid #e7cf80;color:#5a4620;font-size:14px;font-weight:700;line-height:1.5}
 .rpg-next-hint[hidden]{display:none}
+
+/* 手动切换完整/轻量场景（2026-10-30） */
+.engine-switch{background:#eef6ff;border-color:#9dbfd8;color:#215a7a}
+.engine-switch:hover{background:#e2eefb}
+.engine-switch.armed{background:#ffe4e0;border-color:#e08a7a;color:#a4392a}

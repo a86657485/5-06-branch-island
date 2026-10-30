@@ -75,6 +75,8 @@ const demo = new URLSearchParams(location.search).has('demo');
 const engineParam = new URLSearchParams(location.search).get('engine');
 let legacy = engineParam === 'legacy';
 let autoLegacy = false;
+/* 手动切换优先于 URL 参数和自动检测，否则点完又被 ?engine= 覆盖回去。 */
+let engineOverride = null;
 
 function deviceIsSlow(){
   try {
@@ -97,6 +99,7 @@ function deviceIsSlow(){
 
 /** 建场景前定档：显式参数 > 用户选择 > 实测。 */
 function resolveEngine(){
+  if (engineOverride) { legacy = engineOverride === 'legacy'; autoLegacy = false; return; }
   if (engineParam === 'legacy') return;
   if (engineParam === 'rpg') { legacy = false; return; }
   const saved = localStorage.getItem('branch-engine');
@@ -200,34 +203,65 @@ function restartLevel(id){
   setNotice('本站已重置，可以重新开始。之前的实验记录仍保留给老师查看。');
 }
 
-/** 在场景标题栏挂一个「重做本关」，两次点击才生效，避免误触。 */
+/** 场景工具：重做本关 + 手动切换完整/轻量场景。两者都要点两次才生效。 */
 function mountRestartButton(id){
   const bar=$('#workbench');
   if(!bar) return;
   const old=$('#restart-level');
   if(old&&old.parentNode) old.parentNode.removeChild(old);
+  const oldSwitch=$('#engine-switch');
+  if(oldSwitch&&oldSwitch.parentNode) oldSwitch.parentNode.removeChild(oldSwitch);
   const tools=bar.querySelector('.task-tools');
   const shell=bar.querySelector('.rpg-shell');
   if(!tools&&!shell) return;
-  const button=document.createElement('button');
-  button.type='button'; button.id='restart-level'; button.className='quiet restart-level';
-  button.textContent='↺ 重做本关';
-  button.onclick=()=>{
+  if(typeof document.createElement!=='function') return;   // 测试沙箱没有真实 DOM
+
+  const armed=(button,label,run)=>{
     if(button.dataset.armed!=='1'){
-      button.dataset.armed='1'; button.textContent='再点一次，确认重做'; button.classList.add('armed');
+      button.dataset.armed='1'; button.dataset.label=button.textContent;
+      button.textContent='再点一次，确认'; button.classList.add('armed');
       clearTimeout(button.timer);
-      button.timer=setTimeout(()=>{ if(button.isConnected){ button.dataset.armed=''; button.textContent='↺ 重做本关'; button.classList.remove('armed'); } }, 6000);
+      button.timer=setTimeout(()=>{ if(button.isConnected){ button.dataset.armed=''; button.textContent=label; button.classList.remove('armed'); } }, 6000);
       return;
     }
     clearTimeout(button.timer);
-    restartLevel(id);
+    button.dataset.armed=''; button.classList.remove('armed');
+    run();
   };
-  if(tools){ tools.appendChild(button); return; }
+
+  const restart=document.createElement('button');
+  restart.type='button'; restart.id='restart-level'; restart.className='quiet restart-level';
+  restart.textContent='↺ 重做本关';
+  restart.onclick=()=>armed(restart,'↺ 重做本关',()=>restartLevel(id));
+
+  const engine=document.createElement('button');
+  engine.type='button'; engine.id='engine-switch'; engine.className='quiet restart-level engine-switch';
+  engine.textContent=legacy?'改用完整场景':'改用轻量场景';
+  engine.onclick=()=>armed(engine,legacy?'改用完整场景':'改用轻量场景',()=>switchEngine());
+
+  if(tools){ tools.appendChild(restart); tools.appendChild(engine); return; }
   // RPG 场景的标题栏是固定高度的 flex，塞进去会被裁掉，单独占一行放在场景上方
   const row=document.createElement('div');
   row.className='restart-row';
-  row.appendChild(button);
+  row.appendChild(restart); row.appendChild(engine);
   shell.parentNode.insertBefore(row, shell);
+}
+
+/** 不刷新页面直接换引擎：重建场景，学习记录都在服务端，不会丢。 */
+function switchEngine(){
+  if(!user) return;
+  const target=legacy?'rpg':'legacy';
+  engineOverride=target;
+  try{ localStorage.setItem('branch-engine', target); }catch{}
+  try{
+    const url=new URL(location.href);
+    if(url.searchParams.has('engine')){ url.searchParams.delete('engine'); history.replaceState(null,'',url.toString()); }
+  }catch{}
+  destroyScene();
+  legacy=(target==='legacy');
+  autoLegacy=false;
+  goToTask(current);
+  setNotice(target==='legacy'?'已切换到轻量场景，运行更流畅。':'已切换到完整场景。');
 }
 
 function prepareSceneDraft(id){
