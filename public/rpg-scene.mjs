@@ -9,9 +9,22 @@ export function createRpgScene(initialHost) {
   fallback.searchParams.set('engine','legacy');
   let host = initialHost, disposed = false, ready = false;
   const replies = new Map();
-  root.innerHTML = `<section class="rpg-shell"><div class="rpg-heading"><p>智慧园区 · 巡检员</p><span>走近后交谈或操作 · 也可自动前往 · 做错可撤回</span></div><iframe class="rpg-frame" src="/rpgjs/?session=${encodeURIComponent(sessionId)}" title="RPGJS 智慧园区探究场景" allow="fullscreen"></iframe><p id="rpg-status" class="rpg-status" role="status">正在准备园区地图与角色…</p><p id="rpg-fallback" class="rpg-fallback" hidden>场景尚未加载完成，学习记录已保留。<a href="${fallback.href.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">使用原版继续学习</a></p></section>`;
+  root.innerHTML = `<section class="rpg-shell"><div class="rpg-heading"><p>智慧园区 · 巡检员</p><span>走近后交谈或操作 · 也可自动前往 · 做错可撤回</span></div><iframe class="rpg-frame" src="/rpgjs/?session=${encodeURIComponent(sessionId)}" title="RPGJS 智慧园区探究场景" allow="fullscreen"></iframe><p id="rpg-next-hint" class="rpg-next-hint" role="status" hidden></p><p id="rpg-status" class="rpg-status" role="status">正在准备园区地图与角色…</p><p id="rpg-fallback" class="rpg-fallback" hidden>场景尚未加载完成，学习记录已保留。<a href="${fallback.href.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">使用原版继续学习</a></p></section>`;
   const frame = root.querySelector('iframe');
   const status = root.querySelector('#rpg-status');
+  const nextHint = root.querySelector('#rpg-next-hint');
+  /* 学生停在某一步时，把“下一步该点哪里”常驻显示，别让提示一闪而过。 */
+  const NEXT_HINT = {
+    start: '下一步：找现场负责人领取任务。',
+    assigned: '下一步：去观察点或传感器，把现场数据读进来。',
+    observed: '下一步：点【智能指路牌】，设置这次该怎么走。',
+    collected: '下一步：点【电量分配台】设规则。',
+    measured: '下一步：点【控制柜】设规则并作出预测。',
+    diagnosed: '下一步：回【控制柜】把规则改对。',
+    executed: '下一步：去核验台看实际结果。',
+    arrived: '下一步：点【对岸核验】确认结果。',
+    blocked: '下一步：向现场负责人汇报这次受阻。'
+  };
   const fallbackMessage = root.querySelector('#rpg-fallback');
   const context = () => copy({ levelId:host.levelId, draft:host.getDraft(), runs:host.getRuns(), level:host.getLevel() || {}, scaffold:host.getScaffold?.()||null, evidenceStart:host.getEvidenceStart(), demo:!!host.demo, support:(()=>{const hints=host.getSupport?.()?.hints||[];return {hints,used:hints.length,remaining:Math.max(0,5-hints.length)};})(), undoAvailable:!!host.getUndoAvailable?.(), reasons:(host.reasons || []).map(r=>Array.isArray(r)?{value:r[0],label:r[1]}:r) });
   const post = data => { if (!disposed) frame.contentWindow?.postMessage({ ...data, sessionId },origin); };
@@ -21,6 +34,14 @@ export function createRpgScene(initialHost) {
     fallbackMessage.hidden = false;
   };
   const timer = setTimeout(failed,20000);
+  const hintClock = typeof setInterval === 'function' ? setInterval(() => {
+    if (disposed) return;
+    const phase = host.getDraft?.()?.scene?.phase;
+    const text = ready ? (NEXT_HINT[phase] || '') : '';
+    if (!nextHint) return;
+    nextHint.textContent = text;
+    nextHint.hidden = !text;
+  }, 1200) : 0;
   frame.addEventListener('error',failed);
   function refresh() { if (ready) post({type:'rpgjs-context',context:context()}); }
   async function receive(event) {
@@ -90,6 +111,7 @@ export function createRpgScene(initialHost) {
       if (disposed) return;
       disposed = true;
       clearTimeout(timer);
+      if (hintClock && typeof clearInterval === 'function') clearInterval(hintClock);
       window.removeEventListener('message',receive);
       window.removeEventListener('branch-process-panel', onProcessPanel);
       frame.remove();

@@ -234,3 +234,7 @@ tr.row-open>td{background:#f4faf8}
 .world-hotspot.is-route-hint:before{content:'点这里过街';position:absolute;left:50%;top:-21px;transform:translateX(-50%);background:#8a6100;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;white-space:nowrap}
 @keyframes route-hint-pulse{0%,100%{box-shadow:0 0 0 4px #ffe06688,0 4px 12px #7a5b0044}50%{box-shadow:0 0 0 10px #ffe06600,0 4px 14px #7a5b0066}}
 @media (prefers-reduced-motion:reduce){.world-hotspot.is-route-hint{animation:none}}
+
+/* 完整场景的「下一步」常驻提示（2026-10-30） */
+.rpg-next-hint{margin:0;padding:9px 17px;background:#fff4c9;border-top:1px solid #e7cf80;border-bottom:1px solid #e7cf80;color:#5a4620;font-size:14px;font-weight:700;line-height:1.5}
+.rpg-next-hint[hidden]{display:none}
