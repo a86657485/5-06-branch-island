@@ -204,3 +204,10 @@ tr.row-open>td{background:#f4faf8}
 .qf-inline-slot{display:inline-flex;align-items:center;justify-content:center;min-width:96px;min-height:38px;margin:0 6px;padding:2px 12px;border:2px dashed #73957a;border-radius:9px;background:#fffef8;font-weight:700;vertical-align:middle}
 .qf-inline-slot.filled{border-style:solid;border-color:var(--teal);background:#e2f1eb}
 .qf-inline-echo{display:inline-flex;align-items:center;justify-content:center;min-width:80px;margin:0 6px;padding:1px 10px;border-bottom:2px solid var(--teal);font-weight:700}
+
+/* 旧机房自动降级提示（2026-10-30） */
+.engine-note{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:200;display:flex;align-items:center;gap:10px;padding:9px 14px;background:#fff7d6;border:1.5px solid #d8b54b;border-radius:10px;font-size:13px;line-height:1.5;color:#5a4620;box-shadow:0 6px 20px #15375826;max-width:calc(100% - 24px)}
+.engine-note span{flex:1;min-width:0}
+.engine-note button{border:1px solid #bf9a34;background:#fff;color:#5a4620;padding:6px 11px;border-radius:7px;font-size:12px;font-weight:650;white-space:nowrap}
+.engine-note button[data-engine="close"]{border:0;background:transparent;font-size:17px;padding:2px 7px;line-height:1}
+@media (max-width:600px){.engine-note{bottom:8px;font-size:12px;gap:6px;padding:8px 10px}.engine-note span{flex:1 1 100%}}

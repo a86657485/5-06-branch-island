@@ -68,7 +68,63 @@ const ids = ['sale','repair','cross','minimum'];
 function rememberStation(id){ if(ids.includes(id)) lastStation=id; }
 const titles = ['温室风机调试','温室控制器返修','路口导行屏调试','储能柜配电'];
 const demo = new URLSearchParams(location.search).has('demo');
-const legacy = new URLSearchParams(location.search).get('engine') === 'legacy';
+/** 旧机房电脑（Win7 双核 / 无 GPU 加速）跑 PixiJS 场景只有个位数帧率。
+ *  这里用硬件信号 + 真实算力挑场景，慢机自动走轻量 DOM 场景。
+ *  检测放在建场景前（页面已加载、负载稳定）才准，模块顶层测会偏乐观。
+ *  ?engine=rpg / ?engine=legacy 可强制；手动切换后记在 localStorage。 */
+const engineParam = new URLSearchParams(location.search).get('engine');
+let legacy = engineParam === 'legacy';
+let autoLegacy = false;
+
+function deviceIsSlow(){
+  try {
+    if ((navigator.hardwareConcurrency || 8) <= 2) return true;
+    if ((navigator.deviceMemory || 8) <= 2) return true;
+    const probe = document.createElement('canvas');
+    const gl = probe.getContext('webgl') || probe.getContext('experimental-webgl');
+    if (!gl) return true;
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const renderer = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
+    const lose = gl.getExtension('WEBGL_lose_context');
+    if (lose) lose.loseContext();
+    if (/swiftshader|software|basic render|llvmpipe|mesa offscreen/i.test(renderer)) return true;
+    const started = performance.now();
+    let acc = 0;
+    for (let i = 0; i < 3000000; i += 1) acc += Math.sqrt(i);
+    return (performance.now() - started) > 26;
+  } catch { return false; }
+}
+
+/** 建场景前定档：显式参数 > 用户选择 > 实测。 */
+function resolveEngine(){
+  if (engineParam === 'legacy') return;
+  if (engineParam === 'rpg') { legacy = false; return; }
+  const saved = localStorage.getItem('branch-engine');
+  if (saved === 'rpg') { legacy = false; return; }
+  if (saved === 'legacy') { legacy = true; autoLegacy = true; return; }
+  legacy = deviceIsSlow();
+  autoLegacy = legacy;
+}
+
+/** 自动降级时给出说明，学生/老师可一键换回完整场景（记在 localStorage）。 */
+function showEngineNote(){
+  if (document.getElementById('engine-note')) return;
+  const bar = document.createElement('div');
+  bar.id = 'engine-note';
+  bar.className = 'engine-note';
+  bar.innerHTML = '<span>这台电脑较旧，已切换为轻量场景，运行更流畅。</span><button type="button" data-engine="rpg">改用完整场景</button><button type="button" data-engine="close" aria-label="关闭提示">×</button>';
+  document.body.appendChild(bar);
+  bar.addEventListener('click', event => {
+    const button = event.target.closest('button[data-engine]');
+    if (!button) return;
+    if (button.dataset.engine === 'rpg') {
+      localStorage.setItem('branch-engine', 'rpg');
+      location.reload();
+      return;
+    }
+    bar.remove();
+  });
+}
 const emptyState = () => ({drafts:{},levels:{},runs:{},predictions:{},attempts:[],points:0});
 let activeScene = null, sceneGeneration = 0, quizVersion = '', user = null, round = 1, state = emptyState(), current = 'sale', roster = null, questions = [], answerKey = [], quizIndex = 0, quizReview = false, notice = '', lastRun = null, loginClass = '501', loginSearch = '', manual = '', selectedStudent = '';
 const defaults = {
@@ -456,7 +512,7 @@ function renderTask(idx){
   };
  };
  const host=makeHost(initialId);
- activeScene=(legacy?createParkScene:createRpgScene)(host);
+ resolveEngine();if(autoLegacy)showEngineNote();activeScene=(legacy?createParkScene:createRpgScene)(host);
 }
 function showHelp(html){$('#help-content').innerHTML=html;$('#help').showModal();window.dispatchEvent(new CustomEvent('branch-process-panel',{detail:{open:String(html).includes('当前执行过程')}}));}
 function closeTopOverlay(){
