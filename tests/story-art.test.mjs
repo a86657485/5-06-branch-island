@@ -1,26 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import path from 'node:path';
 
 const dir = path.join(import.meta.dirname, '../public/assets/story');
-const files = [
-  'ill-brief.png', 'ill-cool.png', 'ill-cross-ok.png', 'ill-energy.png',
-  'ill-fault.png', 'ill-queue.png', 'ill-wilt.png'
-];
+const stems = ['ill-brief', 'ill-cool', 'ill-cross-ok', 'ill-energy', 'ill-fault', 'ill-queue', 'ill-wilt'];
+const pngs = stems.map(stem => `${stem}.png`);
+const webps = stems.map(stem => `${stem}.webp`);
 
-test('剧情配图使用完整的七张 PNG，旧 SVG 已替换', () => {
-  assert.deepEqual(readdirSync(dir).sort(), files);
-  const patrol = readFileSync(path.join(import.meta.dirname, '../public/patrol.mjs'), 'utf8');
-  const references = [...patrol.matchAll(/\/assets\/story\/([^'"\s]+)/g)].map(match => match[1]);
-  assert.deepEqual([...new Set(references)].sort(), files);
+test('剧情配图七张齐全，PNG 原图与 WebP 派生图并存', () => {
+  assert.deepEqual(readdirSync(dir).sort(), [...pngs, ...webps].sort());
 });
 
-test('七张剧情 PNG 均为可解压的 960×540 RGB 图像', () => {
+test('页面引用的是七张 WebP，不再直接加载 PNG', () => {
+  const patrol = readFileSync(path.join(import.meta.dirname, '../public/patrol.mjs'), 'utf8');
+  const references = [...patrol.matchAll(/\/assets\/story\/([^'"\s]+)/g)].map(match => match[1]);
+  assert.deepEqual([...new Set(references)].sort(), [...webps].sort());
+});
+
+test('WebP 派生图必须明显小于原 PNG（防止回退成大图拖慢旧电脑）', () => {
+  for (const stem of stems) {
+    const png = statSync(path.join(dir, `${stem}.png`)).size;
+    const webp = statSync(path.join(dir, `${stem}.webp`)).size;
+    assert.ok(webp < png * 0.35, `${stem}.webp 只比 PNG 小 ${(100 - (webp / png) * 100).toFixed(0)}%，压缩失效`);
+  }
+});
+
+test('七张剧情原图均为可解压的 960×540 RGB PNG', () => {
   const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-  for (const name of files) {
+  for (const name of pngs) {
     const bytes = readFileSync(path.join(dir, name));
     assert.ok(bytes.length > 10_000, `${name} 图像数据不完整`);
     assert.deepEqual(bytes.subarray(0, 8), signature, name);
@@ -52,7 +62,9 @@ test('七张剧情 PNG 均为可解压的 960×540 RGB 图像', () => {
 });
 
 test('节能配图保留已审图的 A 高绿条、B 低黄条与“电量低的先充”', () => {
-  // 固定已目视核对的原图，避免再次替换成电量关系相反的示意图。
-  const hash = createHash('sha256').update(readFileSync(path.join(dir, 'ill-energy.png'))).digest('hex');
-  assert.equal(hash, '533b12f1f3b2d2749a33f7729266f77cd0e6943da04364ce04f6f289dba12f04');
+  // 固定已目视核对的原图与线上派生图，避免再次替换成电量关系相反的示意图。
+  const png = createHash('sha256').update(readFileSync(path.join(dir, 'ill-energy.png'))).digest('hex');
+  assert.equal(png, '533b12f1f3b2d2749a33f7729266f77cd0e6943da04364ce04f6f289dba12f04');
+  const webp = createHash('sha256').update(readFileSync(path.join(dir, 'ill-energy.webp'))).digest('hex');
+  assert.equal(webp, '854e69fa3a5940d9db877cd795d795980635f136f7a3769b28bbd2a9d0644438');
 });

@@ -3,6 +3,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const zlib = require('node:zlib');
 const { isIP } = require('node:net');
 const { DatabaseSync } = require('node:sqlite');
 const rules = require('./public/rules.js');
@@ -10,6 +11,27 @@ const adventure = require('./public/adventure-rules.js');
 const { recordScaffold } = require('./public/scaffold.mjs');
 const quizApi = require('./quiz.cjs');
 const { questions, version:quizVersion } = quizApi;
+
+/** 旧机房电脑（Win7 + Chrome 109）优化：带内容哈希的资源长缓存，文本资源走 gzip。 */
+const COMPRESSIBLE = new Set(['.js', '.mjs', '.css', '.json', '.html', '.svg', '.txt', '.map']);
+const gzipCache = new Map();
+
+function cachePolicy(name) {
+  if (/assets\/[^/]*-[A-Za-z0-9_]{8}\.(?:js|css)$/.test(name)) return 'public, max-age=31536000, immutable';
+  if (name.startsWith('assets/')) return 'public, max-age=86400';
+  if (name.startsWith('rpgjs/') && !name.endsWith('.html')) return 'public, max-age=604800';
+  return 'no-cache';
+}
+
+function gzipFor(file, mtimeMs) {
+  const key = file + ':' + mtimeMs;
+  const cached = gzipCache.get(key);
+  if (cached) return cached;
+  const body = zlib.gzipSync(fs.readFileSync(file), { level: 6 });
+  if (gzipCache.size >= 96) gzipCache.clear();
+  gzipCache.set(key, body);
+  return body;
+}
 const BASE = __dirname;
 const CLASSES = ['501', '502', '503', '504'];
 const ROUND = 1;
@@ -540,7 +562,14 @@ function createService(options = {}) {
       const publicDir=path.join(BASE,'public');const file=path.join(publicDir,name);
       if (!fs.existsSync(file) || !fs.statSync(file).isFile() || !fs.realpathSync(file).startsWith(fs.realpathSync(publicDir)+path.sep)) fail(404,'文件不存在');
       const engineResource = name.startsWith('rpgjs/');
-      res.writeHead(200,{'Content-Type':mime[path.extname(name)],'Cache-Control':name.startsWith('assets/')?'public, max-age=86400':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Content-Security-Policy':`default-src 'self'; script-src 'self'${engineResource?" 'wasm-unsafe-eval'":''}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'${engineResource?' data:':''}; object-src 'none'; base-uri 'self'; frame-ancestors '${engineResource?'self':'none'}'${engineResource?"; worker-src 'self' blob:":''}`});
+      const wantsGzip = COMPRESSIBLE.has(path.extname(name)) && /\bgzip\b/i.test(req.headers['accept-encoding'] || '');
+      if (wantsGzip) {
+        const body = gzipFor(file, fs.statSync(file).mtimeMs);
+        res.writeHead(200,{'Content-Type':mime[path.extname(name)],'Content-Encoding':'gzip','Content-Length':body.length,'Cache-Control':cachePolicy(name),'Vary':'Accept-Encoding','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Content-Security-Policy':`default-src 'self'; script-src 'self'${engineResource?" 'wasm-unsafe-eval'":''}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'${engineResource?' data:':''}; object-src 'none'; base-uri 'self'; frame-ancestors '${engineResource?'self':'none'}'${engineResource?"; worker-src 'self' blob:":''}`});
+        if (req.method === 'HEAD') return res.end();
+        return res.end(body);
+      }
+      res.writeHead(200,{'Content-Type':mime[path.extname(name)],'Cache-Control':cachePolicy(name),'Vary':'Accept-Encoding','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Content-Security-Policy':`default-src 'self'; script-src 'self'${engineResource?" 'wasm-unsafe-eval'":''}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'${engineResource?' data:':''}; object-src 'none'; base-uri 'self'; frame-ancestors '${engineResource?'self':'none'}'${engineResource?"; worker-src 'self' blob:":''}`});
       if (req.method==='HEAD') return res.end();
       fs.createReadStream(file).pipe(res);
     } catch(error) { if (!res.headersSent) json(res,error.status || (error instanceof URIError ? 400 : 500),{error:error.status || error instanceof URIError ? error.message : '课堂服务暂时无法处理请求，请重试',...(error.code?{code:error.code}:{})});if(!error.status && !(error instanceof URIError)) console.error(error); }
