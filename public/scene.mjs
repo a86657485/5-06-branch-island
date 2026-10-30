@@ -216,6 +216,6 @@ export function createParkScene(host){
  function image(name,file){const img=new Image();assets[name]=img;img.src=file;img.onerror=()=>say('部分场景图片未加载，操作与记录仍可继续。');}
  image('park','/assets/park-map.webp?v=2d-20261015');image('road','/assets/crossing-map.webp?v=2d-20261015');image('people','/assets/characters.webp?v=2d-20261015');
  buildEntries();resize();refresh();persist();raf=requestAnimationFrame(tick);
- if(new URLSearchParams(location.search).has('debug'))window.__sceneDebug={refresh,currentGoal,getEntries:()=>entries,getState:()=>s};
+ if(new URLSearchParams(location.search).has('debug'))window.__sceneDebug={refresh,currentGoal,getEntries:()=>entries,getState:()=>s,getPath:()=>path,getToast:()=>$('#scene-toast')?.textContent||''};
  return{refresh,destroy(){if(disposed)return;clearTimeout(saveTimer);persist();disposed=true;cancelAnimationFrame(raf);observer.disconnect();window.removeEventListener('keydown',keydown);window.removeEventListener('keyup',keyup);window.removeEventListener('blur',blur);keys.clear();path=[];afterMove=null;}};
 }

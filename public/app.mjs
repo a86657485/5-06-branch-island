@@ -186,6 +186,50 @@ function send(type,levelId,payload,eventKey=eventId()){
 }
 function draft(id=current){if(!state.drafts[id])state.drafts[id]=clone(defaults[id]);return state.drafts[id];}
 function destroyScene(){const scene=activeScene;activeScene=null;scene?.destroy();sceneGeneration++;}
+/** 学生卡住时的自救出口：重置本站草稿与证据起点，不动已拿到的成绩和实验记录。 */
+function restartLevel(id){
+  if(!user) return;
+  try{ localStorage.setItem(`branch-island-restart:${user.id}:${round}:${id}:${Date.now()}`, JSON.stringify(state.drafts[id]||{})); }catch{}
+  destroyScene();   // 必须先销毁：它的 destroy() 会把旧场景 persist 回草稿
+  state.drafts[id]=clone(defaults[id]);
+  state.predictions[id]=[];
+  const lv=state.levels[id]||{};
+  state.levels[id]={...lv, valid:false, evidenceStart:(state.runs[id]||[]).length};
+  send('draft', id, state.drafts[id]);
+  goToTask(id);
+  setNotice('本站已重置，可以重新开始。之前的实验记录仍保留给老师查看。');
+}
+
+/** 在场景标题栏挂一个「重做本关」，两次点击才生效，避免误触。 */
+function mountRestartButton(id){
+  const bar=$('#workbench');
+  if(!bar) return;
+  const old=$('#restart-level');
+  if(old&&old.parentNode) old.parentNode.removeChild(old);
+  const tools=bar.querySelector('.task-tools');
+  const shell=bar.querySelector('.rpg-shell');
+  if(!tools&&!shell) return;
+  const button=document.createElement('button');
+  button.type='button'; button.id='restart-level'; button.className='quiet restart-level';
+  button.textContent='↺ 重做本关';
+  button.onclick=()=>{
+    if(button.dataset.armed!=='1'){
+      button.dataset.armed='1'; button.textContent='再点一次，确认重做'; button.classList.add('armed');
+      clearTimeout(button.timer);
+      button.timer=setTimeout(()=>{ if(button.isConnected){ button.dataset.armed=''; button.textContent='↺ 重做本关'; button.classList.remove('armed'); } }, 6000);
+      return;
+    }
+    clearTimeout(button.timer);
+    restartLevel(id);
+  };
+  if(tools){ tools.appendChild(button); return; }
+  // RPG 场景的标题栏是固定高度的 flex，塞进去会被裁掉，单独占一行放在场景上方
+  const row=document.createElement('div');
+  row.className='restart-row';
+  row.appendChild(button);
+  shell.parentNode.insertBefore(row, shell);
+}
+
 function prepareSceneDraft(id){
  const d=state.drafts[id];
  if(!d) return null;
@@ -514,6 +558,7 @@ function renderTask(idx){
  const host=makeHost(initialId);
  draft(initialId);   // 先落盘草稿，否则 getDraft 每次返回新副本，场景状态写不回去
  resolveEngine();if(autoLegacy)showEngineNote();activeScene=(legacy?createParkScene:createRpgScene)(host);
+ mountRestartButton(initialId);
 }
 function showHelp(html){$('#help-content').innerHTML=html;$('#help').showModal();window.dispatchEvent(new CustomEvent('branch-process-panel',{detail:{open:String(html).includes('当前执行过程')}}));}
 function closeTopOverlay(){
