@@ -212,7 +212,7 @@ function login(){
  $('#student-select').onchange=e=>{selectedStudent=e.target.value;manual='';$('#manual-name').value='';$('#chosen-identity').textContent=`${loginClass}班 · ${cls.students.find(s=>s.id===selectedStudent)?.name || '尚未选择姓名'}`;};
  $('#manual-name').oninput=e=>{manual=e.target.value;selectedStudent='';$('#student-select').value='';$('#chosen-identity').textContent=`${loginClass}班 · ${manual || '尚未填写姓名'}`;};
  document.querySelectorAll('[data-skin-id]').forEach(btn=>{btn.onclick=()=>setSkinChoice(btn.getAttribute('data-skin-id'));});
- $('#login').onclick=async()=>{try{if(!selectedStudent&&!manual.trim())throw new Error('先选择自己的姓名，或在“名单中没有我”填写。');const data=await api('/api/login',{classId:loginClass,...(manual.trim()?{name:manual.trim()}:{studentId:selectedStudent})});attach(data);}catch(e){$('#login-error').textContent=e.message;}};
+ $('#login').onclick=async()=>{try{if(!selectedStudent&&!manual.trim())throw new Error('先选择自己的姓名，或在“名单中没有我”填写。');const data=await api('/api/login',{classId:loginClass,...(manual.trim()?{name:manual.trim()}:{studentId:selectedStudent})});attach(data);}catch(e){const box=$('#login-error');if(box)box.textContent=e.message;else console.error('场景初始化失败：',e);}};
 }
 function attach(data){destroyScene();user=data.student;if(data.round!==round)queue.retire(user.id,data.round);round=data.round;state=data.state;const local=JSON.parse(localStorage.getItem(cacheKey())||'null');const pendingThisRound=queue.events.some(event=>event.studentId===user.id&&event.round===round);if(pendingThisRound&&local)state=local.state;current=pendingThisRound&&local?.current?local.current:resumeTask(state.levels);if(current!=='quiz')rememberStation(current);if(new URLSearchParams(location.search).get('task')==='quiz')current='quiz';if(!demo)localStorage.setItem('branch-island-identity',JSON.stringify({user,round}));saveLocal();render();queue.flush().then(updateHeader);}
 const patrolKey = () => `branch-island-patrol:${demo?'demo':user?.id}:${round}`;
@@ -512,6 +512,7 @@ function renderTask(idx){
   };
  };
  const host=makeHost(initialId);
+ draft(initialId);   // 先落盘草稿，否则 getDraft 每次返回新副本，场景状态写不回去
  resolveEngine();if(autoLegacy)showEngineNote();activeScene=(legacy?createParkScene:createRpgScene)(host);
 }
 function showHelp(html){$('#help-content').innerHTML=html;$('#help').showModal();window.dispatchEvent(new CustomEvent('branch-process-panel',{detail:{open:String(html).includes('当前执行过程')}}));}

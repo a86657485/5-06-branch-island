@@ -121,6 +121,8 @@ export function createParkScene(host){
   path=list.filter(p=>p.x>=s.x-25);afterMove=()=>{s.phase='arrived';mark('crossed');selectedRoute=null;persist();say('已到达对岸。点击核验点，检查现场结果。');};persist();
  }
  function point(kind){return entries.find(p=>p.kind===kind)||entries[0];}
+ /** 当前该去的目标点：draw 画引导线、refresh 高亮标签都读它。 */
+ function currentGoal(){return s.phase==='start'?point('guide'):!s.measured?point(minimum?(s.collected?.includes('a')?'b':'a'):cross?'observe':'sensor'):!s.ticket?point((cross||minimum)&&s.visited.includes('verified')?'guide':!cross&&!minimum&&d().prediction?'fan':'control'):point(minimum?(s.phase==='charging'?'verify':Number(s.ticket.output)===input().a?'a':'b'):cross?(s.phase==='arrived'?'verify':s.ticket.output==='bridge'?'bridge':'zebra'):'verify');}
  function buildEntries(){
   if(cross)entries.push({kind:'guide',x:275,y:480,label:'安全员',sprite:8,action:guide},{kind:'observe',x:335,y:405,label:'观察现场',action:observe},{kind:'control',x:320,y:465,label:'设置指引牌',action:control},{kind:'bridge',x:355,y:295,label:'天桥入口',action:()=>route('bridge')},{kind:'zebra',x:355,y:532,label:'斑马线入口',action:()=>route('crossing')},{kind:'signal',x:370,y:475,label:'信号控制箱',action:signal},{kind:'verify',x:890,y:420,label:'对岸核验',sprite:10,action:verify});
   else if(minimum)entries.push({kind:'guide',x:340,y:245,label:'能源工程师',sprite:9,action:guide},{kind:'a',x:215,y:165,label:'电池A采集台',action:()=>collect('a')},{kind:'b',x:375,y:165,label:'电池B采集台',action:()=>collect('b')},{kind:'control',x:300,y:175,label:'电量分配台',action:control},{kind:'verify',x:300,y:235,label:'充电口核验',action:verify});
@@ -160,8 +162,22 @@ export function createParkScene(host){
   ctx.clearRect(0,0,stageW,stageH);ctx.save();ctx.translate(ox,oy);ctx.scale(scale,scale);
   const background=cross?assets.road:assets.park;if(background?.complete&&background.naturalWidth)ctx.drawImage(background,0,0,W,H);else{ctx.fillStyle='#c5dbb0';ctx.fillRect(0,0,W,H);ctx.strokeStyle='#e9d9b4';ctx.lineWidth=85;for(const[a,b]of edges()){const nodes=baseGraph();ctx.beginPath();ctx.moveTo(nodes[a].x,nodes[a].y);ctx.lineTo(nodes[b].x,nodes[b].y);ctx.stroke();}}
   if(cross){if(s.facility){ctx.strokeStyle='#8c6e4f';ctx.lineWidth=44;ctx.beginPath();ctx.moveTo(350,295);ctx.lineTo(610,255);ctx.lineTo(870,295);ctx.stroke();ctx.strokeStyle='#e7d8b4';ctx.lineWidth=32;ctx.stroke();ctx.strokeStyle='#6c675e';ctx.lineWidth=4;for(const dy of[-21,21]){ctx.beginPath();ctx.moveTo(350,295+dy);ctx.lineTo(610,255+dy);ctx.lineTo(870,295+dy);ctx.stroke();}text('过街天桥',610,230,'#283832',23);}for(const x of[371,835]){ctx.fillStyle=s.signal==='red'?'#ec4949':'#3d3d3d';ctx.beginPath();ctx.arc(x,417,8,0,Math.PI*2);ctx.fill();ctx.fillStyle=s.signal==='green'?'#4de27e':'#3d3d3d';ctx.beginPath();ctx.arc(x,438,8,0,Math.PI*2);ctx.fill();}}
-  const goal=s.phase==='start'?point('guide'):!s.measured?point(minimum?(s.collected?.includes('a')?'b':'a'):cross?'observe':'sensor'):!s.ticket?point((cross||minimum)&&s.visited.includes('verified')?'guide':!cross&&!minimum&&d().prediction?'fan':'control'):point(minimum?(s.phase==='charging'?'verify':Number(s.ticket.output)===input().a?'a':'b'):cross?(s.phase==='arrived'?'verify':s.ticket.output==='bridge'?'bridge':'zebra'):'verify');
-  if(goal){ctx.strokeStyle='#ffdb67';ctx.lineWidth=4;ctx.beginPath();ctx.ellipse(goal.x,goal.y-2,29+Math.sin(walkTime*3)*3,12,0,0,Math.PI*2);ctx.stroke();}
+  const goal=currentGoal();
+  if(goal){ctx.strokeStyle='#ffdb67';ctx.lineWidth=4;ctx.beginPath();ctx.ellipse(goal.x,goal.y-2,29+Math.sin(walkTime*3)*3,12,0,0,Math.PI*2);ctx.stroke();
+   const guideGap=Math.hypot(goal.x-s.x,goal.y-s.y);
+   if(guideGap>95){
+    const ang=Math.atan2(goal.y-s.y,goal.x-s.x);ctx.save();
+    ctx.strokeStyle='rgba(255,74,158,.92)';ctx.lineWidth=5;ctx.lineCap='round';
+    ctx.setLineDash([13,11]);ctx.lineDashOffset=-walkTime*70;
+    ctx.beginPath();ctx.moveTo(s.x,s.y-18);ctx.lineTo(goal.x-Math.cos(ang)*30,goal.y-18-Math.sin(ang)*30);ctx.stroke();
+    ctx.setLineDash([]);
+    const tipX=goal.x-Math.cos(ang)*30,tipY=goal.y-18-Math.sin(ang)*30;
+    ctx.fillStyle='#ff4a9e';ctx.beginPath();ctx.moveTo(tipX,tipY);
+    ctx.lineTo(tipX-Math.cos(ang-.42)*20,tipY-Math.sin(ang-.42)*20);
+    ctx.lineTo(tipX-Math.cos(ang+.42)*20,tipY-Math.sin(ang+.42)*20);
+    ctx.closePath();ctx.fill();ctx.restore();
+   }
+  }
   ctx.strokeStyle='#765d3eaa';ctx.lineWidth=1.5;for(const a of labelAnchors){if(distance({x:a.x,y:a.y},a.point)>78){ctx.beginPath();ctx.moveTo(a.point.x,a.point.y-42);ctx.lineTo(a.x,a.y+5);ctx.stroke();}}
   for(const p of entries){if(p.sprite!==undefined)sprite(p.sprite,p.x,p.y,86);else if(p.kind==='fan'||p.kind==='sensor')drawDevice(p.x,p.y,p.kind);else if(minimum&&['a','b'].includes(p.kind)){drawDevice(p.x,p.y,'battery');text(`${p.kind.toUpperCase()} ${input()[p.kind]}%`,p.x,p.y+16,'#173e3a',18);}else if(['control','verify'].includes(p.kind))drawDevice(p.x,p.y,p.kind);}
   if(path.length){ctx.strokeStyle='#fff9';ctx.lineWidth=3;ctx.setLineDash([9,9]);ctx.beginPath();ctx.moveTo(s.x,s.y);for(const p of path)ctx.lineTo(p.x,p.y);ctx.stroke();ctx.setLineDash([]);}
@@ -169,7 +185,9 @@ export function createParkScene(host){
   if(minimum&&(s.collected||[]).length)text(s.phase==='charging'?`携带${s.ticket?.output}%电池`:`样本：${s.collected.join('、').toUpperCase()}`,s.x,s.y-92,'#fff',15);
   ctx.restore();
  }
- function refresh(){if(disposed)return;$('#scene-objective').textContent=objective();const runs=host.getRuns().slice(host.getEvidenceStart()).filter(r=>{try{return window.BranchRules.configKey(id,r.config)===window.BranchRules.configKey(id,d().config);}catch{return false;}});$('#scene-review').textContent=s.phase==='start'?'找到现场负责人':'找NPC汇报与验收';$('#scene-progress').textContent=`本方案已核验${runs.length}次 · 本关${host.getLevel()?.completed?'已获25积分':'待验收'}`;$('#scene-readout').textContent=cross?`${s.facility?'东门：有天桥':'西门：无天桥'} · ${s.signal==='green'?'绿灯':'红灯'}`:minimum?`样本组：A=${input().a}%，B=${input().b}%`:`试运行输入：${s.temperatureCase}℃ · ≥30℃启动，否则停机`;$('#scene-log').innerHTML=host.getRuns().slice().reverse().map(r=>`<p>${esc(window.AdventureRules?.evidenceSummary(id,r)||JSON.stringify(r.input))}<b class="${r.correct?'ok':'error'}">${r.correct?'符合规则':'需要修订'}</b></p>`).join('')||'<p>完成一次现场核验后，这里自动留下实验。</p>';}
+ function refresh(){if(disposed)return;$('#scene-objective').textContent=objective();
+  const target=currentGoal();
+  root.querySelectorAll('[data-place]').forEach(b=>{const p=entries[Number(b.dataset.place)];b.classList.toggle('is-target',!!target&&p===target);});const runs=host.getRuns().slice(host.getEvidenceStart()).filter(r=>{try{return window.BranchRules.configKey(id,r.config)===window.BranchRules.configKey(id,d().config);}catch{return false;}});$('#scene-review').textContent=s.phase==='start'?'找到现场负责人':'找NPC汇报与验收';$('#scene-progress').textContent=`本方案已核验${runs.length}次 · 本关${host.getLevel()?.completed?'已获25积分':'待验收'}`;$('#scene-readout').textContent=cross?`${s.facility?'东门：有天桥':'西门：无天桥'} · ${s.signal==='green'?'绿灯':'红灯'}`:minimum?`样本组：A=${input().a}%，B=${input().b}%`:`试运行输入：${s.temperatureCase}℃ · ≥30℃启动，否则停机`;$('#scene-log').innerHTML=host.getRuns().slice().reverse().map(r=>`<p>${esc(window.AdventureRules?.evidenceSummary(id,r)||JSON.stringify(r.input))}<b class="${r.correct?'ok':'error'}">${r.correct?'符合规则':'需要修订'}</b></p>`).join('')||'<p>完成一次现场核验后，这里自动留下实验。</p>';}
  function tick(now){if(disposed)return;const raw=(now-lastTime)/1000||0,dt=Math.min(raw,.05);lastTime=now;walkTime+=dt;let moved=false;
   if(raw>.045)slowStreak++;else if(slowStreak)slowStreak--;
   if(!lowPower&&slowStreak>45){lowPower=true;reducedMotion=true;frameGap=1000/30;}
@@ -195,5 +213,6 @@ export function createParkScene(host){
  function image(name,file){const img=new Image();assets[name]=img;img.src=file;img.onerror=()=>say('部分场景图片未加载，操作与记录仍可继续。');}
  image('park','/assets/park-map.webp?v=2d-20261015');image('road','/assets/crossing-map.webp?v=2d-20261015');image('people','/assets/characters.webp?v=2d-20261015');
  buildEntries();resize();refresh();persist();raf=requestAnimationFrame(tick);
+ if(new URLSearchParams(location.search).has('debug'))window.__sceneDebug={refresh,currentGoal,getEntries:()=>entries,getState:()=>s};
  return{refresh,destroy(){if(disposed)return;clearTimeout(saveTimer);persist();disposed=true;cancelAnimationFrame(raf);observer.disconnect();window.removeEventListener('keydown',keydown);window.removeEventListener('keyup',keyup);window.removeEventListener('blur',blur);keys.clear();path=[];afterMove=null;}};
 }

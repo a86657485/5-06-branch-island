@@ -211,3 +211,10 @@ tr.row-open>td{background:#f4faf8}
 .engine-note button{border:1px solid #bf9a34;background:#fff;color:#5a4620;padding:6px 11px;border-radius:7px;font-size:12px;font-weight:650;white-space:nowrap}
 .engine-note button[data-engine="close"]{border:0;background:transparent;font-size:17px;padding:2px 7px;line-height:1}
 @media (max-width:600px){.engine-note{bottom:8px;font-size:12px;gap:6px;padding:8px 10px}.engine-note span{flex:1 1 100%}}
+
+/* 轻量场景的路线引导：目标标签高亮 + 点我走近（2026-10-30） */
+.world-hotspot.is-target{background:#ff4a9e;color:#fff;border-color:#fff;font-size:12px;font-weight:800;z-index:6;box-shadow:0 0 0 4px #ff4a9e55,0 5px 14px #4a002866;animation:hotspot-target-pulse 1.2s ease-in-out infinite}
+.world-hotspot.is-target:after{background:#ff4a9e;border-color:#fff}
+.world-hotspot.is-target:before{content:'点我走近';position:absolute;left:50%;top:-21px;transform:translateX(-50%);background:#880e4f;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px #4a002855}
+@keyframes hotspot-target-pulse{0%,100%{box-shadow:0 0 0 4px #ff4a9e66,0 5px 14px #4a002866}50%{box-shadow:0 0 0 9px #ff4a9e00,0 5px 16px #4a002888}}
+@media (prefers-reduced-motion:reduce){.world-hotspot.is-target{animation:none}}
