@@ -218,3 +218,6 @@ tr.row-open>td{background:#f4faf8}
 .world-hotspot.is-target:before{content:'点我走近';position:absolute;left:50%;top:-21px;transform:translateX(-50%);background:#880e4f;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px #4a002855}
 @keyframes hotspot-target-pulse{0%,100%{box-shadow:0 0 0 4px #ff4a9e66,0 5px 14px #4a002866}50%{box-shadow:0 0 0 9px #ff4a9e00,0 5px 16px #4a002888}}
 @media (prefers-reduced-motion:reduce){.world-hotspot.is-target{animation:none}}
+
+/* 第二站控制柜锁定时的指路提示（2026-10-30） */
+.device-lock{margin:10px 0 0;padding:9px 12px;background:#fff2c9;border:1px solid #e7cf80;border-radius:8px;font-size:13px;line-height:1.6;color:#5a4620;text-align:left}

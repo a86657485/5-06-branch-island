@@ -77,15 +77,18 @@ export function createParkScene(host){
  function control(){
   if(!s.measured){say(minimum?'先到A、B两处读取电量样本。':cross?'先到观察点核对设施。':'先到温度探头读取本组数据。');return;}
   const config=d().config;const locked=repair&&!s.visited.includes('diagnosed');
+  /* 第二站控制柜在故障重现前是锁的：已经拿到结果却还让他'重现故障'，学生会反复执行同一个动作。 */
+  const lockStep=!locked?'':s.ticket?'故障已经用 30℃ 重现过了。点下面的按钮去【监测屏核验】看结果，回来就能改规则了。':'这是原错误设备，规则还锁着。先到【温度探头】读数据，再到【执行风机】用 30℃ 重现故障。';
   const values=cross?[['bridge','走天桥'],['crossing','走斑马线']]:minimum?[['a','选择电池A'],['b','选择电池B']]:[['on','启动风机'],['off','停止风机']];
   const operators=minimum?[['<','a＜b'],['>','a＞b']]:[['>=','温度≥30℃'],['<','温度＜30℃']];
   const handlers={};
   const chips=(field,choices)=>choices.map(([value,label],i)=>{const key=`${field}${i}`;handlers[key]=()=>{if(field==='prediction'){delete s.ticket;host.onChange({prediction:value,scene:copy(s)});s.phase='ready';}else{const next={...d().config,[field]:value};delete s.ticket;host.onChange({config:next,scene:copy(s)});}control();};return button(key,label,(field==='prediction'?d().prediction:config[field])===value?'chosen':'');}).join('');
-  let html=locked?`<div class="device-rule">当前故障规则：温度≥30℃<br>是→停止风机　否→启动风机</div>`:`<div class="device-rule">${!cross?`<p>判断条件</p><div class="choice-row">${chips('operator',repair?[['>=','温度≥30℃']]:operators)}</div>`:'<b>附近有可用天桥吗？</b>'}<p>条件成立 → 是</p><div class="choice-row">${chips('yes',values)}</div><p>条件不成立 → 否</p><div class="choice-row">${chips('no',values)}</div></div>`;
+  let html=locked?`<div class="device-rule">当前故障规则：温度≥30℃<br>是→停止风机　否→启动风机</div><p class="device-lock">${lockStep}</p>`:`<div class="device-rule">${!cross?`<p>判断条件</p><div class="choice-row">${chips('operator',repair?[['>=','温度≥30℃']]:operators)}</div>`:'<b>附近有可用天桥吗？</b>'}<p>条件成立 → 是</p><div class="choice-row">${chips('yes',values)}</div><p>条件不成立 → 否</p><div class="choice-row">${chips('no',values)}</div></div>`;
   html+=`<p class="prediction-prompt">${minimum?`A=${input().a}%，B=${input().b}%，装置会选择哪组？`:cross?'按照你设定的规则，本次会指向哪条路？':`本次温度${input().temperature}℃，实际设备会怎样？`}</p><div class="choice-row">${chips('prediction',values)}</div>`;
-  html+=button('execute',minimum?'启动分配器':cross?'应用这条指引':'去风机执行','primary')+button('leave','关闭，继续观察');
+  html+=locked?button('gotoverify','去监测屏核验','primary')+button('leave','先关掉'):button('execute',minimum?'启动分配器':cross?'应用这条指引':'去风机执行','primary')+button('leave','关闭，继续观察');
+  handlers.gotoverify=()=>{closeDialogue();navigate(point('verify'),()=>verify());};
   handlers.execute=()=>{if(!d().prediction){say('先作出自己的预测，再执行设备。');return;}try{evaluated();}catch(e){say(e.message);return;}closeDialogue();if(cross||minimum)execute();else navigate(point('fan'));};handlers.leave=closeDialogue;
-  dialogue(minimum?'电量分配台':cross?'现场指引牌':'通风控制柜',locked?'这是原错误设备。先保留当前规则，用30℃重现故障。':'这里设置的是设备会实际执行的规则。每条出口对应一个动作，选择后到现场观察。',html,handlers);
+  dialogue(minimum?'电量分配台':cross?'现场指引牌':'通风控制柜',locked?lockStep:'这里设置的是设备会实际执行的规则。每条出口对应一个动作，选择后到现场观察。',html,handlers);
  }
  function execute(){
   if(!s.measured||!d().prediction){say('先读取输入，在控制柜预测，再执行。');return;}
