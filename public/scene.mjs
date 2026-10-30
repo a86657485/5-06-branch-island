@@ -132,13 +132,14 @@ export function createParkScene(host){
   else if(repair)entries.push({kind:'guide',x:800,y:280,label:'维修员阿诚',sprite:7,action:guide},{kind:'sensor',x:760,y:210,label:'温度探头',action:sensor},{kind:'control',x:875,y:190,label:'故障控制柜',action:control},{kind:'fan',x:965,y:185,label:'执行风机',action:execute},{kind:'verify',x:940,y:265,label:'监测屏核验',action:verify});
   else entries.push({kind:'guide',x:380,y:465,label:'园区养护员',sprite:6,action:guide},{kind:'sensor',x:285,y:325,label:'温度探头',action:sensor},{kind:'control',x:235,y:435,label:'通风控制柜',action:control},{kind:'fan',x:160,y:375,label:'执行风机',action:execute},{kind:'verify',x:360,y:375,label:'监测屏核验',action:verify});
   $('#scene-hotspots').innerHTML=entries.map((p,i)=>`<button class="world-hotspot" data-place="${i}" data-kind="${p.kind}" aria-label="走近${esc(p.label)}">${esc(p.label)}</button>`).join('');
-  root.querySelectorAll('[data-place]').forEach(b=>b.onclick=()=>{closeDialogue();const p=entries[Number(b.dataset.place)];if(cross&&p.kind==='verify'&&s.x<700){say('先从天桥或斑马线入口沿规则过街，不能直接跳到对岸。');return;}navigate(p,()=>p.action());});
+  root.querySelectorAll('[data-place]').forEach(b=>b.onclick=()=>{closeDialogue();const p=entries[Number(b.dataset.place)];if(cross&&p.kind==='verify'&&s.x<700){say('要先过街才能核验：点【天桥入口】或【斑马线入口】，角色会自己走过去。');return;}navigate(p,()=>p.action());});
  }
  function project(p){let best=null,dist=Infinity;const nodes=baseGraph();for(const[a,b]of edges()){const q=nearestPointOnSegment(p,nodes[a],nodes[b]);const d=distance(p,q);if(d<dist){best=q;dist=d;}}return best||start;}
  function walkable(p){return p.x>15&&p.x<W-15&&p.y>20&&p.y<H-10&&distance(p,project(p))<45&&(!cross||p.x<400||p.x>820||selectedRoute||s.phase==='travelling'||s.phase==='arrived'||s.visited.includes('crossed'));}
  function navigate(target,done){
   if(disposed)return;closeDialogue();keys.clear();
-  if(cross&&s.x<400&&target.x>820&&!selectedRoute&&!s.visited.includes('crossed')){say('请先选择实际通道，沿安全路径到对岸。');return;}
+  /* 站在马路边界(x=400)以内才提示，会让已经顶着边界的同学点了完全没反应——去掉位置限制。 */
+  if(cross&&target.x>820&&!selectedRoute&&!s.visited.includes('crossed')){say('过街要先选一条通道：点【天桥入口】或【斑马线入口】，角色会自己走过去。');return;}
   const targetPoint={x:target.x,y:target.y};path=findRoute(baseGraph(),edges(),s,targetPoint);afterMove=done||null;
   if(!path.length){say('这条路暂时不通，请留意设施和信号。');return;}say(`正在走向${target.label||'所选步道'}，可随时停下。`);
  }
@@ -156,7 +157,7 @@ export function createParkScene(host){
    b.style.left=`${chosen.x}px`;b.style.top=`${chosen.y}px`;b.style.visibility='visible';placed.push({left:chosen.x-width/2,right:chosen.x+width/2,top:chosen.y-height,bottom:chosen.y});labelAnchors.push({point:p,x:(chosen.x-ox)/scale,y:(chosen.y-oy)/scale});
   });
  }
- let stageW=0,stageH=0;
+ let stageW=0,stageH=0,lastBlockHint=0;
  function resize(){const box=stage.getBoundingClientRect(),ratio=Math.min(devicePixelRatio||1,2);stageW=box.width;stageH=box.height;canvas.width=Math.round(box.width*ratio);canvas.height=Math.round(box.height*ratio);ctx.setTransform(ratio,0,0,ratio,0,0);layoutCamera();}
  function sprite(index,x,y,height=80){if(!assets.people?.complete||!assets.people.naturalWidth){ctx.fillStyle='#147d78';ctx.beginPath();ctx.arc(x,y-22,17,0,Math.PI*2);ctx.fill();return;}const [sx,sy,sw,sh]=SRC[index];const width=height*sw/sh;ctx.fillStyle='#0003';ctx.beginPath();ctx.ellipse(x,y-2,width*.4,6,0,0,Math.PI*2);ctx.fill();ctx.drawImage(assets.people,sx,sy,sw,sh,x-width/2,y-height,width,height);}
  function text(value,x,y,color='#173c3a',size=16){ctx.font=`600 ${size}px "PingFang SC",sans-serif`;ctx.textAlign='center';ctx.fillStyle=color;ctx.fillText(value,x,y);}
@@ -190,7 +191,13 @@ export function createParkScene(host){
  }
  function refresh(){if(disposed)return;$('#scene-objective').textContent=objective();
   const target=currentGoal();
-  root.querySelectorAll('[data-place]').forEach(b=>{const p=entries[Number(b.dataset.place)];b.classList.toggle('is-target',!!target&&p===target);});const runs=host.getRuns().slice(host.getEvidenceStart()).filter(r=>{try{return window.BranchRules.configKey(id,r.config)===window.BranchRules.configKey(id,d().config);}catch{return false;}});$('#scene-review').textContent=s.phase==='start'?'找到现场负责人':'找NPC汇报与验收';$('#scene-progress').textContent=`本方案已核验${runs.length}次 · 本关${host.getLevel()?.completed?'已获25积分':'待验收'}`;$('#scene-readout').textContent=cross?`${s.facility?'东门：有天桥':'西门：无天桥'} · ${s.signal==='green'?'绿灯':'红灯'}`:minimum?`样本组：A=${input().a}%，B=${input().b}%`:`试运行输入：${s.temperatureCase}℃ · ≥30℃启动，否则停机`;$('#scene-log').innerHTML=host.getRuns().slice().reverse().map(r=>`<p>${esc(window.AdventureRules?.evidenceSummary(id,r)||JSON.stringify(r.input))}<b class="${r.correct?'ok':'error'}">${r.correct?'符合规则':'需要修订'}</b></p>`).join('')||'<p>完成一次现场核验后，这里自动留下实验。</p>';}
+  /* 学生顶着马路边界却还没选通道时，把两个入口点亮，比只说一句话管用。 */
+  const stuckAtRoad=cross&&!selectedRoute&&!s.visited.includes('crossed')&&s.x>=380&&s.x<=410;
+  root.querySelectorAll('[data-place]').forEach(b=>{
+    const p=entries[Number(b.dataset.place)];
+    b.classList.toggle('is-target',!!target&&p===target);
+    b.classList.toggle('is-route-hint',!!stuckAtRoad&&['bridge','zebra'].includes(p.kind));
+  });const runs=host.getRuns().slice(host.getEvidenceStart()).filter(r=>{try{return window.BranchRules.configKey(id,r.config)===window.BranchRules.configKey(id,d().config);}catch{return false;}});$('#scene-review').textContent=s.phase==='start'?'找到现场负责人':'找NPC汇报与验收';$('#scene-progress').textContent=`本方案已核验${runs.length}次 · 本关${host.getLevel()?.completed?'已获25积分':'待验收'}`;$('#scene-readout').textContent=cross?`${s.facility?'东门：有天桥':'西门：无天桥'} · ${s.signal==='green'?'绿灯':'红灯'}`:minimum?`样本组：A=${input().a}%，B=${input().b}%`:`试运行输入：${s.temperatureCase}℃ · ≥30℃启动，否则停机`;$('#scene-log').innerHTML=host.getRuns().slice().reverse().map(r=>`<p>${esc(window.AdventureRules?.evidenceSummary(id,r)||JSON.stringify(r.input))}<b class="${r.correct?'ok':'error'}">${r.correct?'符合规则':'需要修订'}</b></p>`).join('')||'<p>完成一次现场核验后，这里自动留下实验。</p>';}
  function tick(now){if(disposed)return;const raw=(now-lastTime)/1000||0,dt=Math.min(raw,.05);lastTime=now;walkTime+=dt;let moved=false;
   if(raw>.045)slowStreak++;else if(slowStreak)slowStreak--;
   if(!lowPower&&slowStreak>45){lowPower=true;reducedMotion=true;frameGap=1000/30;}
@@ -198,6 +205,7 @@ export function createParkScene(host){
   if(!dialogueOpen&&keys.size){path=[];afterMove=null;const dx=(keys.has('right')?1:0)-(keys.has('left')?1:0),dy=(keys.has('down')?1:0)-(keys.has('up')?1:0);const len=Math.hypot(dx,dy)||1;const next={x:s.x+dx/len*210*dt,y:s.y+dy/len*210*dt};if(walkable(next)){s.x=next.x;s.y=next.y;moved=!!(dx||dy);}if(dx||dy)s.facing=Math.abs(dx)>Math.abs(dy)?dx>0?'right':'left':dy>0?'down':'up';
   }else if(!dialogueOpen&&path.length){const next=moveTowards(s,path[0],220*dt);const dx=next.x-s.x,dy=next.y-s.y;s.facing=Math.abs(dx)>Math.abs(dy)?dx>0?'right':'left':dy>0?'down':'up';s.x=next.x;s.y=next.y;moved=true;if(next.arrived){path.shift();if(!path.length){const fn=afterMove;afterMove=null;persist();if(fn)fn();}}}
   if(walking&&!moved){persist();}if(cross&&s.phase==='travelling'&&distance(s,ROAD_NODES.right)<45){s.phase='arrived';mark('crossed');selectedRoute=null;persist();}
+  if(cross&&!moved&&keys.size&&s.x>380&&s.x<410&&!selectedRoute&&!s.visited.includes('crossed')&&now-lastBlockHint>4000){lastBlockHint=now;say('马路上不能直接穿行：点【天桥入口】或【斑马线入口】选一条通道。');}
   walking=moved;if(stage.clientWidth<700&&walking)layoutCamera();
   if(now-lastDraw>=frameGap){draw();lastDraw=now;}
   if(now-lastHud>250){refresh();lastHud=now;}raf=requestAnimationFrame(tick);
