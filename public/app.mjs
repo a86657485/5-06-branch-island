@@ -239,10 +239,17 @@ function mountRestartButton(id){
   engine.textContent=legacy?'改用完整场景':'改用轻量场景';
   engine.onclick=()=>armed(engine,legacy?'改用完整场景':'改用轻量场景',()=>switchEngine());
 
-  if(tools){ tools.appendChild(restart); tools.appendChild(engine); return; }
+  // 轻量场景没有页头的「巡检手册」按钮，这里补一个，先学卡才打得开
+  const learn=document.createElement('button');
+  learn.type='button'; learn.id='legacy-learn'; learn.className='quiet restart-level';
+  learn.textContent='📖 巡检手册';
+  learn.onclick=()=>showLearnCard(id,true);
+
+  if(tools){ tools.appendChild(learn); tools.appendChild(restart); tools.appendChild(engine); return; }
   // RPG 场景的标题栏是固定高度的 flex，塞进去会被裁掉，单独占一行放在场景上方
   const row=document.createElement('div');
   row.className='restart-row';
+  if(!bar.querySelector('#open-learn')) row.appendChild(learn);
   row.appendChild(restart); row.appendChild(engine);
   shell.parentNode.insertBefore(row, shell);
 }
@@ -329,11 +336,18 @@ function updateChrome(){
  bindChrome();
  updateHeader();
 }
+/** 剧情与先学卡浮层：原来只写在完整场景模板里，轻量场景取不到，剧情和手册会整段缺失。 */
+const SCENE_OVERLAYS = `<div id="story-overlay" class="screen-overlay" hidden><section class="overlay-card story-card" role="dialog" aria-modal="true" aria-label="剧情"><button type="button" id="story-skip" class="overlay-close" data-focus="story-skip" aria-label="关闭回放" hidden>×</button><img id="story-art" alt="" /><p id="story-speaker" class="eyebrow"></p><p id="story-line" class="story-line"></p><div class="story-actions"><button type="button" id="story-next" class="primary">继续</button><button type="button" id="story-direct-close" class="quiet" hidden>关闭回放，回到现场</button></div></section></div><div id="learn-overlay" class="screen-overlay learn-overlay" hidden><section class="overlay-card learn-card" role="dialog" aria-modal="true" aria-label="巡检手册"><button type="button" id="learn-close" class="overlay-close" aria-label="关闭巡检手册">×</button><div id="learn-content"></div><button type="button" id="learn-continue" class="primary">回到现场继续</button></section></div>`;
+
 function renderLegacy(){
  const idx=ids.indexOf(current);
  $('#app').innerHTML=`${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar"><a class="brand" href="#">分支冒险岛<span>判断选择用分支</span></a><div class="identity"><span>${demo?'演示调试员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${esc(pointsLabel(state))}</strong><button id="switch-user" class="quiet">切换身份</button></div></header><div class="app-shell"><aside class="map"><p class="eyebrow">原版场景</p><h2>让判断驱动行动</h2><nav aria-label="任务路线">${ids.map((id,i)=>`<button data-route="${id}" class="route-item ${current===id?'selected':''}" ${canEnter(id)?'':'disabled'}><span class="stop">${state.levels[id]?.completed?'✓':i+1}</span><span><b>${titles[i]}</b><small>${state.levels[id]?.completed?(state.levels[id].valid?'已完成 · 当前已验证':'曾完成 · 当前待重验'):(canEnter(id)?'可开始探索':'完成上一站解锁')}</small></span></button>`).join('')}<button data-route="quiz" class="route-item ${current==='quiz'?'selected':''}"><span class="stop">Q</span><span><b>独立检测</b><small>${examOpened()?'可以开始':'还差哪一站'}</small></span></button></nav><div id="save-status" class="save-status" role="status">${syncStatus()}</div></aside><main id="workbench" class="workbench"></main></div>`;
+ $('#app').insertAdjacentHTML('beforeend', SCENE_OVERLAYS);
  bindChrome();
- if(current==='quiz')renderQuiz(); else renderTask(idx);
+ if(current==='quiz'){ renderQuiz(); return; }
+ renderTask(idx);
+ // 轻量场景也要播进场剧情，顺序放在渲染之后，才会盖在场景上
+ showStationStory(current);
 }
 function renderPlay(){
  const app = $('#app');
@@ -384,7 +398,6 @@ function closePatrol(){
  if(!storySession && ($('#exam-overlay')?.hidden!==false)) activeScene?.setOverlay?.('');
 }
 function showStory(levelId, beat, replay=false){
- if(legacy)return;
  const script=storyScript(levelId, beat); if(!script)return;
  const baseKey=storyKey(levelId, beat);
  const key=beat==='opening'?`story-v2:${baseKey}`:baseKey;
@@ -432,13 +445,13 @@ function dismissStoryOverlay(){
  activeScene?.setOverlay?.('');
 }
 function showStationStory(id){
- if(legacy||!id||id==='quiz'||storySession)return;
+ if(!id||id==='quiz'||storySession)return;
  const patrol=loadPatrol();
  if(!patrol.briefSeen){ showStory('brief','brief'); return; }
  showStory(id,'opening');
 }
 function showLearnCard(id, replay=false){
- if(legacy||!ids.includes(id)||(!replay&&!learnDue(loadPatrol(),id)))return {opened:false};
+ if(!ids.includes(id)||(!replay&&!learnDue(loadPatrol(),id)))return {opened:false};
  const card=learnCard(id),brief=stationBrief(id),overlay=$('#learn-overlay');if(!overlay)return {opened:false};
  learnStation=id;
  $('#learn-content').innerHTML=`<p class="eyebrow">${esc(storyScript(id,'opening')?.npc||'园区委托')} · 巡检手册</p><h2>${esc(card.title)}</h2><p class="learn-mission">${esc(brief.problem)}<br>${esc(card.purpose)}</p><div class="learn-columns"><figure><img src="${esc(card.image.src)}" alt="${esc(card.image.alt)}"><figcaption>${esc(card.image.page)} · 教材局部图</figcaption></figure><ol>${card.lines.map(line=>`<li>${esc(line)}</li>`).join('')}</ol></div><p class="learn-success"><b>这站做到：</b>${esc(brief.success.replace('，','。'))}</p><p class="muted learn-footnote">需要时翻手册，再回现场试一试。</p>`;
