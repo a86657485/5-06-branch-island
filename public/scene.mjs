@@ -9,7 +9,7 @@ const PARK_NODES={entry:{x:600,y:730},gate:{x:600,y:585},south:{x:600,y:445},wes
 const PARK_EDGES=[['entry','gate'],['gate','south'],['south','west'],['west','room'],['room','control'],['room','sensor'],['room','fan'],['room','check'],['west','guide'],['west','nw'],['nw','garden'],['garden','batteryA'],['garden','batteryB'],['garden','charger'],['nw','north'],['north','ne'],['ne','repair'],['repair','repairSensor'],['repair','repairFan'],['repair','repairCheck'],['ne','repairGuide'],['ne','east'],['east','south']];
 const ROAD_NODES={start:{x:270,y:650},npc:{x:275,y:480},observe:{x:335,y:405},sign:{x:320,y:465},light:{x:370,y:475},bridgeL:{x:355,y:295},bridgeM:{x:610,y:255},bridgeR:{x:865,y:295},zebraL:{x:355,y:532},zebraM:{x:610,y:532},zebraR:{x:865,y:532},right:{x:890,y:420},rightBottom:{x:900,y:650}};
 const ROAD_EDGES=[['start','npc'],['npc','observe'],['npc','sign'],['sign','light'],['observe','bridgeL'],['npc','zebraL'],['bridgeR','right'],['zebraR','right'],['right','rightBottom']];
-const labelOut=v=>({on:'启动风机',off:'停止风机',bridge:'天桥',crossing:'斑马线',a:'电池A',b:'电池B'})[v]||v;
+const labelOut=v=>({on:'启动风机',off:'关闭风机',bridge:'天桥',crossing:'斑马线',a:'电池A',b:'电池B'})[v]||v;
 export function createParkScene(host){
  const {root,levelId:id}=host;const cross=id==='cross',minimum=id==='minimum',repair=id==='repair';
  const start=cross?{x:270,y:650}:repair?{x:285,y:450}:minimum?{x:600,y:585}:{x:600,y:730};
@@ -46,7 +46,7 @@ export function createParkScene(host){
   mark('npc');
   if(s.phase==='start'){
    s.phase='assigned';if(repair)mark('inspect');
-   dialogue(repair?'维修员阿诚':cross?'安全员林姐':minimum?'能源工程师':'园区养护员',({sale:'欢迎加入智慧园区调试组。温室的试运行规则是：温度达到30℃就启动风机，否则停机。请你读取传感器、设置设备，再亲自核验29、30、31℃三种情况。',repair:'设备原本判断“温度＜30℃”，成立就停机，否则开机。有人把条件改成“≥30℃”，却保留了旧出口。先用30℃重现故障，再修复，别急着改。',cross:'园区规则：附近有可用天桥就走天桥；没有则到斑马线，按信号通行。你要在两种现场条件下核验指引。先到观察点，再设置指引牌。',minimum:'两组巡检电池只有一个充电口，低电量的一组应先充。请分别读取A、B电量，让分配器比较两个数，只送出较小的一组。'})[id],button('start','接受委托，去现场','primary'),{start:()=>{closeDialogue();say(objective());}});return;
+   dialogue(repair?'维修员阿诚':cross?'安全员林姐':minimum?'能源工程师':'园区养护员',({sale:'欢迎加入智慧园区调试组。温室的试运行规则是：温度达到30℃就启动风机，否则关闭。请你读取传感器、设置设备，再亲自核验29、30、31℃三种情况。',repair:'设备原本判断“温度＜30℃”，成立就关闭，否则启动。有人把条件改成“≥30℃”，却保留了旧出口。先用30℃重现故障，再修复，别急着改。',cross:'园区规则：附近有可用天桥就走天桥；没有则到斑马线，按信号通行。你要在两种现场条件下核验指引。先到观察点，再设置指引牌。',minimum:'两组巡检电池只有一个充电口，低电量的一组应先充。请分别读取A、B电量，让分配器比较两个数，只送出较小的一组。'})[id],button('start','接受委托，去现场','primary'),{start:()=>{closeDialogue();say(objective());}});return;
   }
   const runs=host.getRuns();const ready=(()=>{try{return window.BranchRules.validateComplete(id,d().config,runs,({sale:'boundary',repair:'swap',cross:'one',minimum:'compare'})[id],host.getEvidenceStart()).passed;}catch{return false;}})();
   if(ready){explain();return;}
@@ -144,7 +144,7 @@ export function createParkScene(host){
   const result=host.onExperiment({input:input(),prediction:d().prediction,sceneEvidence:{version:1,station:id,actorId:s.actorId,actions,destination:s.ticket.output,prediction:d().prediction,...(cross?{outcome}:{}),}});
   if(!result)return;
   if(repair&&input().temperature===30&&!result.correct)mark('diagnosed');
-  const text=minimum?`实际选中${result.output}%电量的电池。${result.correct?'确实是较低的一组，可以先充电。':'这不是较低的一组，充电口暂不接入，请检查比较条件与出口。'}`:cross?(outcome==='blocked'?'现场没有天桥，设备却指向天桥。你留在安全侧，未过街；这条指引不能执行，请修订条件对应的出口。':`现场条件${result.condition?'成立':'不成立'}，指引走${labelOut(result.output)}。${result.correct?'这次路线与园区规则一致。':'这次指引与园区规则不符，请修订。'}`):`${input().temperature}℃使条件${result.condition?'成立':'不成立'}，风机实际${result.output==='on'?'启动':'停机'}。${result.correct?'符合本园试运行规则。':'与规定结果不符，请检查对应出口。'}`;
+  const text=minimum?`实际选中${result.output}%电量的电池。${result.correct?'确实是较低的一组，可以先充电。':'这不是较低的一组，充电口暂不接入，请检查比较条件与出口。'}`:cross?(outcome==='blocked'?'现场没有天桥，设备却指向天桥。你留在安全侧，未过街；这条指引不能执行，请修订条件对应的出口。':`现场条件${result.condition?'成立':'不成立'}，指引走${labelOut(result.output)}。${result.correct?'这次路线与园区规则一致。':'这次指引与园区规则不符，请修订。'}`):`${input().temperature}℃使条件${result.condition?'成立':'不成立'}，风机实际${result.output==='on'?'启动':'关闭'}。${result.correct?'符合本园试运行规则。':'与规定结果不符，请检查对应出口。'}`;
   mark('verified');s.lastFeedback=text;s.phase='measured';delete s.ticket;s.actions=[];host.onChange({prediction:'',scene:copy(s)});refresh();
   dialogue(minimum?'充电口反馈':cross?'对岸核验员':'现场监测屏',text,button('continue','继续检验其他输入')+button('review','向NPC汇报与验收'),{continue:closeDialogue,review:explain});
  }
@@ -238,7 +238,7 @@ export function createParkScene(host){
     const p=entries[Number(b.dataset.place)];
     b.classList.toggle('is-target',!!target&&p===target);
     b.classList.toggle('is-route-hint',!!stuckAtRoad&&['bridge','zebra'].includes(p.kind));
-  });const runs=host.getRuns().slice(host.getEvidenceStart()).filter(r=>{try{return window.BranchRules.configKey(id,r.config)===window.BranchRules.configKey(id,d().config);}catch{return false;}});$('#scene-review').textContent=s.phase==='start'?'找到现场负责人':'找NPC汇报与验收';$('#scene-progress').textContent=`本方案已核验${runs.length}次 · 本关${host.getLevel()?.completed?'已获25积分':'待验收'}`;$('#scene-readout').textContent=cross?`${s.facility?'东门：有天桥':'西门：无天桥'} · ${s.signal==='green'?'绿灯':'红灯'}`:minimum?`样本组：A=${input().a}%，B=${input().b}%`:`试运行输入：${s.temperatureCase}℃ · ≥30℃启动，否则停机`;$('#scene-log').innerHTML=host.getRuns().slice().reverse().map(r=>`<p>${esc(window.AdventureRules?.evidenceSummary(id,r)||JSON.stringify(r.input))}<b class="${r.correct?'ok':'error'}">${r.correct?'符合规则':'需要修订'}</b></p>`).join('')||'<p>完成一次现场核验后，这里自动留下实验。</p>';}
+  });const runs=host.getRuns().slice(host.getEvidenceStart()).filter(r=>{try{return window.BranchRules.configKey(id,r.config)===window.BranchRules.configKey(id,d().config);}catch{return false;}});$('#scene-review').textContent=s.phase==='start'?'找到现场负责人':'找NPC汇报与验收';$('#scene-progress').textContent=`本方案已核验${runs.length}次 · 本关${host.getLevel()?.completed?'已获25积分':'待验收'}`;$('#scene-readout').textContent=cross?`${s.facility?'东门：有天桥':'西门：无天桥'} · ${s.signal==='green'?'绿灯':'红灯'}`:minimum?`样本组：A=${input().a}%，B=${input().b}%`:`试运行输入：${s.temperatureCase}℃ · ≥30℃启动，否则关闭`;$('#scene-log').innerHTML=host.getRuns().slice().reverse().map(r=>`<p>${esc(window.AdventureRules?.evidenceSummary(id,r)||JSON.stringify(r.input))}<b class="${r.correct?'ok':'error'}">${r.correct?'符合规则':'需要修订'}</b></p>`).join('')||'<p>完成一次现场核验后，这里自动留下实验。</p>';}
  function tick(now){if(disposed)return;const raw=(now-lastTime)/1000||0,dt=Math.min(raw,.05);lastTime=now;walkTime+=dt;let moved=false;
   if(raw>.045)slowStreak++;else if(slowStreak)slowStreak--;
   if(!lowPower&&slowStreak>45){lowPower=true;reducedMotion=true;frameGap=1000/30;}

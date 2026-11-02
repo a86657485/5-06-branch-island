@@ -282,7 +282,7 @@ function prepareSceneDraft(id){
 }
 function setNotice(text){notice=text;const target=$('#notice')||$('#scene-toast')||$('#sync-notice');if(target){target.textContent=text;target.hidden=!text;}}
 function option(value,label,selected){return `<option value="${esc(value)}" ${value===selected?'selected':''}>${esc(label)}</option>`;}
-function outputLabel(value){return ({on:'启动风机',off:'停止风机',bridge:'走天桥',crossing:'到斑马线按信号通行',a:'电池A优先充电',b:'电池B优先充电'})[value] || '选择执行的动作';}
+function outputLabel(value){return ({on:'启动风机',off:'关闭风机',bridge:'走天桥',crossing:'到斑马线按信号通行',a:'电池A优先充电',b:'电池B优先充电'})[value] || '选择执行的动作';}
 function conditionLabel(id=current){const d=draft(id);if(id==='cross')return '附近有可用天桥吗？';if(id==='minimum')return d.config.operator?`电量 a ${d.config.operator} b 吗？`:'两组电量怎样比较？';return `温度 ${d.config.operator==='>='?'≥':'＜'} 30℃？`;}
 function flow(){
  const c=draft().config;const br=lastRun?.branch;

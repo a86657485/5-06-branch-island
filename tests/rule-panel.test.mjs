@@ -66,7 +66,7 @@ test('规则回显随选择变化，没选的地方写清楚', () => {
   assert.equal(ruleSentence('sale', {}), '如果 （还没选） → 是：（还没选）；否：（还没选）');
   assert.equal(
     ruleSentence('sale', { operator: '>=', yes: 'on', no: 'off' }),
-    '如果 温度 ≥ 30℃ → 是：启动风机；否：停止风机',
+    '如果 温度 ≥ 30℃ → 是：启动风机；否：关闭风机',
   );
   assert.equal(
     ruleSentence('minimum', { operator: '<', yes: 'a', no: 'b' }),
@@ -81,7 +81,7 @@ test('规则回显随选择变化，没选的地方写清楚', () => {
 test('valueLabel 覆盖三个站点用到的全部取值', () => {
   const pairs = [
     ['sale', '>=', '温度 ≥ 30℃'], ['sale', '<', '温度 ＜ 30℃'],
-    ['sale', 'on', '启动风机'], ['sale', 'off', '停止风机'],
+    ['sale', 'on', '启动风机'], ['sale', 'off', '关闭风机'],
     ['cross', 'bridge', '走天桥'], ['cross', 'crossing', '走斑马线'],
     ['minimum', 'a', '送电池A'], ['minimum', 'b', '送电池B'],
   ];
