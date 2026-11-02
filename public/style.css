@@ -309,3 +309,7 @@ tr.row-open>td{background:#f4faf8}
 /* 规则面板要一次看全四步：矮屏上它跳出地图区域，用整页高度，避免第 ④ 步被按钮压住 */
 .npc-dialogue.is-rule{position:fixed;right:16px;bottom:16px;max-height:calc(100vh - 32px);z-index:60}
 @media (max-width:720px){.npc-dialogue.is-rule{right:8px;bottom:8px;max-height:calc(100vh - 16px)}}
+
+/* 考核浮层的「回到闯关」出口（2026-11-02） */
+.exam-back{display:inline-flex;align-items:center;gap:4px;margin:0 0 10px;padding:7px 12px;font-size:12px;font-weight:700;border-radius:8px;border:1.5px solid #9dbfd8;background:#eef6ff;color:#215a7a}
+.exam-back:hover{background:#e2eefb}

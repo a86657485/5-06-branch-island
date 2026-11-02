@@ -19,6 +19,18 @@ export function createParkScene(host){
  let disposed=false,raf=0,path=[],afterMove=null,keys=new Set(),lastTime=0,walking=false,walkTime=0,scale=1,ox=0,oy=0,dialogueOpen=false,dirty=false,saveTimer=0;
  const assets={};
  const entries=[];let labelAnchors=[];let selectedRoute=cross&&s.phase==='travelling'?s.ticket?.output:null,lastHud=0;
+
+ /* 换场景或换引擎后，存档坐标可能落在走不通的地方（完整场景默认坐标 400,420 就是这样）。
+    学生一进来四向都动不了，只能重做本关——这里把他挪到最近的合法路口。 */
+ function ensureStandable(){
+  s.visited||=[];s.actions||=[];
+  if(Number.isFinite(s.x)&&Number.isFinite(s.y)){try{if(walkable(s))return;}catch{}}
+  const nodes=Object.values(cross?ROAD_NODES:PARK_NODES);
+  let to=start,best=Infinity;
+  for(const p of nodes){if(!walkable(p))continue;const d=distance(s,p);if(d<best){best=d;to=p;}}
+  console.warn('[场景] 存档位置不在步道上，已挪到最近路口',{from:{x:Math.round(s.x||0),y:Math.round(s.y||0)},to});
+  s.x=to.x;s.y=to.y;s.facing='up';dirty=true;
+ }
  root.innerHTML=`<section class="adventure-heading"><div><p class="eyebrow">深圳智慧园林情境 · 教学仿真</p><h1>${esc(({sale:'生态温室：通风试运行',repair:'设备维修：找出反向指令',cross:'安全通行：现场核验指引',minimum:'节能配电：低电量优先'})[id])}</h1></div><div class="task-tools"><button id="scene-flow" class="quiet">查看执行过程图</button><button id="scene-help" class="quiet">怎么操作</button></div></section><div class="park-stage" id="park-stage"><canvas id="park-canvas" tabindex="0" aria-label="可行走的智慧公园，点击地点或使用方向键移动"></canvas><div class="scene-hud"><span class="role-badge">设备调试员</span><span id="scene-objective"></span><button id="stop-walk" title="停止当前行走">停下</button></div><div id="scene-hotspots"></div><div class="scene-readout" id="scene-readout"></div><div class="scene-toast" id="scene-toast" role="status"></div><section class="npc-dialogue" id="npc-dialogue" hidden aria-label="现场对话"><button id="close-dialogue" aria-label="关闭对话" class="dialogue-close">×</button><div id="npc-content"></div></section><div class="move-pad" aria-label="移动方向"><button data-direction="up" aria-label="向上移动">↑</button><button data-direction="left" aria-label="向左移动">←</button><button id="nearby-action">E</button><button data-direction="right" aria-label="向右移动">→</button><button data-direction="down" aria-label="向下移动">↓</button></div></div><div class="adventure-footer"><span>点击地点走近交互 · 方向键 / WASD移动 · E交谈</span><span id="scene-progress"></span><button id="scene-review" class="quiet">找NPC复盘与验收</button></div><details class="scene-log"><summary>我的现场实验记录</summary><div id="scene-log"></div></details>`;
  const stage=root.querySelector('#park-stage'),canvas=root.querySelector('canvas'),ctx=canvas.getContext('2d');
  const $=selector=>root.querySelector(selector);
@@ -230,7 +242,7 @@ export function createParkScene(host){
   if(minimum&&(s.collected||[]).length)text(s.phase==='charging'?`携带${s.ticket?.output}%电池`:`样本：${s.collected.join('、').toUpperCase()}`,s.x,s.y-92,'#fff',15);
   ctx.restore();
  }
- function refresh(){if(disposed)return;$('#scene-objective').textContent=objective();
+ function refresh(){if(disposed)return;const box=$('#scene-objective');if(!box)return;box.textContent=objective();
   const target=currentGoal();
   /* 学生顶着马路边界却还没选通道时，把两个入口点亮，比只说一句话管用。 */
   const stuckAtRoad=cross&&!selectedRoute&&!s.visited.includes('crossed')&&s.x>=380&&s.x<=410;
@@ -264,7 +276,7 @@ export function createParkScene(host){
  const observer=new ResizeObserver(resize);observer.observe(stage);
  function image(name,file){const img=new Image();assets[name]=img;img.src=file;img.onerror=()=>say('部分场景图片未加载，操作与记录仍可继续。');}
  image('park','/assets/park-map.webp?v=2d-20261015');image('road','/assets/crossing-map.webp?v=2d-20261015');image('people','/assets/characters.webp?v=2d-20261015');
- buildEntries();resize();refresh();persist();raf=requestAnimationFrame(tick);
+ ensureStandable();buildEntries();resize();refresh();persist();raf=requestAnimationFrame(tick);
  if(new URLSearchParams(location.search).has('debug'))window.__sceneDebug={refresh,currentGoal,getEntries:()=>entries,getState:()=>s,getPath:()=>path,getToast:()=>$('#scene-toast')?.textContent||''};
  return{refresh,destroy(){if(disposed)return;clearTimeout(saveTimer);persist();disposed=true;cancelAnimationFrame(raf);observer.disconnect();window.removeEventListener('keydown',keydown);window.removeEventListener('keyup',keyup);window.removeEventListener('blur',blur);keys.clear();path=[];afterMove=null;}};
 }
