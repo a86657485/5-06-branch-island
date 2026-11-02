@@ -1,4 +1,6 @@
 import {distance,findRoute,moveTowards,nearestPointOnSegment} from './navigation.mjs';
+import {panelModel,predictBlock,panelStatus,ruleSentence,valueLabel} from './rule-panel.mjs';
+import {nextStep as computeNextStep} from './guidance.mjs';
 const W=1200,H=800;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const copy=v=>JSON.parse(JSON.stringify(v));
@@ -25,19 +27,14 @@ export function createParkScene(host){
  function mark(value){if(!s.visited.includes(value))s.visited.push(value);s.visited=s.visited.slice(-20);}
  function persist(){if(disposed)return;dirty=false;host.onChange({scene:copy(s)});}
  function scheduleSave(){dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(persist,220);}
- function objective(){
-  if(host.getLevel()?.valid)return '本轮验收通过，找NPC前往下一处任务。';
-  if(s.phase==='start')return '先走近现场NPC，领取调试委托。';
-  if(cross){if(!s.measured)return '到观察点，确认现场有没有可用天桥。';if(!s.ticket)return s.visited.includes('verified')?'回安全员处领取另一现场条件，再观察与核验。':'走近指引牌，设定两条路径并作出预测。';if(s.phase==='arrived')return '已到对岸，在核验点检查本次指引。';return `亲自走${labelOut(s.ticket.output)}，到对岸核验。`;}
-  if(minimum){if((s.collected||[]).length<2)return '分别到电池A、B站，读取并领取两组电量样本。';if(!s.ticket)return s.visited.includes('verified')?'回能源工程师处领取另一组电量，检验另一种大小关系。':'到分配台设定比较条件、两个出口，并预测。';if(s.phase==='charging')return '把选出的电池带到充电口，核对是否低电量优先。';return `装置已选择${Number(s.ticket.output)===d().input.a?'电池A':'电池B'}，去对应出口取样。`;}
-  if(!s.measured)return `到温度探头，读取${s.temperatureCase}℃试运行数据。`;
-  if(!s.ticket)return '在控制柜设置规则、预测，再到风机执行。';
-  return '风机已执行，到现场监测屏核验结果。';
- }
+ /** 引导唯一来源：任务条文案、目标高亮、引导线、NPC 提示全读这一个函数。
+  *  以前文案和目标是两套 if 链，进度一变就会出现「叫你去做一件做不了的事」。 */
+ function nextStep(){return computeNextStep({station:id,scene:s,prediction:d().prediction,input:input(),levelValid:!!host.getLevel()?.valid});}
+ function objective(){return nextStep().text;}
  function say(text){$('#scene-toast').textContent=text;s.lastFeedback=text;scheduleSave();}
  function closeDialogue(){dialogueOpen=false;$('#npc-dialogue').hidden=true;canvas.focus({preventScroll:true});}
- function dialogue(name,text,html='',handlers={}){
-  if(disposed)return;path=[];afterMove=null;walking=false;dialogueOpen=true;$('#npc-dialogue').hidden=false;
+ function dialogue(name,text,html='',handlers={},opts={}){
+  if(disposed)return;path=[];afterMove=null;walking=false;dialogueOpen=true;$('#npc-dialogue').hidden=false;$('#npc-dialogue').classList.toggle('is-rule',!!opts.wide);
   $('#npc-content').innerHTML=`<p class="npc-name">${esc(name)}</p><p class="npc-speech">${esc(text)}</p><div class="npc-choices">${html}</div>`;
   for(const [key,fn] of Object.entries(handlers))root.querySelectorAll(`[data-choice="${key}"]`).forEach(b=>b.onclick=fn);
   $('#close-dialogue').focus({preventScroll:true});scheduleSave();
@@ -76,22 +73,66 @@ export function createParkScene(host){
  }
  function control(){
   if(!s.measured){say(minimum?'先到A、B两处读取电量样本。':cross?'先到观察点核对设施。':'先到温度探头读取本组数据。');return;}
-  const config=d().config;const locked=repair&&!s.visited.includes('diagnosed');
-  /* 第二站控制柜在故障重现前是锁的：已经拿到结果却还让他'重现故障'，学生会反复执行同一个动作。 */
-  const lockStep=!locked?'':s.ticket?'故障已经用 30℃ 重现过了。点下面的按钮去【监测屏核验】看结果，回来就能改规则了。':'这是原错误设备，规则还锁着。先到【温度探头】读数据，再到【执行风机】用 30℃ 重现故障。';
-  const values=cross?[['bridge','走天桥'],['crossing','走斑马线']]:minimum?[['a','选择电池A'],['b','选择电池B']]:[['on','启动风机'],['off','停止风机']];
-  const operators=minimum?[['<','a＜b'],['>','a＞b']]:[['>=','温度≥30℃'],['<','温度＜30℃']];
+  const config=d().config;
+  const locked=repair&&!s.visited.includes('diagnosed');
+  const ctx={locked,facility:cross?!!s.facility:null};
+  const blocks=panelModel(id,config,ctx);
+  const predict=predictBlock(id,ctx);
+  const status=panelStatus(id,config,ctx);
+  const lockedNote=()=>`这台是原故障设备，规则锁着不能改。${s.ticket?'故障已经用 30℃ 重现过了：去【监测屏核验】看它错在哪，回来就能改。':'先在第 ④ 步作出预测，再去【执行风机】用 30℃ 执行一次。'}`;
+  const chosen=field=>field==='prediction'?d().prediction:config[field];
   const handlers={};
-  const chips=(field,choices)=>choices.map(([value,label],i)=>{const key=`${field}${i}`;handlers[key]=()=>{if(field==='prediction'){delete s.ticket;host.onChange({prediction:value,scene:copy(s)});s.phase='ready';}else{const next={...d().config,[field]:value};delete s.ticket;host.onChange({config:next,scene:copy(s)});}control();};return button(key,label,(field==='prediction'?d().prediction:config[field])===value?'chosen':'');}).join('');
-  let html=locked?`<div class="device-rule">当前故障规则：温度≥30℃<br>是→停止风机　否→启动风机</div><p class="device-lock">${lockStep}</p>`:`<div class="device-rule">${!cross?`<p>判断条件</p><div class="choice-row">${chips('operator',repair?[['>=','温度≥30℃']]:operators)}</div>`:'<b>附近有可用天桥吗？</b>'}<p>条件成立 → 是</p><div class="choice-row">${chips('yes',values)}</div><p>条件不成立 → 否</p><div class="choice-row">${chips('no',values)}</div></div>`;
-  html+=`<p class="prediction-prompt">${minimum?`A=${input().a}%，B=${input().b}%，装置会选择哪组？`:cross?'按照你设定的规则，本次会指向哪条路？':`本次温度${input().temperature}℃，实际设备会怎样？`}</p><div class="choice-row">${chips('prediction',values)}</div>`;
-  html+=locked?button('gotoverify','去监测屏核验','primary')+button('leave','先关掉'):button('execute',minimum?'启动分配器':cross?'应用这条指引':'去风机执行','primary')+button('leave','关闭，继续观察');
+  const cardsFor=block=>{
+    if(block.readOnly){
+      const label=block.field?valueLabel(id,config[block.field]):block.cards[0].label;
+      return `<div class="rule-cards is-${block.kind}"><span class="rule-card is-fixed" aria-disabled="true">${esc(label)}</span></div>`;
+    }
+    return `<div class="rule-cards is-${block.kind}">${block.cards.map((c,index)=>{
+      const key=`${block.field}${index}`;
+      handlers[key]=()=>{
+        if(block.field==='prediction'){delete s.ticket;host.onChange({prediction:c.value,scene:copy(s)});s.phase='ready';}
+        else{const next={...d().config,[block.field]:c.value};delete s.ticket;host.onChange({config:next,scene:copy(s)});}
+        control();
+      };
+      return button(key,c.label,chosen(block.field)===c.value?'chosen':'');
+    }).join('')}</div>`;
+  };
+  const blockHtml=block=>`<section class="rule-block is-${block.kind}${block.field?` f-${block.field}`:''}"><h4><span>${block.step}</span>${esc(block.title.replace(/^[\u2460-\u2463]\s*/,''))}</h4>${cardsFor(block)}${block.hint?`<p class="rule-hint">${esc(block.hint)}</p>`:''}</section>`;
+  const need=status.missing.concat(d().prediction?[]:['预测']);
+  let html='<div class="rule-board">'
+    +blocks.map(blockHtml).join('')
+    +`<p class="rule-preview">现在这条规则：<b>${esc(ruleSentence(id,config,ctx))}</b></p>`
+    +blockHtml(predict);
+  if(locked)html+=`<p class="device-lock">${esc(lockedNote())}</p>`;
+  else if(need.length)html+=`<p class="rule-missing">还差：${esc(need.join('、'))}。四项都选好才能执行。</p>`;
+  html+='</div>';
+  html+='<div class="rule-actions">';
+  if(locked){
+    html+=s.ticket?button('gotoverify','去监测屏核验','primary')+button('leave','先关掉')
+      :d().prediction?button('gofan','去执行风机','primary')+button('leave','先关掉')
+      :button('leave','先关掉');
+  }else if(!need.length){
+    html+=button('execute',minimum?'启动分配器':cross?'应用这条指引':'去风机执行','primary')+button('leave','关闭，继续观察');
+  }else{
+    html+='<button class="primary" disabled aria-disabled="true">四项选好才能执行</button>'+button('leave','先关掉');
+  }
+  html+='</div>';
   handlers.gotoverify=()=>{closeDialogue();navigate(point('verify'),()=>verify());};
-  handlers.execute=()=>{if(!d().prediction){say('先作出自己的预测，再执行设备。');return;}try{evaluated();}catch(e){say(e.message);return;}closeDialogue();if(cross||minimum)execute();else navigate(point('fan'));};handlers.leave=closeDialogue;
-  dialogue(minimum?'电量分配台':cross?'现场指引牌':'通风控制柜',locked?lockStep:'这里设置的是设备会实际执行的规则。每条出口对应一个动作，选择后到现场观察。',html,handlers);
+  handlers.gofan=()=>{closeDialogue();navigate(point('fan'),()=>execute());};
+  handlers.execute=()=>{
+    const missing=panelStatus(id,d().config,ctx).missing.concat(d().prediction?[]:['预测']);
+    if(missing.length){say(`还差：${missing.join('、')}。`);control();return;}
+    try{evaluated();}catch(e){say(e.message);return;}
+    closeDialogue();if(cross||minimum)execute();else navigate(point('fan'));
+  };
+  handlers.leave=closeDialogue;
+  dialogue(minimum?'电量分配台':cross?'现场指引牌':repair?'故障控制柜':'通风控制柜',
+    locked?'规则现在是锁住的，先看它错在哪，再决定怎么改。':'按 ①②③④ 一步步填，最后再写预测。',
+    html,handlers,{wide:true});
  }
  function execute(){
-  if(!s.measured||!d().prediction){say('先读取输入，在控制柜预测，再执行。');return;}
+  if(!s.measured){say('还没有本次输入数据，先到探头或采集台读一次。');return;}
+  if(!d().prediction){say('还没作出预测：回控制柜第 ④ 步选一个结果。');return;}
   try{s.ticket=evaluated();if(!cross&&!minimum)s.deviceOutput=s.ticket.output;s.phase=cross?'route':minimum?'pickup':'verify';mark('execute');persist();closeDialogue();say(objective());}catch(e){say(e.message);}
  }
  function verify(outcome='arrived'){
@@ -123,9 +164,9 @@ export function createParkScene(host){
   const list=which==='bridge'?[ROAD_NODES.bridgeL,ROAD_NODES.bridgeM,ROAD_NODES.bridgeR,ROAD_NODES.right]:[ROAD_NODES.zebraL,ROAD_NODES.zebraM,ROAD_NODES.zebraR,ROAD_NODES.right];
   path=list.filter(p=>p.x>=s.x-25);afterMove=()=>{s.phase='arrived';mark('crossed');selectedRoute=null;persist();say('已到达对岸。点击核验点，检查现场结果。');};persist();
  }
- function point(kind){return entries.find(p=>p.kind===kind)||entries[0];}
+ function point(kind){const hit=entries.find(p=>p.kind===kind);if(!hit){console.warn('[引导] 目标点不存在：',kind,'已退回',entries[0]?.kind);return entries[0];}return hit;}
  /** 当前该去的目标点：draw 画引导线、refresh 高亮标签都读它。 */
- function currentGoal(){return s.phase==='start'?point('guide'):!s.measured?point(minimum?(s.collected?.includes('a')?'b':'a'):cross?'observe':'sensor'):!s.ticket?point((cross||minimum)&&s.visited.includes('verified')?'guide':!cross&&!minimum&&d().prediction?'fan':'control'):point(minimum?(s.phase==='charging'?'verify':Number(s.ticket.output)===input().a?'a':'b'):cross?(s.phase==='arrived'?'verify':s.ticket.output==='bridge'?'bridge':'zebra'):'verify');}
+ function currentGoal(){return point(nextStep().goal);}
  function buildEntries(){
   if(cross)entries.push({kind:'guide',x:275,y:480,label:'安全员',sprite:8,action:guide},{kind:'observe',x:335,y:405,label:'观察现场',action:observe},{kind:'control',x:320,y:465,label:'设置指引牌',action:control},{kind:'bridge',x:355,y:295,label:'天桥入口',action:()=>route('bridge')},{kind:'zebra',x:355,y:532,label:'斑马线入口',action:()=>route('crossing')},{kind:'signal',x:370,y:475,label:'信号控制箱',action:signal},{kind:'verify',x:890,y:420,label:'对岸核验',sprite:10,action:verify});
   else if(minimum)entries.push({kind:'guide',x:340,y:245,label:'能源工程师',sprite:9,action:guide},{kind:'a',x:215,y:165,label:'电池A采集台',action:()=>collect('a')},{kind:'b',x:375,y:165,label:'电池B采集台',action:()=>collect('b')},{kind:'control',x:300,y:175,label:'电量分配台',action:control},{kind:'verify',x:300,y:235,label:'充电口核验',action:verify});

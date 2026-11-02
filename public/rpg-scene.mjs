@@ -14,17 +14,23 @@ export function createRpgScene(initialHost) {
   const status = root.querySelector('#rpg-status');
   const nextHint = root.querySelector('#rpg-next-hint');
   /* 学生停在某一步时，把“下一步该点哪里”常驻显示，别让提示一闪而过。 */
-  const NEXT_HINT = {
+  /* 引擎实际只会出现这几个阶段（thermal/routes/runtime 三个模块），
+     这里逐一对应到「下一步点哪里」；站点差异用 station 区分。 */
+  const NEXT_HINT = station => ({
     start: '下一步：找现场负责人领取任务。',
-    assigned: '下一步：去观察点或传感器，把现场数据读进来。',
-    observed: '下一步：点【智能指路牌】，设置这次该怎么走。',
-    collected: '下一步：点【电量分配台】设规则。',
-    measured: '下一步：点【控制柜】设规则并作出预测。',
-    diagnosed: '下一步：回【控制柜】把规则改对。',
-    executed: '下一步：去核验台看实际结果。',
+    assigned: station==='cross' ? '下一步：到【观察现场】看清这一处有没有天桥。'
+      : station==='minimum' ? '下一步：到【电池A】【电池B】采集台读两组电量。'
+      : station==='repair' ? '下一步：到【温度探头】读取 30℃，再让旧设备执行一次。'
+      : '下一步：到【温度探头】读取本组温度。',
+    observed: station==='minimum' ? '下一步：点【电量分配台】设规则。' : '下一步：点【智能指路牌】设置这次怎么走。',
+    measured: station==='repair' ? '下一步：到【故障控制柜】先猜一猜，再去执行风机重现故障。'
+      : station==='minimum' ? '下一步：到【电量分配台】设规则并作出预测。'
+      : '下一步：点【控制柜】设规则并作出预测。',
+    executed: station==='minimum' ? '下一步：到出口取电池，再去充电口核验。' : '下一步：去核验台看实际结果。',
     arrived: '下一步：点【对岸核验】确认结果。',
-    blocked: '下一步：向现场负责人汇报这次受阻。'
-  };
+    blocked: '下一步：向现场负责人汇报这次受阻。',
+    connected: '下一步：点【充电口核验】确认是否低电量优先。'
+  })[station] || {};
   const fallbackMessage = root.querySelector('#rpg-fallback');
   const context = () => copy({ levelId:host.levelId, draft:host.getDraft(), runs:host.getRuns(), level:host.getLevel() || {}, scaffold:host.getScaffold?.()||null, evidenceStart:host.getEvidenceStart(), demo:!!host.demo, support:(()=>{const hints=host.getSupport?.()?.hints||[];return {hints,used:hints.length,remaining:Math.max(0,5-hints.length)};})(), undoAvailable:!!host.getUndoAvailable?.(), reasons:(host.reasons || []).map(r=>Array.isArray(r)?{value:r[0],label:r[1]}:r) });
   const post = data => { if (!disposed) frame.contentWindow?.postMessage({ ...data, sessionId },origin); };
@@ -37,7 +43,7 @@ export function createRpgScene(initialHost) {
   const hintClock = typeof setInterval === 'function' ? setInterval(() => {
     if (disposed) return;
     const phase = host.getDraft?.()?.scene?.phase;
-    const text = ready ? (NEXT_HINT[phase] || '') : '';
+    const text = ready ? (NEXT_HINT(host.levelId || '')[phase] || '') : '';
     if (!nextHint) return;
     nextHint.textContent = text;
     nextHint.hidden = !text;

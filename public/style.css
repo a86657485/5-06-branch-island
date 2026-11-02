@@ -220,7 +220,7 @@ tr.row-open>td{background:#f4faf8}
 @media (prefers-reduced-motion:reduce){.world-hotspot.is-target{animation:none}}
 
 /* 第二站控制柜锁定时的指路提示（2026-10-30） */
-.device-lock{margin:10px 0 0;padding:9px 12px;background:#fff2c9;border:1px solid #e7cf80;border-radius:8px;font-size:13px;line-height:1.6;color:#5a4620;text-align:left}
+.device-lock{margin:8px 0 0;padding:8px 10px;background:#fff2c9;border:1px solid #e7cf80;border-radius:8px;font-size:11.5px;line-height:1.6;color:#5a4620;text-align:left}
 
 /* 学生端「重做本关」：卡住时的自救出口（2026-10-30） */
 .restart-level{font-size:12px;min-height:38px;padding:8px 13px;white-space:nowrap}
@@ -243,3 +243,69 @@ tr.row-open>td{background:#f4faf8}
 .engine-switch{background:#eef6ff;border-color:#9dbfd8;color:#215a7a}
 .engine-switch:hover{background:#e2eefb}
 .engine-switch.armed{background:#ffe4e0;border-color:#e08a7a;color:#a4392a}
+
+/* 规则面板：判断卡与动作卡分区（2026-11-02）
+   学生反馈「卡片放在一起分不清」，这里用颜色 + 序号 + 分隔线把四步拆开。 */
+.rule-board{display:flex;flex-direction:column;gap:7px;margin:2px 0 8px}
+.rule-block{border-radius:10px;padding:8px 9px 9px;border:1.5px solid #d8e2d6;border-left-width:5px;background:#fbfcf6}
+.rule-block h4{display:flex;align-items:center;gap:6px;margin:0 0 6px;font-size:11.5px;line-height:1.4;font-weight:800;color:#25463b}
+.rule-block h4 span{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#25463b;color:#fff;font-size:10.5px;font-weight:800}
+.rule-block.is-judge{background:#eef5fc;border-color:#b7d2e8;border-left-color:#2f6f9f}
+.rule-block.is-judge h4{color:#1d4f76}
+.rule-block.is-judge h4 span{background:#2f6f9f}
+.rule-block.f-yes{background:#eef8ee;border-color:#bcdcbf;border-left-color:#2f7a48}
+.rule-block.f-yes h4{color:#1f5c36}
+.rule-block.f-yes h4 span{background:#2f7a48}
+.rule-block.f-no{background:#fdf4e8;border-color:#ecd3ac;border-left-color:#a86a20}
+.rule-block.f-no h4{color:#7d4d11}
+.rule-block.f-no h4 span{background:#a86a20}
+.rule-block.is-predict{background:#f5f3fb;border-color:#cfc8e6;border-left-color:#5b4b9a;border-style:dashed;border-left-style:solid}
+.rule-block.is-predict h4{color:#42357a}
+.rule-block.is-predict h4 span{background:#5b4b9a}
+.rule-cards{display:flex;gap:7px;flex-wrap:wrap}
+.rule-cards button{flex:1;min-width:96px;text-align:center;font-size:11.5px;line-height:1.35;padding:8px 7px;border-radius:8px;border:1.5px solid #cdd8cb;background:#fff;color:#20463a;font-weight:700}
+.rule-cards.is-judge button{border-color:#9dc0dc;background:#f7fbff;color:#1d4f76;font-weight:800}
+.rule-cards.is-judge button.chosen{background:#2f6f9f;border-color:#2f6f9f;color:#fff}
+.rule-cards.is-action button{font-size:12px}
+.rule-block.f-yes .rule-cards button{border-color:#b3d3b7}
+.rule-block.f-yes .rule-cards button.chosen{background:#2f7a48;border-color:#2f7a48;color:#fff}
+.rule-block.f-no .rule-cards button{border-color:#e2c79c}
+.rule-block.f-no .rule-cards button.chosen{background:#a86a20;border-color:#a86a20;color:#fff}
+.rule-cards.is-predict button{border-style:dashed;background:#faf9fe;color:#42357a;font-weight:600}
+.rule-cards.is-predict button.chosen{background:#5b4b9a;border-style:solid;border-color:#5b4b9a;color:#fff}
+.rule-card.is-fixed{flex:1;min-width:96px;text-align:center;font-size:11.5px;line-height:1.35;padding:8px 7px;border-radius:8px;border:1.5px dashed #b9c6c9;background:#f2f5f3;color:#5c6f68;font-weight:700}
+.rule-block.is-judge .rule-card.is-fixed{border-color:#a9c3d6;background:#eaf2f8;color:#2a5974}
+.rule-hint{margin:6px 0 0;font-size:10.5px;line-height:1.55;color:#5d7268}
+.rule-preview{margin:1px 0 2px;padding:7px 9px;border-radius:8px;background:#fff8d9;border:1.5px solid #e3cf8a;font-size:11px;line-height:1.6;color:#5b4a1c}
+.rule-preview b{font-size:11.5px;color:#3f3410}
+.rule-missing{margin:7px 0 0;padding:7px 9px;border-radius:8px;background:#ffe9e4;border:1px solid #e5ada0;font-size:11px;line-height:1.55;color:#8f3a26;font-weight:650}
+.npc-dialogue.is-rule{width:440px;bottom:14px;max-height:calc(100% - 24px)}
+@media (max-width:720px){.npc-dialogue.is-rule{width:calc(100% - 36px)}}
+.npc-choices button.primary[disabled]{background:#cfd8d2;border-color:#cfd8d2;color:#6b7d75;cursor:not-allowed}
+.npc-dialogue.is-rule{padding:14px 15px 14px}
+.npc-dialogue.is-rule .npc-name{margin-bottom:8px}
+.npc-dialogue.is-rule .npc-speech{font-size:11.5px;line-height:1.6;margin-bottom:9px}
+.rule-actions{position:sticky;bottom:-6px;z-index:7;display:flex;flex-direction:column;gap:8px;padding:7px 0 2px;margin-bottom:-4px;background:#fffdf5}
+.rule-actions button{width:100%}
+.rule-block{padding:6px 8px 7px}
+.rule-cards button{padding:7px 6px}
+.rule-card.is-fixed{padding:7px 6px}
+.rule-hint{margin:4px 0 0}
+.rule-preview{padding:6px 8px}
+.npc-dialogue.is-rule .npc-speech{margin-bottom:7px}
+
+/* 教室投影常见 1366×768：高度不够时把「是」「否」并排，四步仍各自成块 */
+@media (max-height:820px) and (min-width:700px){
+  .rule-board{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .rule-board > .rule-block.is-judge,
+  .rule-board > .rule-block.is-predict,
+  .rule-board > .rule-preview{grid-column:1/-1}
+  .rule-board > .rule-block.f-yes{grid-column:1}
+  .rule-board > .rule-block.f-no{grid-column:2}
+  .rule-block.f-yes .rule-cards,.rule-block.f-no .rule-cards{flex-direction:column;gap:5px}
+  .rule-block.f-yes .rule-cards button,.rule-block.f-no .rule-cards button{min-width:0}
+}
+
+/* 规则面板要一次看全四步：矮屏上它跳出地图区域，用整页高度，避免第 ④ 步被按钮压住 */
+.npc-dialogue.is-rule{position:fixed;right:16px;bottom:16px;max-height:calc(100vh - 32px);z-index:60}
+@media (max-width:720px){.npc-dialogue.is-rule{right:8px;bottom:8px;max-height:calc(100vh - 16px)}}
