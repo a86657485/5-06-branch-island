@@ -343,6 +343,10 @@ function renderLegacy(){
  const idx=ids.indexOf(current);
  $('#app').innerHTML=`${demo?'<div class="demo-banner">教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。<a href="/teacher.html">返回班级大屏</a></div>':''}<header class="topbar"><a class="brand" href="#">分支冒险岛<span>判断选择用分支</span></a><div class="identity"><span>${demo?'演示调试员':`${esc(user.classId)}班 · ${esc(user.name)}`}</span><strong id="points">${esc(pointsLabel(state))}</strong><button id="switch-user" class="quiet">切换身份</button></div></header><div class="app-shell"><aside class="map"><p class="eyebrow">原版场景</p><h2>让判断驱动行动</h2><nav aria-label="任务路线">${ids.map((id,i)=>`<button data-route="${id}" class="route-item ${current===id?'selected':''}" ${canEnter(id)?'':'disabled'}><span class="stop">${state.levels[id]?.completed?'✓':i+1}</span><span><b>${titles[i]}</b><small>${state.levels[id]?.completed?(state.levels[id].valid?'已完成 · 当前已验证':'曾完成 · 当前待重验'):(canEnter(id)?'可开始探索':'完成上一站解锁')}</small></span></button>`).join('')}<button data-route="quiz" class="route-item ${current==='quiz'?'selected':''}"><span class="stop">Q</span><span><b>独立检测</b><small>${examOpened()?'可以开始':'还差哪一站'}</small></span></button></nav><div id="save-status" class="save-status" role="status">${syncStatus()}</div></aside><main id="workbench" class="workbench"></main></div>`;
  $('#app').insertAdjacentHTML('beforeend', SCENE_OVERLAYS);
+ // 剧情按钮的事件原来只在完整场景里绑，轻量场景必须补上，否则剧情点不动
+ const storySkip=$('#story-skip'); if(storySkip) storySkip.onclick=()=>closeStory(true);
+ const storyDirect=$('#story-direct-close'); if(storyDirect) storyDirect.onclick=()=>closeStory(true);
+ const storyNext=$('#story-next'); if(storyNext) storyNext.onclick=()=>advanceStory();
  bindChrome();
  if(current==='quiz'){ renderQuiz(); return; }
  renderTask(idx);
