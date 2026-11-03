@@ -187,19 +187,17 @@ test('负责人先完成当前现场，再换未正确核验的一种；改程�
   }
 });
 
-test('温室验收仍要求当前程序29、30、31均正确，返修还必须保留原故障', () => {
+test('温室测一个温度就能验收，返修还必须保留原故障', () => {
   for (const id of ['sale', 'repair']) {
     const h = harness(id), fixed = { model: 'ventilation', operator: '>=', yes: 'on', no: 'off' };
     h.context.draft.config = fixed;
-    h.context.runs = [29, 30].map(temperature => run(id, fixed, { temperature }));
-    assert.equal(h.runtime.canReview(), false, id);
-    h.context.runs.push(run(id, fixed, { temperature: 31 }));
-    assert.equal(h.runtime.canReview(), id === 'sale', id);
+    h.context.runs = [run(id, fixed, { temperature: 30 })];
+    assert.equal(h.runtime.canReview(), id === 'sale', `${id}：测一次就该够`);
     if (id === 'repair') {
       h.context.runs.unshift(run(id, { model: 'ventilation', operator: '>=', yes: 'off', no: 'on' }, { temperature: 30 }, false));
-      assert.equal(h.runtime.canReview(), true);
+      assert.equal(h.runtime.canReview(), true, '返修要先留下原故障');
     }
-    h.context.evidenceStart = h.context.runs.length - 1;
+    h.context.evidenceStart = h.context.runs.length;
     assert.equal(h.runtime.canReview(), false, id);
   }
 });

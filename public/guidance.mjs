@@ -58,6 +58,9 @@ export function nextStep({ station, scene, prediction = '', input = {}, levelVal
 
   // sale / repair：读数据 → 预测 → 执行 → 核验
   if (!s.measured) return { goal: 'sensor', text: `到【温度探头】读取${s.temperatureCase ?? 30}℃的试运行数据。` };
+  /* 2026-11-03：温室测一个温度就够。这次对了就回负责人汇报，不必再跑下一个温度。 */
+  if (!s.ticket && s.lastCorrect === true) return { goal: 'guide', text: '这次结果符合约定，回负责人汇报验收。' };
+  if (!s.ticket && s.lastCorrect === false) return { goal: 'control', text: '这次结果和约定不符，回【控制柜】改一处再测。' };
   const notDiagnosed = station === 'repair' && !visited.includes('diagnosed');
   if (notDiagnosed) {
     if (s.ticket) return { goal: 'verify', text: '设备已执行，到【监测屏核验】看它错在哪。' };

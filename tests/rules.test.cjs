@@ -16,10 +16,11 @@ test('120厘米边界进入不优惠分支，两种等价表达都正确', () =>
   }
   assert.equal(rules().evaluate('sale', sale, {height:120}).branch, 'no');
 });
-test('验证需要当前方案的三个边界测试和理由，旧方案记录不能充数', () => {
+test('验证需要当前方案的正确测试和理由，旧方案记录不能充数', () => {
   const all = [119,120,121].map(height => run('sale',sale,{height}));
   assert.equal(rules().validateComplete('sale',sale,all,'boundary').passed,true);
-  assert.equal(rules().validateComplete('sale',sale,all.slice(0,2),'boundary').passed,false);
+  assert.equal(rules().validateComplete('sale',sale,all.slice(0,1),'boundary').passed,true, '测一次就算齐');
+  assert.equal(rules().validateComplete('sale',sale,[],'boundary').passed,false);
   assert.equal(rules().validateComplete('sale',sale,all,'guess').passed,false);
   assert.equal(rules().validateComplete('sale',repair,all,'boundary').passed,false);
 });
@@ -81,11 +82,11 @@ test('温室试运行模型在30度边界启动风机，两种判断方向等价
   assert.throws(()=>rules().evaluate('sale',ventilation,{height:120}),/温度/);
   assert.throws(()=>rules().normalizeConfig('sale',{...ventilation,yes:'5'}),/分支/);
 });
-test('温室模型单独要求29、30、31测试，旧门票实验不能计入当前方案',()=>{
+test('温室模型测一个温度即可过关，旧门票实验不能计入当前方案',()=>{
   const all=[29,30,31].map(temperature=>run('sale',ventilation,{temperature}));
   assert.equal(rules().validateComplete('sale',ventilation,all,'boundary').passed,true);
-  assert.equal(rules().validateComplete('sale',ventilation,all.slice(0,2),'boundary').passed,false);
-  assert.equal(rules().validateComplete('sale',ventilation,[...all.slice(0,2),run('sale',sale,{height:121})],'boundary').passed,false);
+  assert.equal(rules().validateComplete('sale',ventilation,all.slice(0,1),'boundary').passed,true);
+  assert.equal(rules().validateComplete('sale',ventilation,[run('sale',sale,{height:121})],'boundary').passed,false);
   assert.equal(rules().validateComplete('sale',ventilation,all,'boundary',3).passed,false);
 });
 test('温室维修先观察30度错误关机，修订后才复验；旧门票诊断不能充数',()=>{

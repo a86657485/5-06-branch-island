@@ -19,3 +19,6 @@ playwright-report/
 
 # Playwright CLI 截图与快照（本机调试）
 .playwright-cli/
+
+# 项目记忆（本机）
+.workbuddy/

@@ -206,7 +206,7 @@ test('改错再改回旧方案仍须重验，输入与提示修改不清空本�
   const noRetest=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(noRetest.result.passed,false);
   await c.event('run','sale',{config:sale,input:{height:119}});
   await c.event('draft','sale',{config:sale,input:{height:120},prediction:'10',reason:'boundary',hint:2},{editedAt:300});
-  const notEnough=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(notEnough.result.passed,false);assert.equal(notEnough.state.levels.sale.evidenceStart,3);
+  const oneRun=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(oneRun.result.passed,true);assert.equal(oneRun.state.levels.sale.evidenceStart,3);
   await c.event('run','sale',{config:sale,input:{height:120}});await c.event('run','sale',{config:sale,input:{height:121}});
   const retested=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(retested.result.passed,true);assert.equal(retested.state.points,25);assert.equal(retested.state.runs.sale.length,6);
   await c.restart();const restored=await c.api('/api/state?studentId=s1');assert.equal(restored.state.levels.sale.evidenceStart,3);assert.equal(restored.state.levels.sale.valid,true);
@@ -216,7 +216,7 @@ test('仅运行时改变方案也须重验，改变后的首次实验应计入�
   await c.complete('sale',sale,[119,120,121].map(height=>({height})),'boundary');
   await c.event('run','sale',{config:{operator:'<',yes:'10',no:'5'},input:{height:119}});
   const back=await c.event('run','sale',{config:sale,input:{height:119}});assert.equal(back.state.levels.sale.evidenceStart,4);
-  const partial=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(partial.result.passed,false);
+  const partial=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(partial.result.passed,true);
   await c.event('run','sale',{config:sale,input:{height:120}});await c.event('run','sale',{config:sale,input:{height:121}});
   const final=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(final.result.passed,true);assert.equal(final.state.points,25);
 });

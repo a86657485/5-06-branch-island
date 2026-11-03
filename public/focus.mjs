@@ -95,7 +95,8 @@ function isConfigRuleValid(levelId, config) {
 function saleAfterVerify(runs, evidenceStart, config) {
   const current = (runs || []).slice(Math.max(0, evidenceStart || 0)).filter(run => sameProgram(run.config, config));
   const wrong = current.some(run => run.correct === false) || !isConfigRuleValid('sale', config);
-  const complete = [29, 30, 31].every(temperature => current.some(run => run.input?.temperature === temperature && run.correct !== false));
+  /* 温室只测一个温度即可：有一次正确运行就算齐了。 */
+  const complete = current.some(run => run.correct === true);
   return { wrong, complete };
 }
 
@@ -180,7 +181,7 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
       const open = panel === 'flow';
       if (!draft?.diagnoseAnswer) {
         if (runs && runs.length === 0) {
-          return pack({ id: 'sensor', step: '2', kind: 'map', thinking: false, goto: true, hint: '换一个还没测过的温度再试。', strong: '走到发光处，走近并开始。', target: at(mapId, 'sensor') });
+          return pack({ id: 'sensor', step: '2', kind: 'map', thinking: false, goto: true, hint: '先读一个温度，再让设备运行一次。', strong: '走到发光处，走近并开始。', target: at(mapId, 'sensor') });
         }
         return pack({
           id: open ? 'diagnose-cards' : 'control', step: '3', kind: open ? 'panel' : 'map', thinking: open, goto: !open,
@@ -196,11 +197,11 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
     const configInvalid = hasHistory && !!draft?.config && !isConfigRuleValid(levelId, draft?.config);
     const wrong = !flow.locked || current.some(run=>run.correct === false) || configInvalid;
     const thermal = levelId === 'sale' || levelId === 'repair';
-    const complete = !wrong && (thermal ? [29,30,31].every(t=>current.some(run=>run.correct && run.input?.temperature===t))
+    const complete = !wrong && (thermal ? current.some(run => run.correct === true)
       : levelId === 'cross' ? [true,false].every(f=>current.some(run=>run.correct && run.input?.facility===f && (run.scene?.outcome==='arrived'||run.outcome==='arrived')))
       : [{a:3,b:8},{a:9,b:2}].every(pair=>current.some(run=>run.correct && run.input?.a===pair.a && run.input?.b===pair.b)));
     const place = complete ? (levelId==='cross' ? 'portal':'guide') : wrong ? 'control' : thermal ? 'sensor' : levelId==='cross' ? 'portal':'guide';
-    const hint = complete ? '测试齐了，去向负责人汇报。' : wrong ? '结果不符，回控制柜改一处再试。' : thermal ? '换一个还没测过的温度再试。' : '去找负责人，更换另一组现场。';
+    const hint = complete ? '测试齐了，去向负责人汇报。' : wrong ? '结果不符，回控制柜改一处再试。' : thermal ? '回控制柜检查规则，再运行一次。' : '去找负责人，更换另一组现场。';
     return pack({id:place,step:complete?'11':wrong?'3':'2',kind:'map',goto:true,hint,strong:'走到发光处，继续当前任务。',target:at(mapId,place)});
   }
   if (levelId === 'repair' && saved && !draft?.diagnoseAnswer) {
@@ -223,7 +224,7 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
     if (!flow.locked) return back;
     const progress = saleAfterVerify(runs, evidenceStart, draft?.config);
     if (progress.wrong) return back;
-    if (!progress.complete) return pack({ id: 'sensor', step: '2', kind: 'map', thinking: false, goto: true, hint: '换一个温度再试。', strong: '走到发光处，走近并开始。', target: at(mapId, 'sensor') });
+    if (!progress.complete) return pack({ id: 'sensor', step: '2', kind: 'map', thinking: false, goto: true, hint: '再运行一次，确认本次结果。', strong: '走到发光处，走近并开始。', target: at(mapId, 'sensor') });
     return pack({ id: 'guide', step: '11', kind: 'map', thinking: false, goto: true, hint: '回园艺员那里汇报。', strong: '走到发光处，找负责人继续。', target: at(mapId, 'guide') });
   }
   if (!flow.locked) {

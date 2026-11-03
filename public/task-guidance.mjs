@@ -3,7 +3,7 @@ const BRIEFS = {
   sale: {
     problem: '新风机还没设自动开关，阿绿没法守着。',
     purpose: '本次约定达到30℃就开风机，请教会控制柜做决定。',
-    success: '我的程序能按告示开关风机，29、30、31℃都测对。'
+    success: '我的程序能按告示开关风机，选一个温度就能测对。'
   },
   repair: {
     problem: '老修换上备用控制板后，到了30℃风机却停了。',
@@ -113,7 +113,7 @@ function worldHint(levelId, draft, focus) {
     const b = focus === 'batteryB' || collected.includes('a');
     return { action: `点电池${b ? 'B' : 'A'}，读取它的剩余电量。`, why: '要知道两块的电量，才能比较谁更少。' };
   }
-  if (focus === 'sensor') return { action: '点温度探头，读取下一种测试温度。', why: '不同温度能检查两条路径和相等的边界。' };
+  if (focus === 'sensor') return { action: '点温度探头，读取一个测试温度。', why: '30℃正好在分界线上，先测它最能看出规则对不对。' };
   if (focus === 'observe') return { action: '点设施观察点，看这里有没有可用设施。', why: '程序需要先知道现场条件，再决定走法。' };
   if (focus === 'verify' || focus === 'monitor') return { action: '点核验仪，检查本次实际结果。', why: '核验记录能帮助比较预测和实际。' };
   if (!draft.flow?.locked) return { action: '点控制柜，依次选判断和两个出口。', why: '设备要先有完整规则，才能按条件执行。' };

@@ -59,15 +59,16 @@ export const greenhouseEvents = [
   place('guide', guide),
   place('sensor', event('温度探头', 'sensor', async player => {
     if (scene().phase === 'start') { await say(player, '温度探头', '先与管理员交谈，了解设备任务。'); return; }
-    if(scene().ticket){await say(player,'温度探头','风机已经运行。先去核验仪，再采下个温度。');return;}
+    if(scene().ticket){await say(player,'温度探头','风机已经运行。先去核验仪看结果，核验完就可以找负责人汇报。');return;}
     const original=repairing()&&!faultSeen(ctx().runs),temperatures=original?[30]:[29,30,31];
     const doneTemps=new Set(currentRuns().filter(run=>run.correct).map(run=>run.input?.temperature));
-    const recommended=original?30:([29,30,31].find(t=>!doneTemps.has(t))||29);
+    /* 2026-11-03：测一个温度就够，默认为 30℃ 边界，不再催学生补 29/31。 */
+    const recommended=30;
     const weatherDesc:Record<number,string>={29:'⛅ 多云凉爽',30:'🌤️ 正午临界线',31:'☀️ 烈日高温'};
     const choice = await say(
       player,
       '温度探头',
-      original?'🌤️ 正午刚到30℃！先采样30℃，保留旧程序。运行后，去核验仪看看风机为什么没转。':`🌡️ 请试读${recommended}℃（建议优先测它），看看电流会走哪条路。这里用的是模拟温度（已测通 ${doneTemps.size}/3 个）。`,
+      original?'🌤️ 正午刚到30℃！先采样30℃，保留旧程序。运行后，去核验仪看看风机为什么没转。':`🌡️ 请试读${recommended}℃（30℃正好在分界线上，建议先测它），看看电流会走哪条路。测一次就能去汇报，想多试也可以。`,
       temperatures.map(t => ({
         id: String(t),
         label: `采样 ${t}℃ · ${weatherDesc[t]||''}${t===recommended?'（建议 👈点我）':doneTemps.has(t)?'（✅已测过）':''}`

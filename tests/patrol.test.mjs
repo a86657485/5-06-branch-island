@@ -10,7 +10,7 @@ test('跳过剧情只推进叙事，不写学习达成', () => {
   assert.deepEqual(patrol.skipped, ['brief', 'sale:opening']);
   assert.equal(storyChangesLearning(), false);
   assert.match(storyScript('sale', 'opening').lines.join(''), /新装.*还没.*自动/);
-  assert.match(storyScript('sale', 'opening').lines.at(-1), /29、30、31/);
+  assert.match(storyScript('sale', 'opening').lines.at(-1), /一个温度/);
   assert.match(storyScript('repair', 'result_ok').lines.join(''), /故障.*修.*重验/);
   assert.equal(storyScript('cross', 'opening').npc, '巡检员小巡');
   assert.match(storyScript('minimum', 'opening').lines.at(-1), /随时可走/);
@@ -32,7 +32,7 @@ test('开场以问题、约定和行动组成三幕，不抢先讲解或冒称�
     assert.match(story.lines.slice(4).join(''), /先|试|测|观察|读/, `${id} 第三幕引出行动`);
   }
   const results = ['sale','repair','cross','minimum'].map(id => storyScript(id, 'result_ok').lines.join(''));
-  assert.match(results[0], /29、30、31.*符合告示.*备用板/);
+  assert.match(results[0], /这次温度.*符合告示.*备用板/);
   assert.match(results[1], /故障.*修.*重验.*小巡/);
   assert.match(results[2], /两种现场.*对岸.*基础检测/);
   assert.match(results[3], /两组.*低电量.*基础检测/);

@@ -270,7 +270,7 @@ test('温室和返修已经跑过时，不先跳去拼句', () => {
     panelOpen: false
   });
   assert.equal(repairNeedsSample.id, 'sensor');
-  assert.equal(repairNeedsSample.hint, '换一个还没测过的温度再试。');
+  assert.equal(repairNeedsSample.hint, '先读一个温度，再让设备运行一次。');
 
   const repairEdit = currentFocus({
     levelId: 'repair',
@@ -305,14 +305,14 @@ test('温室和返修已经跑过时，不先跳去拼句', () => {
   assert.equal(connect.hint, '先到电池B采集台，接入程序选中的电池。');
 });
 
-test('温室核验之后按结果去下一处，不再默认回探头', () => {
+test('温室测一个温度就能去汇报，结果不符才回控制柜', () => {
   const config = { operator: '>=', yes: 'on', no: 'off' };
   const run = (temperature, correct) => ({ config, input: { temperature }, correct });
   const scene = { phase: 'assigned', measured: false, visited: ['verified'] };
   const draft = { flow: { locked: true }, sentence: { locked: true }, predictionsLocked: { locked: true }, config };
-  const nextTemp = currentFocus({ levelId: 'sale', scene, draft, runs: [run(29, true)], evidenceStart: 0, panelOpen: false });
-  assert.equal(nextTemp.id, 'sensor');
-  assert.equal(nextTemp.hint, '换一个还没测过的温度再试。');
+  const one = currentFocus({ levelId: 'sale', scene, draft, runs: [run(30, true)], evidenceStart: 0, panelOpen: false });
+  assert.equal(one.id, 'guide');
+  assert.equal(one.hint, '测试齐了，去向负责人汇报。');
   const wrong = currentFocus({ levelId: 'sale', scene, draft, runs: [run(29, true), run(30, false), run(31, true)], evidenceStart: 0, panelOpen: false });
   assert.equal(wrong.id, 'control');
   assert.equal(wrong.hint, '结果不符，回控制柜改一处再试。');

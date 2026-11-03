@@ -11,7 +11,7 @@ export function currentRuns(){const config=ctx().draft.config||{};return ctx().r
 export function canReview(){
  const id=ctx().levelId,runs=currentRuns();
  if(!runs.length||runs.some(run=>run.correct!==true))return false;
- if(id==='sale'||id==='repair')return (id!=='repair'||faultSeen(ctx().runs))&&[29,30,31].every(temperature=>runs.some(run=>run.input?.temperature===temperature));
+ if(id==='sale'||id==='repair')return (id!=='repair'||faultSeen(ctx().runs))&&runs.some(run=>run.correct===true);
  if(id==='cross')return [true,false].every(facility=>runs.some(run=>run.input?.facility===facility&&run.scene?.outcome==='arrived'));
  return [true,false].every(smaller=>runs.some(run=>((run.input?.a??0)<(run.input?.b??0))===smaller));
 }
