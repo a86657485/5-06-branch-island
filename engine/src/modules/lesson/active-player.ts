@@ -1,7 +1,7 @@
 import type { RpgPlayer } from '@rpgjs/server';
 const active=new Map<string,{player:RpgPlayer,mapId:string}>();
 const waiting=new Set<{id:string,mapId:string,resolve:(player:RpgPlayer)=>void,reject:(error:Error)=>void,timer:ReturnType<typeof setTimeout>}>();
-export function mapForContext(c:any):string{return c.levelId==='sale'?'greenhouse':c.levelId==='repair'?'workshop':c.levelId==='minimum'?'energy':c.draft.scene?.facility===false?'crossing':'crossing-east';}
+export function mapForContext(c:any):string{return c.levelId==='sale'||c.levelId==='repair'?'greenhouse':c.levelId==='minimum'?'energy':c.draft?.scene?.facility===false?'crossing':'crossing-east';}
 export function registerActivePlayer(player:RpgPlayer,mapId:string){
  active.set(player.id,{player,mapId});
  for(const entry of waiting)if(entry.id===player.id&&entry.mapId===mapId){clearTimeout(entry.timer);waiting.delete(entry);entry.resolve(player);}

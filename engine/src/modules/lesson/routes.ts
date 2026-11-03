@@ -4,7 +4,7 @@ import { EventMode, type EventDefinition, type RpgPlayer } from '@rpgjs/server';
 import { advanceRoute, bothRoadsVerified, closedBridgeSelected, routeMark } from './route-progress.mjs';
 import {
   apply, clearPending, configure, ctx, event, input, patchScene, predict,
-  record, review, rpc, say, scene
+  record, review, say, scene, currentRuns, canReview, feedback
 } from './runtime';
 
 const routeProgress = new WeakMap<RpgPlayer, ReturnType<typeof advanceRoute>>();
@@ -43,37 +43,36 @@ export async function checkRoute(player: RpgPlayer) {
 }
 
 async function roadGuide(player: RpgPlayer, east = false) {
-  const choice = await say(player, '交通设施巡检员',
-    '请调试这块指路牌：附近有天桥就引导走天桥，否则到斑马线等待绿灯。观察现场、写出两个出口、先预测，再亲自沿选中路线通行。两种现场都要试。', [
-      { id: 'accept', label: '领取巡检任务' },
-      { id: 'bridge', label: '巡检有天桥的东区路口' },
-      { id: 'crossing', label: '巡检没有天桥的西区路口' },
-      ...(east ? [{ id: 'return', label: '沿安全路线徒步返回西岸复验' }] : []),
-      { id: 'review', label: '向巡检员说明我的发现' }
-    ]);
-  if (choice === 'review') return review(player);
+  if(canReview())return review(player);
+  const first=!scene().phase||scene().phase==='start';
+  const verified=currentRuns().filter(run=>run.correct&&run.scene?.outcome==='arrived');
+  const nextFacility=verified.length?([true,false].find(value=>!verified.some(run=>run.input?.facility===value))??scene().facility):scene().facility!==false;
+  const change=!first&&nextFacility!==scene().facility;
+  const returning=!first&&!change&&east&&!scene().ticket;
+  const choice=await say(
+    player,
+    '巡检员小巡',
+    first?'游客不知该往哪走。请先去【设施观察点】观察设施，再去【智能指路牌】替导行屏配好规则。':change?'太棒了！这里已经测对。现在我们再检查另一种现场情况吧！':returning?'还要再验一次。先沿安全路线回到西岸。':'第一步先去【设施观察点】观察，再到【智能指路牌】作预测。运行后，沿选中的路走去对岸【通行核验台】核验。',
+    [{
+      id:first?'accept':change?'next-case':returning?'return':'continue',
+      label:first?'👉 领取巡检任务（开始第1步）':change?(nextFacility?'👉 切换并检查：有可用设施的路口':'👉 切换并检查：没有可用设施的路口'):returning?'👉 沿安全路线回西岸':'👉 明白，继续本次巡检'
+    }],
+    first?'💡 领完任务后，先点上方【🔭 设施观察点】看看有没有天桥！':change?'💡 点下方按钮即可直接切换到第二种路口现场！':undefined
+  );
   if (choice === 'return') {
-    if (scene().ticket) return say(player, '交通设施巡检员', '请先去旁边的核验台保存这次实际结果，再返回修订。');
     player.setVariable('returnToWest', true);
     await patchScene(player, { ...(scene().facility ? {} : { signal: 'green' }) });
-    return say(player, '交通设施巡检员', scene().facility
-      ? '回程天桥已开放，请沿上方天桥徒步返回西岸，再到观察点重新读数。'
-      : '已等待回程绿灯。请沿下方斑马线徒步返回西岸，再到观察点重新读数。');
+    return;
   }
   if (choice === 'accept') {
-    if(scene().phase === 'start') await patchScene(player, { phase: 'assigned' });
-    return say(player, '交通设施巡检员', '先走到“设施观察点”看清这个路口，再操作旁边的指路牌。按方向键或 WASD 行走，面向物体按 E 交流。');
+    await patchScene(player, { phase: 'assigned' });return;
   }
-  if (choice === 'bridge' || choice === 'crossing') {
-    const facility = choice === 'bridge';
+  if (choice === 'next-case') {
     routeProgress.delete(player);
     player.setVariable('returnToWest', false);
     await clearPending(player, {
-      facility, actorId: facility ? 'cross-open' : 'cross-closed', signal: 'red', phase: 'assigned'
+      facility:nextFacility, actorId: nextFacility ? 'cross-open' : 'cross-closed', signal: 'red', phase: 'assigned'
     });
-    return say(player, '交通设施巡检员', facility
-      ? '已来到东区：这里有一座可通行的天桥。请重新观察现场、预测并测试当前指路程序。'
-      : '已来到西区：这里没有天桥。请重新观察现场、预测并测试当前指路程序。');
   }
 }
 
@@ -86,54 +85,41 @@ async function observeRoad(player: RpgPlayer) {
     phase: 'observed', actions: ['observe']
   });
   return say(player, '现场观察仪', facility
-    ? '观察记录：附近有天桥，判断条件“附近有天桥或地下通道”成立。下方也能看见斑马线。请让程序只选一个出口。'
-    : '观察记录：附近没有天桥或地下通道，这个条件不成立。下方有带信号灯的人行横道。请让程序只选一个出口。');
+    ? '🌉 观察结果：附近【有可用天桥】！下一步：请点【🪧 智能指路牌】装规则或判断这次怎么走。'
+    : '🚧 观察结果：附近【没有天桥或地下通道】！下一步：请点【🪧 智能指路牌】看看另一条路线安排。');
 }
 
 async function routeConsole(player: RpgPlayer) {
-  const choice = await say(player, '智能指路牌', '要调试这次通行的哪一步？先读取现场，预测会走哪里，再让当前程序作出选择。', [
-    { id: 'configure', label: '配置条件成立、不成立时的出口' },
-    { id: 'predict', label: '先预测这次会选哪条路线' },
-    { id: 'apply', label: '执行当前指路程序' },
-    { id: 'flow', label: '查看我的分支流程图' }
-  ]);
-  if (choice === 'configure') return configure(player);
-  if (choice === 'predict') return predict(player);
-  if (choice === 'flow') return rpc('flow', {});
-  if (choice === 'apply') {
-    await apply(player);
-    const ticket = scene().ticket;
-    if (!ticket) return;
-    return say(player, '智能指路牌', ticket.output === 'bridge'
-      ? '程序只点亮了“天桥”出口。请走到上方天桥入口，再沿天桥走到对岸核验台。若现场没有桥，入口会受阻。'
-      : '程序只点亮了“人行横道”出口。请走到下方信号灯旁等待绿灯，再沿斑马线走到对岸核验台。');
+  if(!ctx().draft.flow?.locked||(!scene().ticket&&currentRuns().some(run=>!run.correct)))return configure(player);
+  if(scene().actions?.[1]!=='predict'){
+    await predict(player);
+    if(ctx().draft.sentence?.locked && scene().actions?.[1]==='predict' && !scene().ticket)return apply(player);
+    return;
   }
+  return apply(player);
 }
 
 async function bridgeEntrance(player: RpgPlayer) {
   const current = scene();
-  if (!current.ticket) return say(player, '天桥入口', '请先观察现场，在指路牌上作出预测并执行程序。');
-  if (current.ticket.output !== 'bridge') return say(player, '天桥入口', '本次程序选中了人行横道。只能沿当前选中的一个出口验证。');
+  if (!current.ticket) return say(player, '天桥入口', '先观察现场，再去导行屏。预测后才能运行程序。');
+  if (current.ticket.output !== 'bridge') return say(player, '天桥入口', '这次选中了人行横道。请沿程序选中的一路检验。');
   if (closedBridgeSelected(current.ticket.output, current.facility)) {
     await patchScene(player, { actions: [...current.actions, 'route'], phase: 'blocked' });
-    await record(player, 'blocked', 'blocked');
-    return say(player, '天桥入口', '这里没有天桥，通道受阻，角色留在安全侧。这说明程序的出口与现场条件不相符。请回指路牌修订后重新观察、预测、验证。');
+    return record(player, 'blocked', 'blocked');
   }
-  return say(player, '天桥入口', '天桥通道已开放。沿桥走过道路，到东侧核验台确认本次通行。');
+  return say(player, '天桥入口', '天桥通道已开放。沿桥到对岸，再去核验台。');
 }
 
 async function signalLamp(player: RpgPlayer) {
+  if(scene().signal==='green')return say(player,'人行信号灯','🟢 绿灯亮了！现在点对岸的【🖥️ 通行核验台】或顺着脚印沿斑马线走过去核验吧！');
   const choice = await say(player, '人行信号灯', scene().signal === 'green'
-    ? '现在是绿灯。程序选中人行横道时才可进入这一条验证路线。'
-    : '现在是红灯，请在安全侧等待。教学仿真中，可以等待本轮绿灯出现。', [
-      { id: 'green', label: '等待本轮绿灯' },
-      { id: 'red', label: '观察下一轮红灯：停止通行' }
+    ? '绿灯亮了。沿选中的人行横道到对岸核验。'
+    : '🔴 红灯时，先在安全侧停住。点下面的按钮，等绿灯亮起再安全过马路！', [
+      { id: 'green', label: '🚦 等待绿灯，准备通行（👆点这里）' }
     ]);
-  if (choice !== 'green' && choice !== 'red') return;
-  await patchScene(player, { signal: choice });
-  return say(player, '人行信号灯', choice === 'green'
-    ? '绿灯已亮。若指路牌选中人行横道，请沿下方斑马线连续走到对岸。'
-    : '红灯已亮，入口关闭。请在安全侧等待。');
+  if (choice !== 'green') return;
+  await patchScene(player, { signal: 'green' });
+  feedback('🟢 绿灯亮啦！快点对岸【通行核验台】或自动前往走过斑马线！');
 }
 
 let visitorShape: {
@@ -208,7 +194,7 @@ async function showVisitor(player: RpgPlayer) {
 
 async function visitorTalk(player: RpgPlayer) {
   if (!bothRoadsVerified(ctx().runs, ctx().evidenceStart)) {
-    return say(player, '过街游客', '两种现场都测对以后，我再按导行屏过马路。');
+    return say(player, '过街游客', '两种现场都测对，我再按导行屏走。');
   }
   if (visitorSkipped(player)) {
     const again = await say(player, '过街游客', '过街动画已关闭。', [
@@ -223,26 +209,16 @@ async function visitorTalk(player: RpgPlayer) {
 
 async function verifyRoad(player: RpgPlayer) {
   if (!scene().ticket || !scene().actions.includes('route') || scene().phase !== 'arrived') {
-    return say(player, '通行核验台', '还没有这次完整通行的记录。请从西侧入口沿程序选中的路线走过道路，不能只从旁边来到核验台。');
+    return say(player, '通行核验台', '还没有完整通行记录。请从入口走完程序选中的一路。');
   }
-  await record(player, 'verify', 'arrived');
-  if (bothRoadsVerified(ctx().runs, ctx().evidenceStart)) {
-    const match = await say(player, '通行核验台', '开放 → 你走了天桥（如果那一半）｜封闭 → 你走了斑马线（否则那一半）。', [
-      { id: 'yes', label: '对得上' },
-      { id: 'no', label: '对不上' }
-    ]);
-    if (match === 'no') return say(player, '通行核验台', '对照两次实际走过的路，再看句子里的如果和否则。');
-    if (match !== 'yes') return;
-    return showVisitor(player);
-  }
-  return say(player, '通行核验台', '已保存本次现场、先前预测、实际选中分支与通行结果。请找巡检员说明为什么一次判断只执行一个出口；还需测试另一种设施现场。');
+  return record(player, 'verify', 'arrived');
 }
 
 function gate(route: 'bridge' | 'crossing'): EventDefinition {
   const base = event(route === 'bridge' ? '天桥安全门' : '斑马线安全门', 'portal', async player => {
     await say(player, '安全门', route === 'bridge'
-      ? '天桥存在，并且指路程序选中天桥时，这个入口才开放。'
-      : '请先让程序选中人行横道，并在信号灯处等待绿灯。');
+      ? '有可用天桥，程序也选中它，入口才开。'
+      : '程序选中人行横道后，还要等绿灯。');
   });
   return {
     ...base,
@@ -275,21 +251,25 @@ export const crossingEvents = [
 ];
 
 async function energyGuide(player: RpgPlayer) {
-  const choice = await say(player, '园区能源工程师',
-    '调试两路充电柜：先给电量较低的一组充电。请分别走近 A、B 读取电量，配置比较条件和两个出口，先预测，再亲自到被选中的支路接入，最后回核验台。两组数据都要验证。', [
-      { id: 'accept', label: '领取节能配电任务' },
-      { id: 'pair-a', label: '装入第一组：A 3%，B 8%' },
-      { id: 'pair-b', label: '装入第二组：A 9%，B 2%' },
-      { id: 'review', label: '向工程师说明我的比较方法' }
-    ]);
-  if (choice === 'review') return review(player);
+  if(canReview())return review(player);
+  const first=!scene().phase||scene().phase==='start';
+  const verified=currentRuns().filter(run=>run.correct);
+  const pair=verified.length?(verified.some(run=>run.input?.a<run.input?.b)?'pair-b':'pair-a'):(scene().pair||'pair-a');
+  const change=!first&&pair!==(scene().pair||'pair-a');
+  const choice=await say(
+    player,
+    '储能柜小电',
+    first?'只有一个优先充电口，我担心电量少的等太久。请先去读两块电池的电量。':change?'这一组已经测对！现在换另一组电量再试一次吧。':'先依次点【A 电池支路】和【B 电池支路】读两块电量，再让【配电控制台】比较。两组都要检验。',
+    [{
+      id:first?'accept':change?'next-case':'continue',
+      label:first?'👉 领取节能配电任务（开始第1步）':change?(pair==='pair-b'?'👉 换一组：A 9%，B 2%（👆点我切换）':'👉 换一组：A 3%，B 8%（👆点我切换）'):'👉 继续调试配电程序'
+    }]
+  );
   if (choice === 'accept') {
-    if(scene().phase === 'start') await patchScene(player, { phase: 'assigned' });
-    return say(player, '园区能源工程师', '请先走近左、右两组电池，读取 A 和 B 的电量。这些是教学仿真数据。');
+    await patchScene(player, { phase: 'assigned' });return;
   }
-  if (choice === 'pair-a' || choice === 'pair-b') {
-    await clearPending(player, { pair: choice, actorId: choice, collected: [], phase: 'assigned' });
-    return say(player, '园区能源工程师', '电池组已更换。上一组的读取和预测不能代替这一组，请重新读取两个电量。');
+  if (choice === 'next-case') {
+    await clearPending(player, { pair, actorId: pair, collected: [], phase: 'assigned' });
   }
 }
 
@@ -298,11 +278,11 @@ async function battery(player: RpgPlayer, key: 'a' | 'b') {
   const values = input();
   if (current.ticket) {
     const selected = ctx().draft.config[current.ticket.branch];
-    if (key !== selected) return say(player, `电池 ${key.toUpperCase()}`, `当前程序没有选中这一支路。请只去 ${String(selected).toUpperCase()} 支路接入，观察程序的实际选择。`);
+    if (key !== selected) return say(player, `电池 ${key.toUpperCase()}`, `本次程序没选这块电池。去${String(selected).toUpperCase()}支路看实际选择。`);
     if (!current.actions.includes('route')) {
       await patchScene(player, { actions: [...current.actions, 'route'], phase: 'connected' });
     }
-    return say(player, `电池 ${key.toUpperCase()}`, `已在现场接入程序选中的 ${key.toUpperCase()} 支路，电量 ${values[key]}%。请走到充电核验台，检查这次是否真的先给较低电量充电。`);
+    return feedback(`🔌 已接入${key.toUpperCase()}电池，剩余${values[key]}%。下一步快点【充电核验台】保存结果！`);
   }
   const previous = current.measured || ctx().draft.prediction ? [] : (current.collected ?? []);
   const collected = [...new Set([...previous, key])];
@@ -311,35 +291,24 @@ async function battery(player: RpgPlayer, key: 'a' | 'b') {
     pair: current.pair ?? 'pair-a', actorId: current.pair ?? 'pair-a', collected, measured,
     actions: measured ? ['collect'] : [], phase: measured ? 'collected' : 'reading'
   });
-  return say(player, `电池 ${key.toUpperCase()}`, `现场读取：${key.toUpperCase()} 电量 ${values[key]}%。${measured ? '两个电量都已读取，可以到配电控制台比较与预测。' : '还需要走近另一组电池，读取它的电量。'}`);
+  return feedback(`🔋 读到${key.toUpperCase()}电量${values[key]}%。${measured ? '两块都读完了，快点【配电控制台】比较电量！' : `下一步请点【${key === 'a' ? 'B' : 'A'} 电池支路】再读另一块电池。`}`);
 }
 
 async function energyConsole(player: RpgPlayer) {
-  const choice = await say(player, '配电控制台', '选择要调试的步骤。判断成立与不成立，都要写明接入 A 还是 B。', [
-    { id: 'configure', label: '配置比较符和两个充电支路' },
-    { id: 'predict', label: '先预测本次会接入 A 还是 B' },
-    { id: 'apply', label: '执行当前配电程序' },
-    { id: 'flow', label: '查看我的分支流程图' }
-  ]);
-  if (choice === 'configure') return configure(player);
-  if (choice === 'predict') return predict(player);
-  if (choice === 'flow') return rpc('flow', {});
-  if (choice === 'apply') {
-    await apply(player);
-    const ticket = scene().ticket;
-    if (!ticket) return;
-    const selected = ctx().draft.config[ticket.branch];
-    return say(player, '配电控制台', `程序只点亮 ${String(selected).toUpperCase()} 支路。请实际走近这一组电池接入，再走到充电核验台。`);
+  if(!ctx().draft.flow?.locked||(!scene().ticket&&currentRuns().some(run=>!run.correct)))return configure(player);
+  if(scene().actions?.[1]!=='predict'){
+    await predict(player);
+    if(ctx().draft.sentence?.locked && scene().actions?.[1]==='predict' && !scene().ticket)return apply(player);
+    return;
   }
+  return apply(player);
 }
 
 async function verifyEnergy(player: RpgPlayer) {
   if (!scene().ticket || !scene().actions.includes('route')) {
-    return say(player, '充电核验台', '请先读取两组电量、作出预测并执行程序，然后实际走近程序选中的那组电池接入。');
+    return say(player, '充电核验台', '先读电量、预测并运行。接入选中的电池，再来核验。');
   }
-  await record(player, 'verify');
-  await patchScene(player, { collected: [] });
-  return say(player, '充电核验台', '本次预测、比较真假、实际选中支路和是否低电量优先已保存。请到能源工程师处更换另一组数据，或说明你的比较方法。');
+  return record(player, 'verify');
 }
 
 export const energyEvents = [

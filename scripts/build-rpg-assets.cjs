@@ -23,6 +23,9 @@ const device = {
   portal: '<ellipse cx="36" cy="96" rx="31" ry="7" fill="#0f172a" opacity=".15"/><path d="M11 93V24a25 25 0 0 1 50 0v69" fill="#bfdbfe" stroke="#0284c7" stroke-width="7"/><path d="M15 92V25a21 21 0 0 1 42 0v67" fill="#dbeafe"/><path d="M23 56h25m-10-10 10 10-10 10" fill="none" stroke="#0284c7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>',
 };
 async function packCharacter(id, rows) {
+  // 兜底路径：只有 `scripts/assets/spritesheets_v2/<id>.png` 缺失时才会走到这里。
+  // 旧图集对每个方向只提供一张静态像，这里会复制成 3 帧（仅中间帧上下错 2px），左右没有迈步；
+  // v2 素材已自带四向三帧，正常走 main() 里的 copyFile 分支，不需要再合成。
   const fw = 72, fh = 104, layers = [];
   for (let row = 0; row < 4; row++) {
     const [left,top,width,height] = rows[row] || rows[0];
@@ -56,15 +59,15 @@ const parkPaths = [
  [[975,430],[1145,470],[1320,510],[1536,520],[1536,650],[1330,625],[1100,550],[1000,525]],
 ];
 const stations = {
- greenhouse: {start:[560,505],guide:[460,445],sensor:[375,425],control:[330,490],fan:[270,470],verify:[465,500],portal:[605,535]},
+ greenhouse: {start:[850,640],guide:[575,395],sensor:[358,398],control:[185,515],fan:[415,585],verify:[715,565],portal:[925,520]},
  workshop: {start:[945,280],guide:[1035,245],sensor:[970,225],control:[1120,225],fan:[1245,225],verify:[1180,235],portal:[955,330]},
- energy: {start:[575,275],guide:[540,270],batteryA:[300,155],batteryB:[440,180],control:[365,190],monitor:[435,245],portal:[610,300]},
- crossing: {start:[350,810],guide:[350,600],observe:[430,515],control:[410,595],bridgeWest:[470,326],bridgeEast:[1080,326],crossingWest:[470,681],crossingEast:[1080,681],verify:[1135,535],portal:[1190,590]},
- 'crossing-east': {start:[350,810],guide:[350,600],observe:[430,515],control:[410,595],bridgeWest:[470,326],bridgeEast:[1080,326],crossingWest:[470,681],crossingEast:[1080,681],verify:[1135,535],portal:[1190,590]},
+ energy: {start:[635,175],guide:[485,285],batteryA:[255,160],batteryB:[525,165],control:[390,150],monitor:[325,275],portal:[645,295]},
+ crossing: {start:[460,835],guide:[335,725],observe:[435,445],control:[345,555],bridgeWest:[470,326],bridgeEast:[1080,326],crossingWest:[470,681],crossingEast:[1080,681],verify:[1125,485],portal:[1195,615],visitor:[365,845]},
+ 'crossing-east': {start:[460,835],guide:[335,725],observe:[435,445],control:[345,555],bridgeWest:[470,326],bridgeEast:[1080,326],crossingWest:[470,681],crossingEast:[1080,681],verify:[1125,485],portal:[1195,615],visitor:[365,845]},
 };
 function parkBlocked(x,y,mapId) {
-  const taskSafety = Object.values(stations[mapId]).some(([sx,sy])=>ellipse(x,y,sx,sy,48,44));
-  const path = parkPaths.some(p=>inside(x,y,p)) || ellipse(x,y,770,420,280,170) || ellipse(x,y,380,170,185,88);
+  const taskSafety = Object.values(stations[mapId]).some(([sx,sy])=>ellipse(x,y,sx,sy,72,68));
+  const path = parkPaths.some(p=>inside(x,y,p)) || ellipse(x,y,770,420,280,170) || ellipse(x,y,380,170,185,88) || ellipse(x,y,520,490,380,135);
   const flower = ellipse(x,y,770,416,119,64);
   const hut = inside(x,y,[[90,365],[205,325],[250,370],[245,480],[90,480]]);
   const shop = x>980&&x<1290&&y>32&&y<210;
@@ -113,8 +116,18 @@ async function main(){
   const starterFiles=['[A]WaterFall_pipo.tsx','[Base]BaseChip_pipo.png','[A]WaterFall_pipo.png','[Base]BaseChip_pipo.tsx','base.png','[A]Water_pipo.png','[A]Water_pipo.tsx','[Base]BaseChip_pipo3.png','[A]Dirt_pipo.png','[A]Flower_pipo.tsx','[A]Grass_pipo.tsx','[A]Wall-Up_pipo.png','[A]Flower_pipo.png','[A]Dirt_pipo.tsx','[A]Wall-Up_pipo.tsx','[A]Grass_pipo.png','map.tmx','simplemap.tmx','tileset.tsx'];
   for(const file of starterFiles) await fs.rm(path.join(tiled,file),{force:true});
   for(const file of ['hero.png','female.png']) await fs.rm(path.join(sprites,file),{force:true});
-  for(const [id,rows]of Object.entries(crops))await packCharacter(id,rows);
-  for(const[id,content]of Object.entries(device))await packDevice(id,content);
+  const v2Dir=path.join(root,'scripts/assets/spritesheets_v2');
+  for(const [id,rows]of Object.entries(crops)){
+    const v2=path.join(v2Dir,`${id}.png`);
+    try{await fs.copyFile(v2,path.join(sprites,`${id}.png`));}catch{await packCharacter(id,rows);}
+  }
+  for(const extra of ['engineer-girl','engineer-mecha-boy','engineer-mecha-girl','engineer-explorer-boy','engineer-explorer-girl']){
+    try{await fs.copyFile(path.join(v2Dir,`${extra}.png`),path.join(sprites,`${extra}.png`));}catch{}
+  }
+  for(const[id,content]of Object.entries(device)){
+    const v2=path.join(v2Dir,`${id}.png`);
+    try{await fs.copyFile(v2,path.join(sprites,`${id}.png`));}catch{await packDevice(id,content);}
+  }
   for(const name of ['park-map','crossing-map'])await fs.copyFile(path.join(root,`public/assets/${name}.webp`),path.join(tiled,`images/${name}.webp`));
   await sharp({create:{width:32,height:32,channels:4,background:'#00000000'}}).png().toFile(path.join(tiled,'images/collision.png'));
   await fs.writeFile(path.join(tiled,'collision.tsx'),'<?xml version="1.0" encoding="UTF-8"?>\n<tileset version="1.10" tiledversion="1.11.2" name="Lesson collision" tilewidth="32" tileheight="32" tilecount="1" columns="1"><image source="images/collision.png" width="32" height="32"/><tile id="0"><properties><property name="collision" type="bool" value="true"/></properties></tile></tileset>\n');

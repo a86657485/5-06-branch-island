@@ -206,7 +206,7 @@ test('改错再改回旧方案仍须重验，输入与提示修改不清空本�
   const noRetest=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(noRetest.result.passed,false);
   await c.event('run','sale',{config:sale,input:{height:119}});
   await c.event('draft','sale',{config:sale,input:{height:120},prediction:'10',reason:'boundary',hint:2},{editedAt:300});
-  const notEnough=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(notEnough.result.passed,false);assert.equal(notEnough.state.levels.sale.evidenceStart,3);
+  const oneRun=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(oneRun.result.passed,true);assert.equal(oneRun.state.levels.sale.evidenceStart,3);
   await c.event('run','sale',{config:sale,input:{height:120}});await c.event('run','sale',{config:sale,input:{height:121}});
   const retested=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(retested.result.passed,true);assert.equal(retested.state.points,25);assert.equal(retested.state.runs.sale.length,6);
   await c.restart();const restored=await c.api('/api/state?studentId=s1');assert.equal(restored.state.levels.sale.evidenceStart,3);assert.equal(restored.state.levels.sale.valid,true);
@@ -216,7 +216,7 @@ test('仅运行时改变方案也须重验，改变后的首次实验应计入�
   await c.complete('sale',sale,[119,120,121].map(height=>({height})),'boundary');
   await c.event('run','sale',{config:{operator:'<',yes:'10',no:'5'},input:{height:119}});
   const back=await c.event('run','sale',{config:sale,input:{height:119}});assert.equal(back.state.levels.sale.evidenceStart,4);
-  const partial=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(partial.result.passed,false);
+  const partial=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(partial.result.passed,true);
   await c.event('run','sale',{config:sale,input:{height:120}});await c.event('run','sale',{config:sale,input:{height:121}});
   const final=await c.event('complete','sale',{config:sale,reason:'boundary'});assert.equal(final.result.passed,true);assert.equal(final.state.points,25);
 });
@@ -288,7 +288,7 @@ test('旧四关首次进入场景需重验，移动保存与服务重启不重�
  assert.equal(saleVisit.state.levels.sale.valid,false);
 });
 
-test('基础层达标分只看第一次提交，重做记入历史但不加分',async t=>{
+test('基础层不达标可重答，重答达标算达标且只加一次分',async t=>{
  const quiz=require('../quiz.cjs');
  const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
  const ventilation={model:'ventilation',operator:'>=',yes:'on',no:'off'};
@@ -303,7 +303,9 @@ test('基础层达标分只看第一次提交，重做记入历史但不加分',
  assert.equal(first.result.score,7);assert.equal(first.result.passed,false);assert.equal(first.state.points,75);assert.equal(first.state.awards['quiz-base'],undefined);
  const perfect={};for(const question of quiz.byTier('base')) perfect[question.id]=structuredClone(question.answer);
  const retake=await c.event('quiz','quiz',{tier:'base',answers:perfect,quizVersion:quiz.version});
- assert.equal(retake.result.score,11);assert.equal(retake.state.quiz.base.passed,false);assert.equal(retake.state.quiz.base.firstScore,7);assert.equal(retake.state.quiz.base.latest.score,11);assert.equal(retake.state.quiz.base.attempts.length,2);assert.equal(retake.state.points,75);assert.equal(retake.state.awards['quiz-base'],undefined);
+ assert.equal(retake.result.score,11);assert.equal(retake.result.passed,true);assert.equal(retake.state.quiz.base.passed,true);assert.equal(retake.state.quiz.base.firstScore,7);assert.equal(retake.state.quiz.base.latest.score,11);assert.equal(retake.state.quiz.base.attempts.length,2);assert.equal(retake.state.points,95);assert.equal(retake.state.awards['quiz-base'].points,20);
+ const again=await c.event('quiz','quiz',{tier:'base',answers:perfect,quizVersion:quiz.version});
+ assert.equal(again.state.points,95);assert.equal(again.state.awards['quiz-base'].points,20);assert.equal(again.state.quiz.base.attempts.length,3);
 });
 
 test('换课次后重新登录不带上节进度，上节记录留在教师历史',async t=>{
@@ -344,7 +346,7 @@ test('再次进入已通过的站，默认配置和纯场景保存都不作废',
  assert.equal(boundary.result.correct,false);assert.deepEqual(boundary.result.mCodes,['M3']);assert.equal(boundary.result.conditionText,'30 ＞ 30');
 });
 
-test('流程图、预测和闸机接单在刷新后还在',async t=>{
+test('流程图和预测在刷新后还在，旧闸机草稿被忽略',async t=>{
  const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
  const flow={diamond:'ge30',yes:'on',no:'off',locked:true};
  const predictionsLocked={29:'off',30:'on',31:'on',locked:true};
@@ -352,17 +354,22 @@ test('流程图、预测和闸机接单在刷新后还在',async t=>{
  assert.equal(saved.state.drafts.sale.flow.diamond,'ge30');
  assert.equal(saved.state.drafts.sale.predictionsLocked.locked,true);
  assert.equal(saved.state.drafts.sale.panel,'flow');
- const intro=await c.event('draft','intro',{accepted:true,heightCase:116,judged:'half',ticket:'10',sawSign:false,idea:null,review:true});
- assert.equal(intro.state.intro.accepted,true);
- assert.equal(intro.state.intro.ticket,'10');
- assert.equal(intro.state.intro.review,true);
- assert.equal(intro.state.intro.heightCase,116);
+ const intro=await c.event('draft','intro',{});
+ assert.equal(intro.status,200);
+ assert.equal(intro.result.ignored,true);
+ assert.equal(intro.state.intro.accepted,false);
+ assert.equal(intro.state.intro.done,false);
+ const partial=await c.event('draft','intro',{accepted:true,heightCase:116,judged:'half',ticket:'10'});
+ assert.equal(partial.status,200);
+ assert.equal(partial.state.intro.accepted,false);
+ assert.equal(partial.state.intro.ticket,null);
+ assert.equal(partial.state.levels.sale.completed,false);
  await c.restart();
  const restored=await c.api('/api/state?studentId=s1');
  assert.equal(restored.state.drafts.sale.flow.yes,'on');
  assert.equal(restored.state.drafts.sale.predictionsLocked[30],'on');
- assert.equal(restored.state.intro.accepted,true);
- assert.equal(restored.state.intro.judged,'half');
+ assert.equal(restored.state.intro.accepted,false);
+ assert.equal(restored.state.intro.done,false);
 });
 test('概念提示记 hinted，操作帮助不会',async t=>{
  const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});

@@ -86,12 +86,13 @@
     });
     if (!current.length) return { passed: false, feedback: '先运行当前方案，观察它实际选择了哪条分支。' };
     if (current.some(run => !evaluate(id,config,run.input).correct)) return { passed: false, feedback: '当前方案还有测试结果与任务目标不符。请检查判断条件和两个分支，修改后重新测试。' };
-    if (id === 'sale' || id === 'repair') {
-      const missing = (ventilation ? [29,30,31] : [119,120,121]).filter(value => !current.some(run => run.input[ventilation ? 'temperature' : 'height'] === value));
-      if (missing.length) return { passed: false, feedback: ventilation ? `当前方案还需要测试 ${missing.join('、')}°C，特别留意30°C属于哪条分支。` : `当前方案还需要测试 ${missing.join('、')} 厘米，特别留意120厘米属于哪条分支。` };
-    } else if (id === 'cross') {
+    /* 2026-11-03 老师要求：温室只测一个温度就可以，不再来回跑 29、30、31。
+       保留“当前方案必须有一次正确运行”，不再要求三个温度齐全。 */
+    if (id === 'cross') {
       if (![true,false].every(facility => current.some(run => run.input.facility === facility))) return { passed: false, feedback: '请分别测试“有设施”和“没有设施”，确认两条分支都能正确执行。' };
-    } else if (![true,false].every(smaller => current.some(run => (run.input.a < run.input.b) === smaller))) return { passed: false, feedback: '请分别测试a较小和b较小，不能只验证同一条分支。' };
+    } else if (id === 'minimum') {
+      if (![true,false].every(smaller => current.some(run => (run.input.a < run.input.b) === smaller))) return { passed: false, feedback: '请分别测试a较小和b较小，不能只验证同一条分支。' };
+    }
     if (id === 'repair' && ventilation) {
       const reverted = config.operator === '<' && config.yes === 'off' && config.no === 'on';
       const expected = reverted ? 'symbol' : 'swap';

@@ -13,15 +13,17 @@ import {
 
 const layout = JSON.parse(fs.readFileSync(new URL('../engine/src/tiled/layout.json', import.meta.url), 'utf8'));
 
-test('前往园艺员时站在东侧并面向他，不朝向南边的核验仪', () => {
+test('前往园艺员时面向他并避开其他对象，旧挤压布局也不误朝核验仪', () => {
   const places = layout.greenhouse.positions;
   const point = id => ({ x: places[id][0], y: places[id][1] });
   const others = ['sensor', 'control', 'fan', 'verify', 'portal'].map(point);
   const stand = standBeside(point('guide'), point('start'), others);
   assert.deepEqual(stand, { x: places.guide[0] + 16, y: places.guide[1], direction: 'left' });
   assert.equal(Math.hypot(stand.x - places.verify[0], stand.y - places.verify[1]) >= 40, true);
-  const south = { x: places.guide[0], y: places.guide[1] + 32 };
-  assert.equal(Math.hypot(south.x - places.verify[0], south.y - places.verify[1]) < 40, true);
+  assert.ok(others.every(other=>Math.hypot(stand.x-other.x,stand.y-other.y)>=40));
+  const oldGuide={x:460,y:445},oldVerify={x:465,y:500};
+  assert.deepEqual(standBeside(oldGuide,{x:560,y:505},[oldVerify]),{x:476,y:445,direction:'left'});
+  assert.ok(Math.hypot(oldGuide.x-oldVerify.x,oldGuide.y+32-oldVerify.y)<40);
 });
 
 test('面板数据先变成普通对象，才能发给课堂页', () => {
@@ -104,7 +106,7 @@ test('大于和小于等于在 30℃写出核验行，动作卡不能改程序',
   assert.equal(rules.evaluate('sale', atMost.config, { temperature: 30 }).output, 'off');
 });
 
-test('路口求助不给答案，绿灯卡不能执行，封闭时走天桥算受阻', () => {
+test('操作帮助与答案法宝分开，绿灯卡不能执行，封闭时走天桥算受阻', () => {
   const app = fs.readFileSync(new URL('../public/app.mjs', import.meta.url), 'utf8');
   const help = app.slice(app.indexOf('onHelp()'), app.indexOf('onNavHelp'));
   assert.match(help, /怎么操作/);
@@ -122,7 +124,9 @@ test('路口求助不给答案，绿灯卡不能执行，封闭时走天桥算�
     level: { valid: false }
   });
   assert.equal(step10.step, '10');
-  assert.equal(step10.goto, false);
+  assert.equal(step10.goto, true);
+  assert.equal(step10.target.place, 'bridgeEast');
+  assert.match(step10.strong, /沿路线行走/);
 });
 
 test('从入口走到返修再换三次图，关闭对话不写完成或证据', () => {
@@ -132,8 +136,9 @@ test('从入口走到返修再换三次图，关闭对话不写完成或证据',
     mapFor('cross', { facility: false }),
     mapFor('cross', { facility: true })
   ];
-  assert.deepEqual(maps, ['greenhouse', 'workshop', 'crossing', 'crossing-east']);
-  assert.equal(new Set(maps).size, 4);
+  assert.deepEqual(maps, ['greenhouse', 'greenhouse', 'crossing', 'crossing-east']);
+  assert.equal(mapFor('sale', {}), mapFor('repair', {}));
+  assert.equal(new Set(maps).size, 3);
   for (const signal of ['escape', 'return', 'map']) {
     assert.equal(dialogCloseValue(signal), null);
     assert.equal(dialogCloseWritesEvidence(), false);

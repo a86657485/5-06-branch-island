@@ -1,0 +1,85 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - text: 教师独立演示：可跳关、查看参考操作；所有操作只保存在演示区。
+    - link "返回班级大屏" [ref=e4] [cursor=pointer]:
+      - /url: /teacher.html
+  - banner [ref=e5]:
+    - link "分支冒险岛判断选择用分支" [ref=e6] [cursor=pointer]:
+      - /url: "#"
+    - generic [ref=e7]:
+      - generic [ref=e8]: 演示调试员
+      - strong [ref=e9]: 0 积分
+      - button "切换身份" [ref=e10] [cursor=pointer]
+  - generic [ref=e11]:
+    - complementary [ref=e12]:
+      - paragraph [ref=e13]: 原版场景
+      - heading "让判断驱动行动" [level=2] [ref=e14]
+      - navigation "任务路线" [ref=e15]:
+        - button "1 温室风机调试 可开始探索" [ref=e16] [cursor=pointer]:
+          - generic [ref=e17]: "1"
+          - generic [ref=e18]:
+            - text: 温室风机调试
+            - generic [ref=e19]: 可开始探索
+        - button "2 温室控制器返修 可开始探索" [ref=e20] [cursor=pointer]:
+          - generic [ref=e21]: "2"
+          - generic [ref=e22]:
+            - text: 温室控制器返修
+            - generic [ref=e23]: 可开始探索
+        - button "3 路口导行屏调试 可开始探索" [ref=e24] [cursor=pointer]:
+          - generic [ref=e25]: "3"
+          - generic [ref=e26]:
+            - text: 路口导行屏调试
+            - generic [ref=e27]: 可开始探索
+        - button "4 储能柜配电 可开始探索" [ref=e28] [cursor=pointer]:
+          - generic [ref=e29]: "4"
+          - generic [ref=e30]:
+            - text: 储能柜配电
+            - generic [ref=e31]: 可开始探索
+        - button "Q 独立检测 还差哪一站" [ref=e32] [cursor=pointer]:
+          - generic [ref=e33]: Q
+          - generic [ref=e34]:
+            - text: 独立检测
+            - generic [ref=e35]: 还差哪一站
+      - status [ref=e36]: 独立演示 · 不计入班级
+    - main [ref=e37]:
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - paragraph [ref=e40]: 深圳智慧园林情境 · 教学仿真
+          - heading "生态温室：通风试运行" [level=1] [ref=e41]
+        - generic [ref=e42]:
+          - button "查看执行过程图" [ref=e43] [cursor=pointer]
+          - button "怎么操作" [ref=e44] [cursor=pointer]
+          - button "✨ 通关法宝 5/5" [ref=e45] [cursor=pointer]
+          - button "📖 巡检手册" [ref=e46] [cursor=pointer]
+          - button "↺ 重做本关" [ref=e47] [cursor=pointer]
+          - button "改用完整场景" [ref=e48] [cursor=pointer]
+      - generic [ref=e49]:
+        - generic "可行走的智慧公园，点击地点或使用方向键移动" [ref=e50]
+        - generic:
+          - generic: 设备调试员
+          - generic: 先走近现场NPC，领取调试委托。
+          - button "停下" [ref=e51] [cursor=pointer]
+        - generic:
+          - button "走近园区养护员" [ref=e52] [cursor=pointer]: 点我走近 园区养护员
+          - button "走近温度探头" [ref=e53] [cursor=pointer]: 温度探头
+          - button "走近通风控制柜" [ref=e54] [cursor=pointer]: 通风控制柜
+          - button "走近执行风机" [ref=e55] [cursor=pointer]: 执行风机
+          - button "走近监测屏核验" [ref=e56] [cursor=pointer]: 监测屏核验
+        - generic [ref=e57]: 试运行输入：30℃ · ≥30℃启动，否则关闭
+        - generic "移动方向" [ref=e58]:
+          - button "向上移动" [ref=e59] [cursor=pointer]: ↑
+          - button "向左移动" [ref=e60] [cursor=pointer]: ←
+          - button "E" [ref=e61] [cursor=pointer]
+          - button "向右移动" [ref=e62] [cursor=pointer]: →
+          - button "向下移动" [ref=e63] [cursor=pointer]: ↓
+      - generic [ref=e64]:
+        - generic [ref=e65]: 点击地点走近交互 · 方向键 / WASD移动 · E交谈
+        - generic [ref=e66]: 本方案已核验0次 · 本关待验收
+        - button "找到现场负责人" [ref=e67] [cursor=pointer]
+      - group [ref=e68]:
+        - generic "我的现场实验记录" [ref=e69] [cursor=pointer]
+  - dialog "剧情" [ref=e71]:
+    - img "调度员阿派" [ref=e72]
+    - paragraph [ref=e73]: 调度员阿派
+    - paragraph [ref=e74]: 今天园区试运行自动设备。 阿绿和路口小巡都在等你帮忙。
+    - button "继续了解" [ref=e76] [cursor=pointer]

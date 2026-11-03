@@ -3,12 +3,35 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const zlib = require('node:zlib');
 const { isIP } = require('node:net');
 const { DatabaseSync } = require('node:sqlite');
 const rules = require('./public/rules.js');
 const adventure = require('./public/adventure-rules.js');
+const { recordScaffold } = require('./public/scaffold.mjs');
 const quizApi = require('./quiz.cjs');
 const { questions, version:quizVersion } = quizApi;
+
+/** 旧机房电脑（Win7 + Chrome 109）优化：带内容哈希的资源长缓存，文本资源走 gzip。 */
+const COMPRESSIBLE = new Set(['.js', '.mjs', '.css', '.json', '.html', '.svg', '.txt', '.map']);
+const gzipCache = new Map();
+
+function cachePolicy(name) {
+  if (/assets\/[^/]*-[A-Za-z0-9_]{8}\.(?:js|css)$/.test(name)) return 'public, max-age=31536000, immutable';
+  if (name.startsWith('assets/')) return 'public, max-age=86400';
+  if (name.startsWith('rpgjs/') && !name.endsWith('.html')) return 'public, max-age=604800';
+  return 'no-cache';
+}
+
+function gzipFor(file, mtimeMs) {
+  const key = file + ':' + mtimeMs;
+  const cached = gzipCache.get(key);
+  if (cached) return cached;
+  const body = zlib.gzipSync(fs.readFileSync(file), { level: 6 });
+  if (gzipCache.size >= 96) gzipCache.clear();
+  gzipCache.set(key, body);
+  return body;
+}
 const BASE = __dirname;
 const CLASSES = ['501', '502', '503', '504'];
 const ROUND = 1;
@@ -40,6 +63,9 @@ function ensureState(state) {
   state.awards ||= {};
   state.navHelp ||= [];
   state.conceptHints ||= [];
+  state.support ||= { hints: [] };
+  state.support.hints ||= [];
+  state.support.scaffolds ||= [];
   for (const level of Object.values(state.levels || {})) {
     if (!level || typeof level !== 'object') continue;
     level.submissions ??= 0;
@@ -159,15 +185,18 @@ function createService(options = {}) {
       if (!bucket.firstSubmittedAt) {
         bucket.firstSubmittedAt = at;
         bucket.firstScore = graded.score;
-        bucket.passed = meets;
         state.quiz.challenge.unlockedAt = at;
-        if (meets && !state.awards['quiz-base']) {
+      }
+      /* 2026-11-03 老师改为“不达标要重答”：任一次达到标准即算达标，20 分只加一次。 */
+      if (meets && !bucket.passed) {
+        bucket.passed = true;
+        if (!state.awards['quiz-base']) {
           state.awards['quiz-base'] = { points: quizApi.basePoints(), label: '达标', at };
           state.points += quizApi.basePoints();
         }
       }
       state.drafts.quiz = { tier: 'challenge', answers: {}, index: 0, quizVersion };
-      return { score: graded.score, total: graded.total, passed: bucket.passed, rewardUnlocked: quizApi.rewardUnlocked(bucket.firstScore), challengeUnlocked: true, details };
+      return { score: graded.score, total: graded.total, passed: bucket.passed, thisPassed: meets, passLine: quizApi.passLine(), rewardUnlocked: quizApi.rewardUnlocked(bucket.firstScore), challengeUnlocked: true, details };
     }
     const meets = quizApi.challengeAwarded(graded.score);
     const attempt = { id: body.eventId, tier, quizVersion, score: graded.score, total: graded.total, at, awarded: meets, details };
@@ -224,7 +253,8 @@ function createService(options = {}) {
   function requireOpen(state, id) {
     const index = rules.levels.findIndex(level => level.id === id);
     if (index < 0) fail(400, '找不到这个任务');
-    if (rules.levels.slice(0,index).some(level => !state.levels[level.id].completed)) fail(409, '请先完成前面的主线任务');
+    if (rules.levels[index].required === false) return;
+    if (rules.levels.slice(0, index).some(level => level.required !== false && !state.levels[level.id].completed)) fail(409, '请先完成前面的主线任务');
   }
     const draftConfigKey = (id,config) => JSON.stringify(rules.normalizeConfig(id,config,true));
   function isVisitDefault(id, config) {
@@ -264,7 +294,7 @@ function createService(options = {}) {
     const round = roundOf(student);
     if (body.round !== round) fail(409, '记录属于其他课次，请刷新课堂');
     if (typeof body.eventId !== 'string' || !body.eventId || body.eventId.length > 120) fail(400, '记录标识不完整');
-    if (!['draft','run','prediction','complete','quiz','nav_help','concept_hint'].includes(body.type)) fail(400, '记录类型不正确');
+    if (!['draft','run','prediction','complete','quiz','nav_help','concept_hint','tool_hint'].includes(body.type)) fail(400, '记录类型不正确');
     if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) fail(400, '记录内容不正确');
     const previous = db.prepare('SELECT result FROM events WHERE studentId=? AND round=? AND eventId=?').get(student.id,round,body.eventId);
     if (previous) { const kept = recordFor(student.id); return envelope(student.id, kept, JSON.parse(previous.result)); }
@@ -283,6 +313,23 @@ function createService(options = {}) {
       state.navHelp.push(entry);
       if (state.navHelp.length > 300) state.navHelp.splice(0, state.navHelp.length - 300);
       result = { saved: true };
+    } else if (body.type === 'tool_hint') {
+      requireOpen(state, id);
+      if (!payload.step || typeof payload.step !== 'object' || Array.isArray(payload.step)) fail(400, '请选择当前任务步骤');
+      const hint = checkedRule(() => require('./public/task-guidance.mjs').toolHint(id, state.drafts[id] || {}, payload.step));
+      const levelHints = state.support.hints.filter(entry => entry.levelId === id);
+      const kept = levelHints.find(entry => entry.key === hint.key);
+      if (!kept && levelHints.length >= 5) fail(409, '这一关的5次通关法宝已用完，已经看过的提示仍可重看。', 'TOOL_HINT_LIMIT');
+      if (!kept) {
+        const at = now();
+        state.support.hints.push({ ...hint, levelId: id, at });
+        if(hint.conceptual!==false){
+          state.conceptHints.push({ levelId: id, level: 3, evidenceKind: 'tool_hint', key: hint.key, at });
+          state.levels[id].hinted = true;
+        }
+      }
+      const used = state.support.hints.filter(entry => entry.levelId === id).length;
+      result = { hint: { key: hint.key, action: hint.action, why: hint.why, conceptual: hint.conceptual, target: hint.target }, used, remaining: Math.max(0, 5 - used), reused: !!kept };
     } else if (body.type === 'concept_hint') {
       requireOpen(state, id);
       const levelNo = Number(payload.level);
@@ -291,8 +338,7 @@ function createService(options = {}) {
       state.levels[id].hinted = true;
       result = { saved: true, hinted: true };
     } else if (body.type === 'draft' && id === 'intro') {
-      state.intro = sanitizeIntro(payload);
-      result = { saved: true };
+      result = { saved: true, ignored: true };
     } else if (body.type === 'quiz' || (body.type === 'draft' && id === 'quiz')) {
       const gate = examGateFor(student.id, record);
       if (!state.quizOpenedAt) fail(409, '完成温室、返修和路口三站的当前验证后再进入考核');
@@ -350,7 +396,8 @@ function createService(options = {}) {
       if (!state.drafts[id]?.config || draftConfigKey(id,state.drafts[id].config) === rules.configKey(id,config)) useConfig(record,id,config);
       if (config.model === 'ventilation' && (config.operator === '>' || config.operator === '<=') && payload.input?.temperature === 30 && !evaluated.correct) evaluated.mCodes = ['M3'];
       state.runs[id].push({ config, input: payload.input, ...evaluated, ...(scene ? { scene } : {}), at: now() });
-      result = evaluated;
+      const scaffold = recordScaffold(state,id,{kind:'run',input:payload.input,config,result:evaluated,eventKey:body.eventId,at:now()});
+      result = scaffold ? { ...evaluated, scaffold } : evaluated;
     } else if (body.type === 'prediction') {
       const choices = id === 'cross' ? ['bridge','crossing'] : id === 'minimum' ? ['a','b'] : payload.config?.model === 'ventilation' ? ['on','off'] : ['5','10'];
       if (!choices.includes(payload.value)) fail(400, '请选择本次输出预测');
@@ -366,6 +413,10 @@ function createService(options = {}) {
         useConfig(record,id,config);
         result = rules.validateComplete(id,config,state.runs[id],payload.reason,state.levels[id].evidenceStart || 0);
         state.levels[id].submissions = (state.levels[id].submissions || 0) + 1;
+        const correctReason = id === 'repair' && config.model === 'ventilation' && config.operator === '<' && config.yes === 'off' && config.no === 'on' ? 'symbol' : rules.solutions[id].reason;
+        const testsSatisfied = rules.validateComplete(id,config,state.runs[id],correctReason,state.levels[id].evidenceStart || 0).passed;
+        const scaffold = recordScaffold(state,id,{kind:'reason',input:state.drafts[id]?.input || {},config,result,testsSatisfied,eventKey:body.eventId,at:now()});
+        if(scaffold)result = { ...result, scaffold };
         state.levels[id].valid = result.passed;
         if (result.passed) {
           const level = state.levels[id];
@@ -468,7 +519,7 @@ function createService(options = {}) {
     try {
       const url = new URL(req.url,'http://classroom.local');
       const route = decodeURIComponent(url.pathname);
-      if (route.startsWith('/api/teacher') || route === '/teacher.html') teacher(req);
+      if (route.startsWith('/api/teacher') || route === '/teacher.html' || route === '/teacher' || route === '/teacher/') teacher(req);
       if (req.method === 'POST') checkOrigin(req);
       if (req.method === 'GET' && route === '/api/config') return json(res,200,{appId:APP_ID,round:ROUND,levels:rules.levels});
       if (req.method === 'GET' && route === '/api/roster') return json(res,200,{classes:classes()});
@@ -481,7 +532,21 @@ function createService(options = {}) {
         const gate = record ? examGateFor(student.id, record) : { open: false, closed: false, openedAt: null, missing: rules.levels.filter(level => level.required !== false).map(level => level.id) };
         const unlocked = !!(record && record.state.quiz.challenge.unlockedAt);
         const tiers = gate.open && unlocked ? ['base', 'challenge'] : ['base'];
-        return json(res, 200, { quizVersion, questions: gate.open ? quizApi.publicQuestions(tiers) : [], examGate: gate, challengeUnlocked: unlocked, rewardUnlocked: record ? rewardFor(record.state) : false });
+        return json(res, 200, { quizVersion, passLine: quizApi.passLine(), questions: gate.open ? quizApi.publicQuestions(tiers) : [], examGate: gate, challengeUnlocked: unlocked, rewardUnlocked: record ? rewardFor(record.state) : false });
+      }
+      /* 基础层逐题判定：学生一选完就告诉对错和解析，不把整份答案提前下发。 */
+      if (req.method === 'POST' && route === '/api/quiz/check') {
+        const body = await readBody(req);
+        const questionId = String(body.questionId || '');
+        const question = quizApi.byTier('base').find(item => item.id === questionId);
+        if (!question) fail(404, '这道题不在基础层');
+        if (!quizApi.valueAllowed(question, body.value)) fail(400, '答案格式不正确');
+        return json(res, 200, {
+          correct: quizApi.isCorrect(question, body.value),
+          answer: question.answer,
+          explanation: question.explanation || '',
+          review: question.review || ''
+        });
       }
       if (req.method === 'GET' && route === '/api/state') {
         const student=studentById(url.searchParams.get('studentId'));if(!student) fail(404,'学生身份不存在');
@@ -510,12 +575,19 @@ function createService(options = {}) {
       if (req.method === 'POST' && route === '/api/events') return json(res,200,handleEvent(await readBody(req)));
       if (route.startsWith('/api/')) fail(404,'接口不存在');
       if (!['GET','HEAD'].includes(req.method)) fail(405,'请求方法不支持');
-      const name = route === '/' ? 'index.html' : ['/rpgjs','/rpgjs/'].includes(route) ? 'rpgjs/index.html' : route.slice(1);
+      const name = route === '/' ? 'index.html' : ['/rpgjs','/rpgjs/'].includes(route) ? 'rpgjs/index.html' : ['/teacher','/teacher/'].includes(route) ? 'teacher.html' : route.slice(1);
       if (!name || name.split('/').some(part=>part.startsWith('.') || !part) || !mime[path.extname(name)]) fail(404,'文件不存在');
       const publicDir=path.join(BASE,'public');const file=path.join(publicDir,name);
       if (!fs.existsSync(file) || !fs.statSync(file).isFile() || !fs.realpathSync(file).startsWith(fs.realpathSync(publicDir)+path.sep)) fail(404,'文件不存在');
       const engineResource = name.startsWith('rpgjs/');
-      res.writeHead(200,{'Content-Type':mime[path.extname(name)],'Cache-Control':name.startsWith('assets/')?'public, max-age=86400':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Content-Security-Policy':`default-src 'self'; script-src 'self'${engineResource?" 'wasm-unsafe-eval'":''}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'${engineResource?' data:':''}; object-src 'none'; base-uri 'self'; frame-ancestors '${engineResource?'self':'none'}'${engineResource?"; worker-src 'self' blob:":''}`});
+      const wantsGzip = COMPRESSIBLE.has(path.extname(name)) && /\bgzip\b/i.test(req.headers['accept-encoding'] || '');
+      if (wantsGzip) {
+        const body = gzipFor(file, fs.statSync(file).mtimeMs);
+        res.writeHead(200,{'Content-Type':mime[path.extname(name)],'Content-Encoding':'gzip','Content-Length':body.length,'Cache-Control':cachePolicy(name),'Vary':'Accept-Encoding','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Content-Security-Policy':`default-src 'self'; script-src 'self'${engineResource?" 'wasm-unsafe-eval'":''}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'${engineResource?' data:':''}; object-src 'none'; base-uri 'self'; frame-ancestors '${engineResource?'self':'none'}'${engineResource?"; worker-src 'self' blob:":''}`});
+        if (req.method === 'HEAD') return res.end();
+        return res.end(body);
+      }
+      res.writeHead(200,{'Content-Type':mime[path.extname(name)],'Cache-Control':cachePolicy(name),'Vary':'Accept-Encoding','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Content-Security-Policy':`default-src 'self'; script-src 'self'${engineResource?" 'wasm-unsafe-eval'":''}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'${engineResource?' data:':''}; object-src 'none'; base-uri 'self'; frame-ancestors '${engineResource?'self':'none'}'${engineResource?"; worker-src 'self' blob:":''}`});
       if (req.method==='HEAD') return res.end();
       fs.createReadStream(file).pipe(res);
     } catch(error) { if (!res.headersSent) json(res,error.status || (error instanceof URIError ? 400 : 500),{error:error.status || error instanceof URIError ? error.message : '课堂服务暂时无法处理请求，请重试',...(error.code?{code:error.code}:{})});if(!error.status && !(error instanceof URIError)) console.error(error); }

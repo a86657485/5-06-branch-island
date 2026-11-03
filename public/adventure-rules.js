@@ -65,7 +65,7 @@
   function validateRpgDraft(rpg,id) {
     check(object(rpg) && rpg.version === 1 && rpg.engine === 'rpgjs','场景引擎版本不正确');
     check(['greenhouse','workshop','crossing','crossing-east','energy'].includes(rpg.mapId),'场景地图不正确');
-    const maps={sale:['greenhouse'],repair:['workshop'],cross:['crossing','crossing-east'],minimum:['energy']};
+    const maps={sale:['greenhouse'],repair:['greenhouse','workshop'],cross:['crossing','crossing-east'],minimum:['energy']};
     if(id) check(maps[id]?.includes(rpg.mapId),'当前位置与任务地图不一致');
     check(object(rpg.position) && Number.isFinite(rpg.position.x) && rpg.position.x >= 0 && rpg.position.x <= 1600 && Number.isFinite(rpg.position.y) && rpg.position.y >= 0 && rpg.position.y <= 1100,'场景坐标超出地图范围');
     check(['up','down','left','right'].includes(rpg.direction),'场景角色方向不正确');

@@ -33,3 +33,328 @@
 .gate-compare,.gate-readonly{margin:12px 0;padding:12px 14px;border-radius:12px;background:#fffaf0;border:2px solid #c5a048;line-height:1.7}
 .gate-readonly h2{margin:0 0 8px;font-size:18px}
 #exam-missing{margin:8px 0 16px;line-height:1.8}
+.play-shell>.demo-banner{flex:none}
+.play-shell{height:100vh;display:flex;flex-direction:column;background:#173b31}
+.topbar.slim{height:56px;flex:none;padding:0 12px;gap:10px}
+.route-ribbon{display:flex;align-items:center;gap:4px;list-style:none;margin:0;padding:0;min-width:0}
+.route-ribbon button{padding:6px 8px;font-size:12px;white-space:nowrap}
+.route-ribbon .current button{outline:3px solid #e39b00;outline-offset:2px}
+.route-ribbon .done button{background:#d1eae6}
+.route-arrow{color:#147d78;font-weight:900;font-size:18px}
+.stage-full{position:relative;flex:1;min-height:0}
+.stage-full .workbench,.stage-full .game-workbench{height:100%;max-width:none;margin:0;padding:0!important}
+.stage-full .rpg-shell{height:100%;border:0;border-radius:0;box-shadow:none;display:flex;flex-direction:column}
+.stage-full .rpg-heading,.stage-full .rpg-status{display:none}
+.stage-full .rpg-frame{flex:1;width:100%;height:100%;min-height:0}
+.stage-notice,.stage-save{position:absolute;z-index:4;margin:0;padding:6px 8px;border-radius:8px;background:#ffffffe8}
+.stage-notice{left:12px;bottom:12px;max-width:46vw}
+.stage-save{right:12px;bottom:2px;padding:2px 6px;font-size:10px;line-height:1.2;pointer-events:none}
+.screen-overlay{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:20px;background:#102e2ccc}
+.screen-overlay[hidden]{display:none}
+.overlay-card{position:relative;width:min(880px,100%);max-height:min(92vh,920px);overflow:auto;padding:28px 24px 20px;border:3px solid #184c3b;border-radius:20px;background:#fffaf0;box-shadow:0 18px 50px #061e2b66}
+.overlay-close{position:absolute;top:10px;right:12px;width:44px;height:44px;border-radius:50%;font-size:28px;line-height:1}
+.story-card img{display:block;width:100%;max-height:280px;object-fit:contain;border-radius:14px;background:#e7f2ea}
+.story-line{white-space:pre-line;font-size:22px;line-height:1.65;min-height:2.4em}
+.patrol-list{display:grid;gap:8px;margin:12px 0 16px}
+.check-row{display:flex;gap:10px;width:100%;text-align:left;align-items:center}
+.check-row.current{outline:3px solid #e39b00;outline-offset:2px}
+.check-row small{display:block;color:#55718a;font-size:12px}
+.exam-card{width:min(1080px,100%);background:#f4f8fb}
+@media(max-width:750px){.topbar.slim{height:auto;flex-wrap:wrap;padding:8px}.route-ribbon{order:3;width:100%;overflow:auto}.stage-full .rpg-frame{min-height:0;height:100%}}
+
+/* 先学卡只解释方法，关闭后回到原来的现场或面板。 */
+.learn-card { width:min(930px,96vw); padding:26px; }
+.learn-card h2 { margin:6px 46px 12px 0; }
+.learn-mission { font-size:18px; line-height:1.65; margin:0 0 14px; }
+.learn-columns { display:grid; grid-template-columns:minmax(180px, .85fr) minmax(260px, 1.15fr); gap:22px; align-items:center; }
+.learn-columns figure { margin:0; text-align:center; padding:10px; border-radius:12px; background:#fff; }
+.learn-columns img { display:block; max-width:100%; height:230px; object-fit:contain; margin:auto; }
+.learn-columns figcaption { margin-top:7px; font-size:13px; color:#53665d; }
+.learn-columns ol { margin:0; padding-left:26px; font-size:19px; line-height:1.6; }
+.learn-columns li { padding:5px 0; }
+.learn-success { padding:11px 14px; border-radius:10px; background:#e8f1e7; line-height:1.6; font-size:16px; }
+.learn-footnote { font-size:13px; }
+@media(max-width:650px){.learn-card{padding:20px 16px;}.learn-columns{grid-template-columns:1fr;gap:10px;}.learn-columns img{height:155px;}.learn-columns ol{font-size:17px;}.learn-mission{font-size:16px;}}
+
+
+/* 平板触控适配（2026-10-26）：站点卡与明细展开按钮加大到可触控尺寸 */
+@media (pointer: coarse){
+  .route-ribbon button{min-height:44px;padding-top:6px;padding-bottom:6px}
+  td button, th button{min-height:40px;min-width:44px}
+}
+
+
+/* 华为擎云 C5e 竖屏补充（2026-10-26）：600 宽时顶栏按钮被压到 27-29px，提到 40px */
+@media (pointer: coarse) and (max-width: 720px){
+  .topbar.slim .identity button{min-height:40px;padding-top:6px;padding-bottom:6px}
+}
+
+/* 角色选角与过关换装系统 + 剧情第1帧即刻跳过按钮（2026-10-26） */
+.skin-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px !important; background: #fff9ec; border: 2px solid #d8b54b; color: #183c30; font-weight: 750; }
+.skin-mini-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; display: inline-block; vertical-align: middle; }
+.skin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)); gap: 10px; margin: 12px 0 16px; }
+.skin-grid.compact { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0 12px; }
+.skin-card { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 8px; border: 2px solid #c7dfec; border-radius: 14px; background: #fffef8; color: #153758; text-align: center; transition: transform .12s ease, border-color .12s ease; }
+.skin-card:hover { transform: translateY(-2px); border-color: #147d78; }
+.skin-card.selected { border: 3px solid #e39b00; background: #fff8df; box-shadow: 0 4px 14px #e39b0033; }
+.skin-card img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
+.skin-grid.compact .skin-card img { width: 48px; height: 48px; }
+.skin-card strong { font-size: 13px; line-height: 1.3; }
+.skin-card small { font-size: 11px; line-height: 1.25; }
+.skin-unlocked { color: #0f766e; font-weight: 700; }
+.skin-preview { color: #8a651b; }
+.story-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
+
+.skin-card.locked { opacity: 0.52; filter: grayscale(0.65); cursor: not-allowed; background: #edf2f7; border-style: dashed; }
+.skin-locked { color: #64748b; font-weight: 700; }
+
+/* 教师大屏：可视化与全字段筛选（2026-10-27） */
+.topbar-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.sync-pill{font-size:12px;color:var(--teal);background:#e3f1eb;border:1px solid #b7d8cc;border-radius:999px;padding:6px 12px;white-space:nowrap}
+.filter-bar{background:#fff;border:1px solid var(--line);border-radius:15px;padding:18px 20px 14px;margin:0 0 20px}
+.filter-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+.filter-head h2{font-size:16px;margin:0}
+.filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(146px,1fr));gap:12px 14px}
+.filter-grid label{font-size:11px;font-weight:650;color:var(--muted);gap:5px;min-width:0}
+.filter-grid select,.filter-grid input{min-height:38px;padding:7px 9px;font-size:13px;border-radius:9px}
+.filter-actions{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+.filter-actions button{font-size:12px;padding:8px 14px}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chips .chip{background:#e8f1e7;border:1px solid #b9d3b4;color:#1d4b3c;border-radius:999px;padding:5px 11px;font-size:11px;line-height:1.4}
+.stat-with-ring{display:flex;align-items:center;gap:14px}
+.stat-with-ring strong{font-size:28px}
+.donut{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:var(--muted)}
+.donut svg{display:block}
+.histogram{display:flex;align-items:flex-end;gap:10px;height:168px;margin:18px 0 6px}
+.histogram .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;font-size:11px;color:var(--muted);min-width:0}
+.histogram .col b{font-size:12px;color:#183c30}
+.histogram .bar{width:100%;border-radius:7px 7px 2px 2px;background:linear-gradient(180deg,#63b8a9,#147d78);min-height:3px;flex:none}
+.class-row{display:grid;grid-template-columns:58px 1fr 52px;align-items:center;gap:12px;margin:12px 0;font-size:12px}
+.class-name{font-weight:700}
+.class-bars{display:flex;flex-direction:column;gap:4px}
+.class-bar{position:relative;height:16px;background:#eef3f7;border-radius:5px;overflow:hidden}
+.class-bar i{display:block;height:100%;background:#6ca7cb;border-radius:5px;min-width:2px}
+.class-bar.pass i{background:var(--teal)}
+.class-bar em{position:absolute;left:8px;top:0;line-height:16px;font-size:10px;font-style:normal;color:#123c31;font-weight:650}
+.class-row>b{text-align:right;color:var(--muted);font-weight:600}
+.station-dots{display:flex;gap:4px}
+.station-dots i{width:26px;height:20px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:10px;font-weight:700;background:#eef3f7;border:1px solid #d3e0ea;color:#7d95a8}
+.station-dots i.done{background:#cfe6da;border-color:#8fc0aa;color:#1f5c46}
+.station-dots i.valid{background:#147d78;border-color:#0f5f5b;color:#fff}
+th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+th.sortable:hover{background:#d3e7f5}
+th.sortable:after{content:'⇅';font-size:10px;opacity:.45;margin-left:6px}
+.row-id{display:block;color:var(--muted);font-size:10px;font-weight:400}
+tr.row-open>td{background:#f4faf8}
+.empty-state{padding:26px;text-align:center;color:var(--muted)}
+.misconceptions{margin:6px 0 0;padding-left:20px}
+@media(max-width:900px){
+  .filter-grid{grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stat-with-ring{grid-column:1/-1}
+}
+
+
+/* 考核流程图（2026-10-29）：此前 interaction.figure 未渲染，学生只看到 s1/s2/s3 */
+.quiz-figure{margin:12px 0;padding:12px 14px 8px;border:1px dashed #a9c5b0;border-radius:12px;background:#f7fbf8}
+.qf-title{margin:0 0 10px;font-size:12px;color:var(--muted)}
+.qf-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;align-items:center}
+.qf-row{position:relative;display:flex;justify-content:center;align-items:flex-start;gap:16px;width:100%}
+.qf-row+.qf-row{margin-top:16px}
+.qf-row+.qf-row::before{content:'↓';position:absolute;top:-20px;left:50%;transform:translateX(-50%);color:#7d9db3;font-size:15px;line-height:20px}
+.qf-branch-row{padding-top:2px;align-items:flex-end}
+.qf-col{position:relative;display:flex;flex-direction:column;align-items:center;flex:1;max-width:250px;padding-top:15px}
+.qf-col .qf-node{width:100%}
+.qf-node{padding:6px 11px;border:2px solid #7d9db3;border-radius:10px;background:#fff;text-align:center;min-width:180px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.qf-terminator{border-radius:999px;background:#e8f1f7}
+.qf-io{border-style:dashed;background:#eef6fb}
+.qf-diamond{border-color:#d9a93a;background:#fff8e4;border-radius:14px;min-width:190px}
+.qf-text{font-weight:700}
+.qf-role{font-size:10px;color:var(--muted)}
+.qf-branch{position:absolute;top:0;left:50%;transform:translateX(-50%);padding:1px 10px;border-radius:999px;background:var(--teal);color:#fff;font-size:11px;font-weight:800;white-space:nowrap}
+.qf-slot{width:100%;align-items:center;min-height:42px;border-color:#73957a}
+.qf-slot b{font-size:15px}
+.qf-slot small{font-size:10px;color:var(--muted);font-weight:500}
+.qf-slot.filled{background:#e2f1eb;border-color:var(--teal)}
+.qf-legend{margin:12px 0 0;font-size:11px;color:var(--muted);text-align:center;line-height:1.6}
+@media(max-width:750px){.qf-row{gap:8px}.qf-node{min-width:0}.qf-slot{min-width:0}}
+/* 确认本题常驻可见：长图/平板上不用滚到底也能点到（2026-10-29） */
+.qf-actions{position:sticky;bottom:0;z-index:3;display:flex;justify-content:flex-end;gap:10px;padding:8px 0 4px;margin-top:10px;background:#fff;border-top:1px solid var(--line)}
+.question #confirm-question{box-shadow:0 6px 16px #15375833}
+.qf-progress{margin:10px 0 0;font-size:12px;font-weight:700;color:var(--teal)}
+.qf-progress.pending{color:var(--muted);font-weight:500}
+/* 考核页紧凑排版：平板上少占纵向空间，让题图与确认按钮同时可及（2026-10-29） */
+.quiz-root h1{font-size:24px;line-height:1.35;margin-bottom:6px}
+.quiz-root .task-heading .eyebrow{margin-bottom:2px}
+.quiz-root .question-nav{margin:14px 0;gap:6px;grid-template-columns:repeat(11,minmax(0,1fr))}
+.quiz-root .question-nav button{padding:7px 4px;font-size:13px}
+.quiz-root .question{padding:18px 18px 70px}
+.quiz-root>.muted{margin-bottom:0;font-size:12px}
+@media(max-width:820px){.quiz-root .question-nav{grid-template-columns:repeat(6,minmax(0,1fr))}}
+
+/* 分组与句子补全（2026-10-29）：挑战层 q27/q20 只有筐、q25 句子空格未渲染 */
+.qf-targets{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}
+.qf-target{flex:1;min-width:170px;border:2px dashed #73957a;border-radius:12px;background:#fffef8;padding:10px 12px}
+.qf-target-name{margin:0 0 8px;font-weight:800}
+.qf-chips{display:flex;flex-wrap:wrap;gap:6px}
+.qf-chip{display:inline-flex;align-items:center;gap:6px;background:#e2f1eb;border:1px solid var(--teal);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700}
+.qf-chip span{color:#b44237;font-weight:900}
+.qf-empty{font-size:12px;color:var(--muted)}
+.qf-sentence{font-size:17px;line-height:2.4;background:#f7fbf8;border:1px dashed #a9c5b0;border-radius:12px;padding:12px 16px;margin:12px 0}
+.qf-inline-slot{display:inline-flex;align-items:center;justify-content:center;min-width:96px;min-height:38px;margin:0 6px;padding:2px 12px;border:2px dashed #73957a;border-radius:9px;background:#fffef8;font-weight:700;vertical-align:middle}
+.qf-inline-slot.filled{border-style:solid;border-color:var(--teal);background:#e2f1eb}
+.qf-inline-echo{display:inline-flex;align-items:center;justify-content:center;min-width:80px;margin:0 6px;padding:1px 10px;border-bottom:2px solid var(--teal);font-weight:700}
+
+/* 旧机房自动降级提示（2026-10-30） */
+.engine-note{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:200;display:flex;align-items:center;gap:10px;padding:9px 14px;background:#fff7d6;border:1.5px solid #d8b54b;border-radius:10px;font-size:13px;line-height:1.5;color:#5a4620;box-shadow:0 6px 20px #15375826;max-width:calc(100% - 24px)}
+.engine-note span{flex:1;min-width:0}
+.engine-note button{border:1px solid #bf9a34;background:#fff;color:#5a4620;padding:6px 11px;border-radius:7px;font-size:12px;font-weight:650;white-space:nowrap}
+.engine-note button[data-engine="close"]{border:0;background:transparent;font-size:17px;padding:2px 7px;line-height:1}
+@media (max-width:600px){.engine-note{bottom:8px;font-size:12px;gap:6px;padding:8px 10px}.engine-note span{flex:1 1 100%}}
+
+/* 轻量场景的路线引导：目标标签高亮 + 点我走近（2026-10-30） */
+.world-hotspot.is-target{background:#ff4a9e;color:#fff;border-color:#fff;font-size:12px;font-weight:800;z-index:6;box-shadow:0 0 0 4px #ff4a9e55,0 5px 14px #4a002866;animation:hotspot-target-pulse 1.2s ease-in-out infinite}
+.world-hotspot.is-target:after{background:#ff4a9e;border-color:#fff}
+.world-hotspot.is-target:before{content:'点我走近';position:absolute;left:50%;top:-21px;transform:translateX(-50%);background:#880e4f;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px #4a002855}
+@keyframes hotspot-target-pulse{0%,100%{box-shadow:0 0 0 4px #ff4a9e66,0 5px 14px #4a002866}50%{box-shadow:0 0 0 9px #ff4a9e00,0 5px 16px #4a002888}}
+@media (prefers-reduced-motion:reduce){.world-hotspot.is-target{animation:none}}
+
+/* 第二站控制柜锁定时的指路提示（2026-10-30） */
+.device-lock{margin:8px 0 0;padding:8px 10px;background:#fff2c9;border:1px solid #e7cf80;border-radius:8px;font-size:11.5px;line-height:1.6;color:#5a4620;text-align:left}
+
+/* 学生端「重做本关」：卡住时的自救出口（2026-10-30） */
+.restart-level{font-size:12px;min-height:38px;padding:8px 13px;white-space:nowrap}
+.restart-level.armed{background:#ffe4e0;border-color:#e08a7a;color:#a4392a;font-weight:750}
+.restart-level.armed:focus-visible{outline-color:#a4392a}
+.restart-row{display:flex;justify-content:flex-end;margin:0 0 8px}
+
+/* 卡在马路边界时，把可点的通道入口点亮（2026-10-30） */
+.world-hotspot.is-route-hint{background:#ffe066;border-color:#c79a12;color:#5a3d00;font-weight:800;font-size:12px;z-index:6;box-shadow:0 0 0 4px #ffe06655,0 4px 12px #7a5b0044;animation:route-hint-pulse 1.1s ease-in-out infinite}
+.world-hotspot.is-route-hint:after{background:#ffe066;border-color:#c79a12}
+.world-hotspot.is-route-hint:before{content:'点这里过街';position:absolute;left:50%;top:-21px;transform:translateX(-50%);background:#8a6100;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;white-space:nowrap}
+@keyframes route-hint-pulse{0%,100%{box-shadow:0 0 0 4px #ffe06688,0 4px 12px #7a5b0044}50%{box-shadow:0 0 0 10px #ffe06600,0 4px 14px #7a5b0066}}
+@media (prefers-reduced-motion:reduce){.world-hotspot.is-route-hint{animation:none}}
+
+/* 完整场景的「下一步」常驻提示（2026-10-30） */
+.rpg-next-hint{margin:0;padding:9px 17px;background:#fff4c9;border-top:1px solid #e7cf80;border-bottom:1px solid #e7cf80;color:#5a4620;font-size:14px;font-weight:700;line-height:1.5}
+.rpg-next-hint[hidden]{display:none}
+
+/* 手动切换完整/轻量场景（2026-10-30） */
+.engine-switch{background:#eef6ff;border-color:#9dbfd8;color:#215a7a}
+.engine-switch:hover{background:#e2eefb}
+.engine-switch.armed{background:#ffe4e0;border-color:#e08a7a;color:#a4392a}
+
+/* 规则面板：判断卡与动作卡分区（2026-11-02）
+   学生反馈「卡片放在一起分不清」，这里用颜色 + 序号 + 分隔线把四步拆开。 */
+.rule-board{display:flex;flex-direction:column;gap:7px;margin:2px 0 8px}
+.rule-block{border-radius:10px;padding:8px 9px 9px;border:1.5px solid #d8e2d6;border-left-width:5px;background:#fbfcf6}
+.rule-block h4{display:flex;align-items:center;gap:6px;margin:0 0 6px;font-size:11.5px;line-height:1.4;font-weight:800;color:#25463b}
+.rule-block h4 span{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#25463b;color:#fff;font-size:10.5px;font-weight:800}
+.rule-block.is-judge{background:#eef5fc;border-color:#b7d2e8;border-left-color:#2f6f9f}
+.rule-block.is-judge h4{color:#1d4f76}
+.rule-block.is-judge h4 span{background:#2f6f9f}
+.rule-block.f-yes{background:#eef8ee;border-color:#bcdcbf;border-left-color:#2f7a48}
+.rule-block.f-yes h4{color:#1f5c36}
+.rule-block.f-yes h4 span{background:#2f7a48}
+.rule-block.f-no{background:#fdf4e8;border-color:#ecd3ac;border-left-color:#a86a20}
+.rule-block.f-no h4{color:#7d4d11}
+.rule-block.f-no h4 span{background:#a86a20}
+.rule-block.is-predict{background:#f5f3fb;border-color:#cfc8e6;border-left-color:#5b4b9a;border-style:dashed;border-left-style:solid}
+.rule-block.is-predict h4{color:#42357a}
+.rule-block.is-predict h4 span{background:#5b4b9a}
+.rule-cards{display:flex;gap:7px;flex-wrap:wrap}
+.rule-cards button{flex:1;min-width:96px;text-align:center;font-size:11.5px;line-height:1.35;padding:8px 7px;border-radius:8px;border:1.5px solid #cdd8cb;background:#fff;color:#20463a;font-weight:700}
+.rule-cards.is-judge button{border-color:#9dc0dc;background:#f7fbff;color:#1d4f76;font-weight:800}
+.rule-cards.is-judge button.chosen{background:#2f6f9f;border-color:#2f6f9f;color:#fff}
+.rule-cards.is-action button{font-size:12px}
+.rule-block.f-yes .rule-cards button{border-color:#b3d3b7}
+.rule-block.f-yes .rule-cards button.chosen{background:#2f7a48;border-color:#2f7a48;color:#fff}
+.rule-block.f-no .rule-cards button{border-color:#e2c79c}
+.rule-block.f-no .rule-cards button.chosen{background:#a86a20;border-color:#a86a20;color:#fff}
+.rule-cards.is-predict button{border-style:dashed;background:#faf9fe;color:#42357a;font-weight:600}
+.rule-cards.is-predict button.chosen{background:#5b4b9a;border-style:solid;border-color:#5b4b9a;color:#fff}
+.rule-card.is-fixed{flex:1;min-width:96px;text-align:center;font-size:11.5px;line-height:1.35;padding:8px 7px;border-radius:8px;border:1.5px dashed #b9c6c9;background:#f2f5f3;color:#5c6f68;font-weight:700}
+.rule-block.is-judge .rule-card.is-fixed{border-color:#a9c3d6;background:#eaf2f8;color:#2a5974}
+.rule-hint{margin:6px 0 0;font-size:10.5px;line-height:1.55;color:#5d7268}
+.rule-preview{margin:1px 0 2px;padding:7px 9px;border-radius:8px;background:#fff8d9;border:1.5px solid #e3cf8a;font-size:11px;line-height:1.6;color:#5b4a1c}
+.rule-preview b{font-size:11.5px;color:#3f3410}
+.rule-missing{margin:7px 0 0;padding:7px 9px;border-radius:8px;background:#ffe9e4;border:1px solid #e5ada0;font-size:11px;line-height:1.55;color:#8f3a26;font-weight:650}
+.npc-dialogue.is-rule{width:440px;bottom:14px;max-height:calc(100% - 24px)}
+@media (max-width:720px){.npc-dialogue.is-rule{width:calc(100% - 36px)}}
+.npc-choices button.primary[disabled]{background:#cfd8d2;border-color:#cfd8d2;color:#6b7d75;cursor:not-allowed}
+.npc-dialogue.is-rule{padding:14px 15px 14px}
+.npc-dialogue.is-rule .npc-name{margin-bottom:8px}
+.npc-dialogue.is-rule .npc-speech{font-size:11.5px;line-height:1.6;margin-bottom:9px}
+.rule-actions{position:sticky;bottom:-6px;z-index:7;display:flex;flex-direction:column;gap:8px;padding:7px 0 2px;margin-bottom:-4px;background:#fffdf5}
+.rule-actions button{width:100%}
+.rule-block{padding:6px 8px 7px}
+.rule-cards button{padding:7px 6px}
+.rule-card.is-fixed{padding:7px 6px}
+.rule-hint{margin:4px 0 0}
+.rule-preview{padding:6px 8px}
+.npc-dialogue.is-rule .npc-speech{margin-bottom:7px}
+
+/* 教室投影常见 1366×768：高度不够时把「是」「否」并排，四步仍各自成块 */
+@media (max-height:820px) and (min-width:700px){
+  .rule-board{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .rule-board > .rule-block.is-judge,
+  .rule-board > .rule-block.is-predict,
+  .rule-board > .rule-preview{grid-column:1/-1}
+  .rule-board > .rule-block.f-yes{grid-column:1}
+  .rule-board > .rule-block.f-no{grid-column:2}
+  .rule-block.f-yes .rule-cards,.rule-block.f-no .rule-cards{flex-direction:column;gap:5px}
+  .rule-block.f-yes .rule-cards button,.rule-block.f-no .rule-cards button{min-width:0}
+}
+
+/* 规则面板要一次看全四步：矮屏上它跳出地图区域，用整页高度，避免第 ④ 步被按钮压住 */
+.npc-dialogue.is-rule{position:fixed;right:16px;bottom:16px;max-height:calc(100vh - 32px);z-index:60}
+@media (max-width:720px){.npc-dialogue.is-rule{right:8px;bottom:8px;max-height:calc(100vh - 16px)}}
+
+/* 考核浮层的「回到闯关」出口（2026-11-02） */
+.exam-back{display:inline-flex;align-items:center;gap:4px;margin:0 0 10px;padding:7px 12px;font-size:12px;font-weight:700;border-radius:8px;border:1.5px solid #9dbfd8;background:#eef6ff;color:#215a7a}
+.exam-back:hover{background:#e2eefb}
+
+/* 轻量场景的通关法宝解析卡（2026-11-03） */
+.hint-card{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:70;width:min(420px,calc(100vw - 32px));background:#fffdf5;border:3px solid #e8c782;border-radius:16px;box-shadow:0 18px 50px #173b3355;padding:18px 20px 16px}
+.hint-card-body{display:flex;flex-direction:column;gap:8px}
+.hint-eyebrow{margin:0;font-size:11px;font-weight:800;letter-spacing:.04em;color:#8a6a1f}
+.hint-card h3{margin:0;font-size:16px;line-height:1.5;color:#1b4238}
+.hint-why{margin:0;font-size:13px;line-height:1.75;color:#3f5c52}
+.hint-go{margin:0;font-size:11.5px;line-height:1.6;color:#6b8378}
+.hint-card button{margin-top:4px}
+.legacy-hint{background:#fff4d8;border-color:#d7b45a;color:#6b4f11}
+.legacy-hint:disabled{background:#eef0ea;border-color:#cdd6cd;color:#8a9a90}
+
+/* 最后一下：红框 + 脉冲 + 手指（2026-11-03）
+ * 学生走到这一步后常停在按钮前问“点哪个”，红框只圈“完成当前步骤”的那一个按钮，
+ * 不圈答案选项，避免替学生作答。
+ */
+.tap-now{position:relative;z-index:6;outline:4px solid #e01b24!important;outline-offset:4px;border-radius:12px;animation:tap-now-ring .95s ease-in-out infinite}
+.tap-now::after{content:"👆 点这里";position:absolute;right:6px;top:-16px;background:#e01b24;color:#fff;font-size:12px;font-weight:800;line-height:1;padding:4px 9px;border-radius:999px;white-space:nowrap;box-shadow:0 4px 12px #e01b2455;pointer-events:none}
+@keyframes tap-now-ring{0%,100%{outline-color:#e01b24;box-shadow:0 0 0 0 #e01b2400}50%{outline-color:#ff8a8a;box-shadow:0 0 0 9px #e01b2433}}
+.tap-next{position:relative;border:3px dashed #e01b24!important;border-radius:12px;animation:tap-next-soft 1.1s ease-in-out infinite}
+.tap-next::before{content:"👆 先点这里的卡片";position:absolute;left:10px;top:-12px;background:#e01b24;color:#fff;font-size:11px;font-weight:800;line-height:1;padding:3px 8px;border-radius:999px;z-index:2;white-space:nowrap}
+@keyframes tap-next-soft{0%,100%{border-color:#e01b24;background-color:#fff5f5}50%{border-color:#ff9a9a;background-color:#ffecec}}
+@media (prefers-reduced-motion:reduce){.tap-now,.tap-next{animation:none}}
+
+/* 基础层逐题判定与提交结果（2026-11-03） */
+.answer:disabled{opacity:1;cursor:default}
+.quiz-card:disabled{opacity:.75;cursor:default}
+.quiz-slot:disabled,.qf-slot:disabled,.qf-inline-slot:disabled{opacity:1;cursor:default}
+.answer.is-correct{border-color:#2f7a48;background:#e9f7ee;box-shadow:inset 0 0 0 1px #2f7a48}
+.answer.is-wrong{border-color:#c0392b;background:#fdecea;box-shadow:inset 0 0 0 1px #c0392b}
+.answer.is-correct>span{background:#2f7a48;color:#fff;border-color:#2f7a48}
+.answer.is-wrong>span{background:#c0392b;color:#fff;border-color:#c0392b}
+.qf-feedback{margin-top:14px;padding:13px 16px;border-radius:12px;border:2px solid #bcdcbf;background:#f4faf5;font-size:14px;line-height:1.7}
+.qf-feedback.is-wrong{border-color:#e6b3ad;background:#fff6f5}
+.qf-verdict{margin:0 0 6px;font-size:17px;font-weight:800;color:#1f6b3a}
+.qf-feedback.is-wrong .qf-verdict{color:#b03024}
+.qf-feedback p{margin:4px 0}
+.qf-explain{color:#25463b}
+.qf-review{color:#5a6f66;font-size:13px}
+.quiz-verdict{margin:0 0 14px;padding:16px 18px;border-radius:14px;border:3px solid #9ecfae;background:#eef9f1}
+.quiz-verdict.is-fail{border-color:#e8a9a2;background:#fff4f3}
+.quiz-verdict h2{margin:0 0 6px;font-size:20px;color:#1f6b3a}
+.quiz-verdict.is-fail h2{color:#b03024}
+.quiz-verdict p{margin:4px 0;font-size:13.5px;line-height:1.7;color:#25463b}
+.quiz-verdict button{margin-top:10px}

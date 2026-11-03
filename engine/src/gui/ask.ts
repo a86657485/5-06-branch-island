@@ -11,6 +11,7 @@ export interface LessonDialogData {
   choices?: DialogChoice[];
   title?: string;
   hint?: string;
+  program?: { condition: string; yes: string; no: string };
 }
 
 let dialogSequence = 0;
