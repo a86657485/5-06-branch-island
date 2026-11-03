@@ -98,12 +98,12 @@ test('同一时刻只有一个焦点，单击目标可开始行走和交互', ()
   assert.equal(predict.id, 'predict-row-next');
   const repairProbe = currentFocus({ levelId: 'repair', scene: { phase: 'assigned', measured: false }, level: { valid: false } });
   assert.equal(repairProbe.step, '2');
-  assert.equal(repairProbe.hint, '选 30℃，先运行原程序看看。');
+  assert.equal(repairProbe.hint, '到温度探头，选 30℃ 先运行原程序。');
   assert.equal(currentFocus({ levelId: 'sale', scene: { phase: 'assigned', measured: false } }).hint, '到温度探头，选一个温度。');
   const draw = currentFocus({ levelId: 'cross', scene: { phase: 'observed', measured: true, facility: true }, draft: { flow: { locked: false } }, level: { valid: false } });
-  assert.equal(draw.hint, '到导行屏，设置两种情况的动作。');
+  assert.equal(draw.hint, '到导行屏，设置两种情况各走哪条。');
   assert.equal(draw.target.place, 'control');
-  assert.equal(currentFocus({ levelId: 'repair', scene: { phase: 'measured', measured: true }, draft: { flow: { locked: false } } }).hint, '先运行原程序，看 30℃。');
+  assert.equal(currentFocus({ levelId: 'repair', scene: { phase: 'measured', measured: true }, draft: { flow: { locked: false } } }).hint, '到控制柜，先运行原程序看 30℃。');
 });
 
 test('旧闸机字段不占焦点，浮层打开时地图设备不再当焦点', () => {
@@ -243,7 +243,7 @@ test('温室和返修已经跑过时，不先跳去拼句', () => {
   });
   assert.equal(sentenceAfterPredict.step, '8');
   assert.equal(sentenceAfterPredict.id, 'control');
-  assert.equal(sentenceAfterPredict.hint, '点执行本次温度。');
+  assert.equal(sentenceAfterPredict.hint, '在控制柜点执行本次温度。');
 
   const repairRun = currentFocus({
     levelId: 'repair',
@@ -302,7 +302,7 @@ test('温室和返修已经跑过时，不先跳去拼句', () => {
   assert.equal(cabinet.hint, '到核验处保存这次结果。');
   const connect = currentFocus({ levelId: 'minimum', scene: { phase: 'executed', measured: true, ticket: { output: 'b' }, actions: ['collect', 'predict'] }, panelOpen: false });
   assert.equal(connect.id, 'batteryB');
-  assert.equal(connect.hint, '先接入程序选中的电池。');
+  assert.equal(connect.hint, '先到电池B采集台，接入程序选中的电池。');
 });
 
 test('温室核验之后按结果去下一处，不再默认回探头', () => {

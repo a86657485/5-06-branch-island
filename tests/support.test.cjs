@@ -47,43 +47,51 @@ test('通关法宝只给当前一步答案与理由，重看同一提示及事�
   assert.equal(reread.state.points, 0);
 });
 
-test('全课跨站共用5次法宝，同时请求与刷新重启不会回补额度，已看提示仍能重看', async t => {
+test('每一关各有5次法宝，跨关不互相扣次数，刷新重启不回补', async t => {
   const c = await setup(t);
   const config = { model: 'ventilation', operator: '>=', yes: 'on', no: 'off' };
   await c.event('draft', 'sale', { config });
   await c.event('draft', 'minimum', { config: { operator: '<', yes: 'a', no: 'b' }, input: { a: 3, b: 8 } });
-  const steps = [
-    ['sale', { phase: 'flow', slot: 'diamond' }],
-    ['sale', { phase: 'flow', slot: 'yes' }],
-    ['sale', { phase: 'flow', slot: 'no' }],
-    ['sale', { phase: 'predict', temperature: 29 }],
-    ['minimum', { phase: 'flow', slot: 'diamond' }],
-    ['sale', { phase: 'predict', temperature: 30 }]
+  const saleSteps = [
+    { phase: 'flow', slot: 'diamond' },
+    { phase: 'flow', slot: 'yes' },
+    { phase: 'flow', slot: 'no' },
+    { phase: 'predict', temperature: 29 },
+    { phase: 'predict', temperature: 30 }
   ];
-  const replies = await Promise.all(steps.map(([id, step]) => c.event('tool_hint', id, { step })));
-  assert.equal(replies.filter(reply => reply.status === 200).length, 5);
-  assert.equal(replies.filter(reply => reply.code === 'TOOL_HINT_LIMIT').length, 1);
-  const reread = await c.event('tool_hint', 'sale', { step: steps[0][1] });
+  const used = [];
+  for (const step of saleSteps) used.push(await c.event('tool_hint', 'sale', { step }));
+  assert.deepEqual(used.map(reply => reply.status), [200, 200, 200, 200, 200]);
+  assert.equal(used.at(-1).result.remaining, 0, '第五次后本关正好用完');
+  const sixth = await c.event('tool_hint', 'sale', { step: { phase: 'predict', temperature: 31 } });
+  assert.equal(sixth.status, 409);
+  assert.equal(sixth.code, 'TOOL_HINT_LIMIT');
+
+  const other = await c.event('tool_hint', 'minimum', { step: { phase: 'flow', slot: 'diamond' } });
+  assert.equal(other.status, 200, '换一关不该被上一关的次数挡住');
+  assert.equal(other.result.used, 1);
+  assert.equal(other.result.remaining, 4);
+
+  const reread = await c.event('tool_hint', 'sale', { step: saleSteps[0] });
   assert.equal(reread.status, 200);
   assert.equal(reread.result.reused, true);
   assert.equal(reread.result.remaining, 0);
+
   const latest = await c.api('/api/state?studentId=s1');
-  assert.equal(latest.state.support.hints.length, 5);
-  assert.ok(latest.state.support.hints.some(hint => hint.levelId === 'minimum'));
+  assert.equal(latest.state.support.hints.filter(hint => hint.levelId === 'sale').length, 5);
+  assert.equal(latest.state.support.hints.filter(hint => hint.levelId === 'minimum').length, 1);
   await c.restart();
   const restored = await c.api('/api/state?studentId=s1');
   assert.deepEqual(restored.state.support, latest.state.support);
-  const different = await c.event('tool_hint', 'sale', { step: { phase: 'predict', temperature: 31 } });
-  assert.equal(different.status, 409);
-  assert.equal(different.code, 'TOOL_HINT_LIMIT');
-  const otherStudent = await c.event('tool_hint', 'sale', { step: steps[0][1] }, { studentId: 's2' });
+
+  const otherStudent = await c.event('tool_hint', 'sale', { step: saleSteps[0] }, { studentId: 's2' });
   assert.equal(otherStudent.result.used, 1);
   assert.equal(otherStudent.result.remaining, 4);
   await c.api('/api/teacher/lesson-session', { classId: '501' });
   const newRound = await c.api('/api/state?studentId=s1');
   assert.equal(newRound.round, 2);
   assert.deepEqual(newRound.state.support.hints, []);
-  const historical = await c.event('tool_hint', 'sale', { step: steps[0][1] });
+  const historical = await c.event('tool_hint', 'sale', { step: saleSteps[0] });
   assert.equal(historical.status, 409);
 });
 
@@ -145,7 +153,7 @@ test('教师展开证据显示全课法宝用量、本站提示和解析，正�
   const collapsed = context.evidenceRows([student], false);
   assert.equal(collapsed.includes('本课已用'), false);
   const expanded = context.evidenceRows([student], true);
-  assert.match(expanded, /本课已用 1\/5 次/);
+  assert.match(expanded, /每关各 5 次，本课合计已用 1 次/);
   assert.match(expanded, /本站法宝提示 1 次/);
   assert.ok(expanded.includes(saved.result.hint.action));
   assert.ok(expanded.includes(saved.result.hint.why));

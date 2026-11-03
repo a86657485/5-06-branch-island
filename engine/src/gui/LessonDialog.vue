@@ -67,6 +67,7 @@ async function useTool() {
     const step = dialogTaskStep((props.choices || []).map(choice => choice.id), temperature, props.name);
     const result = await request<{ hint: { action: string; why: string; target?: AssistanceTarget }; remaining: number; used: number }>('toolHint', { step });
     support.value = { ...support.value, remaining: result.remaining, used: result.used };
+    window.dispatchEvent(new CustomEvent('lesson-tool-hint', { detail: result.hint }));
     if (props.dialogId === dialogId) toolAnswer.value = {...result.hint,origin:'tool',stepKey:String(dialogId)};
   } catch (error) { toolError.value = error instanceof Error ? error.message : '法宝暂时没打开，请再试一次。'; }
   finally { toolBusy.value = false; }

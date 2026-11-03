@@ -374,8 +374,8 @@ function scaffoldEvidence(st, id) {
 function evidence(student) {
   const st = student.state;
   return `<div class="student-evidence">
-    <p><b>通关法宝：本课已用 ${(st.support?.hints || []).length}/5 次</b>。各站共用；提示记录保留，撤回操作不会退回次数。</p>
-    <p class="muted">免费递进帮助另行记录，不占全课5次法宝。第1级为观察提醒，第2、3级为概念帮助。</p>
+    <p><b>通关法宝：每关各 5 次，本课合计已用 ${(st.support?.hints || []).length} 次</b>。提示记录保留，撤回操作不会退回次数。</p>
+    <p class="muted">免费递进帮助另行记录，不占法宝次数。第1级为观察提醒，第2、3级为概念帮助。</p>
     ${IDS.map(id => {
       const runs = st.runs?.[id] || [], level = st.levels?.[id], prediction = st.predictions?.[id]?.[0];
       const hints = (st.support?.hints || []).filter(hint => hint.levelId === id);

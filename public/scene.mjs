@@ -277,6 +277,27 @@ export function createParkScene(host){
  function image(name,file){const img=new Image();assets[name]=img;img.src=file;img.onerror=()=>say('部分场景图片未加载，操作与记录仍可继续。');}
  image('park','/assets/park-map.webp?v=2d-20261015');image('road','/assets/crossing-map.webp?v=2d-20261015');image('people','/assets/characters.webp?v=2d-20261015');
  ensureStandable();buildEntries();resize();refresh();persist();raf=requestAnimationFrame(tick);
+ /** 法宝把当前这一步代劳到「走到光圈处、打开该处交互」，并弹出解析。
+  *  只带路和打开入口，不替学生选答案。 */
+ const HINT_KEY={bridge:'bridgeWest',zebra:'crossingWest',a:'batteryA',b:'batteryB'};
+ function hintStep(){const goal=nextStep().goal;return {phase:'world',key:HINT_KEY[goal]||goal};}
+ function showHintCard(hint,remaining){
+  const old=$('#hint-card');if(old&&old.parentNode)old.parentNode.removeChild(old);
+  const wrap=document.createElement('div');
+  wrap.id='hint-card';wrap.className='hint-card';wrap.setAttribute('role','dialog');
+  wrap.innerHTML=`<div class="hint-card-body"><p class="hint-eyebrow">✨ 通关法宝${Number.isFinite(remaining)?` · 这一关还剩 ${remaining} 次`:''}</p><h3>${esc(hint.action||'跟着光圈走一步')}</h3>${hint.why?`<p class="hint-why">${esc(hint.why)}</p>`:''}<p class="hint-go">角色正在走到发光处，到达后会打开要操作的地方。</p><button type="button" id="hint-card-close" class="primary">知道了，按提示操作</button></div>`;
+  root.appendChild(wrap);
+  wrap.querySelector('#hint-card-close').onclick=()=>wrap.remove();
+ }
+ async function useHint(){
+  if(!host.onToolHint)throw new Error('这一关暂时没有法宝。');
+  const data=await host.onToolHint({step:hintStep()});
+  const hint=data?.hint||{};
+  const goal=point(nextStep().goal);
+  showHintCard(hint,data?.remaining);
+  navigate(goal,()=>goal.action());
+  return data;
+ }
  if(new URLSearchParams(location.search).has('debug'))window.__sceneDebug={refresh,currentGoal,getEntries:()=>entries,getState:()=>s,getPath:()=>path,getToast:()=>$('#scene-toast')?.textContent||''};
- return{refresh,destroy(){if(disposed)return;clearTimeout(saveTimer);persist();disposed=true;cancelAnimationFrame(raf);observer.disconnect();window.removeEventListener('keydown',keydown);window.removeEventListener('keyup',keyup);window.removeEventListener('blur',blur);keys.clear();path=[];afterMove=null;}};
+ return{refresh,useHint,destroy(){if(disposed)return;clearTimeout(saveTimer);persist();disposed=true;cancelAnimationFrame(raf);observer.disconnect();window.removeEventListener('keydown',keydown);window.removeEventListener('keyup',keyup);window.removeEventListener('blur',blur);keys.clear();path=[];afterMove=null;}};
 }

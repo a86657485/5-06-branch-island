@@ -313,3 +313,14 @@ tr.row-open>td{background:#f4faf8}
 /* 考核浮层的「回到闯关」出口（2026-11-02） */
 .exam-back{display:inline-flex;align-items:center;gap:4px;margin:0 0 10px;padding:7px 12px;font-size:12px;font-weight:700;border-radius:8px;border:1.5px solid #9dbfd8;background:#eef6ff;color:#215a7a}
 .exam-back:hover{background:#e2eefb}
+
+/* 轻量场景的通关法宝解析卡（2026-11-03） */
+.hint-card{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:70;width:min(420px,calc(100vw - 32px));background:#fffdf5;border:3px solid #e8c782;border-radius:16px;box-shadow:0 18px 50px #173b3355;padding:18px 20px 16px}
+.hint-card-body{display:flex;flex-direction:column;gap:8px}
+.hint-eyebrow{margin:0;font-size:11px;font-weight:800;letter-spacing:.04em;color:#8a6a1f}
+.hint-card h3{margin:0;font-size:16px;line-height:1.5;color:#1b4238}
+.hint-why{margin:0;font-size:13px;line-height:1.75;color:#3f5c52}
+.hint-go{margin:0;font-size:11.5px;line-height:1.6;color:#6b8378}
+.hint-card button{margin-top:4px}
+.legacy-hint{background:#fff4d8;border-color:#d7b45a;color:#6b4f11}
+.legacy-hint:disabled{background:#eef0ea;border-color:#cdd6cd;color:#8a9a90}

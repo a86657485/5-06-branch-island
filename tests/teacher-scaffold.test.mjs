@@ -22,8 +22,8 @@ test('教师证据逐站统计免费帮助次数与最高级别，排除重置�
   {levelId:'sale',level:0,count:0,lines:['重置事件不展示'],at:'2026-10-26T01:03:00.000Z',conceptual:false},
   {levelId:'repair',level:1,count:1,lines:['观察返修'],at:'2026-10-26T01:04:00.000Z',conceptual:false}
  ]});
- assert.match(html,/通关法宝：本课已用 1\/5 次/);
- assert.match(html,/免费递进帮助另行记录，不占全课5次法宝/);
+ assert.match(html,/通关法宝：每关各 5 次，本课合计已用 1 次/);
+ assert.match(html,/免费递进帮助另行记录，不占法宝次数/);
  assert.match(html,/第1级为观察提醒，第2、3级为概念帮助/);
  assert.match(html,/温室风机调试[\s\S]*?免费递进帮助：3次；最高级别：第3级/);
  assert.match(html,/温室控制器返修[\s\S]*?免费递进帮助：1次；最高级别：第1级/);
@@ -51,5 +51,5 @@ test('旧学生记录没有递进帮助时仍能展开证据',()=>{
  const html=evidenceRows(undefined);
  assert.equal((html.match(/免费递进帮助：0次；最高级别：尚无/g)||[]).length,4);
  assert.doesNotMatch(html,/<summary>本站免费递进帮助/);
- assert.match(html,/通关法宝：本课已用 0\/5 次/);
+ assert.match(html,/通关法宝：每关各 5 次，本课合计已用 0 次/);
 });

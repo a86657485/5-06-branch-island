@@ -323,6 +323,7 @@ async function useTool() {
     const result = await request<{ hint: { key: string; action: string; why: string; target?: AssistanceTarget }; remaining: number; used: number }>('toolHint', { step: phase });
     if(requestedStep===stepKey.value)toolAnswer.value = {...result.hint,origin:'tool',stepKey:requestedStep};
     support.value = { ...support.value, remaining: result.remaining, used: result.used };
+    window.dispatchEvent(new CustomEvent('lesson-tool-hint', { detail: result.hint }));
   } catch (error) { message.value = error instanceof Error ? error.message : '法宝暂时没打开，请再试一次。'; }
   finally { toolBusy.value = false; }
 }

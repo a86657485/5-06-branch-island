@@ -239,13 +239,30 @@ function mountRestartButton(id){
   engine.textContent=legacy?'改用完整场景':'改用轻量场景';
   engine.onclick=()=>armed(engine,legacy?'改用完整场景':'改用轻量场景',()=>switchEngine());
 
+  // 轻量场景没有引擎里的法宝按钮，这里补一个：点一下自动走到光圈处并弹出解析
+  let hint=null;
+  if(legacy){
+    const left=()=>Math.max(0,5-((state.support?.hints||[]).filter(item=>item.levelId===id).length));
+    hint=document.createElement('button');
+    hint.type='button'; hint.id='legacy-hint'; hint.className='quiet restart-level legacy-hint';
+    hint.textContent=`✨ 通关法宝 ${left()}/5`;
+    hint.disabled=left()<=0;
+    hint.onclick=async()=>{
+      if(hint.disabled)return;
+      hint.disabled=true; hint.textContent='法宝正在打开…';
+      try{ const data=await activeScene?.useHint?.(); if(data) hint.textContent=`✨ 通关法宝 ${Math.max(0,data.remaining??left())}/5`; }
+      catch(e){ setNotice(e.message||'法宝暂时打不开，请再试一次。'); }
+      finally{ const rest=left(); hint.disabled=rest<=0; hint.textContent=`✨ 通关法宝 ${rest}/5`; }
+    };
+  }
+
   // 轻量场景没有页头的「巡检手册」按钮，这里补一个，先学卡才打得开
   const learn=document.createElement('button');
   learn.type='button'; learn.id='legacy-learn'; learn.className='quiet restart-level';
   learn.textContent='📖 巡检手册';
   learn.onclick=()=>showLearnCard(id,true);
 
-  if(tools){ tools.appendChild(learn); tools.appendChild(restart); tools.appendChild(engine); return; }
+  if(tools){ if(hint) tools.appendChild(hint); tools.appendChild(learn); tools.appendChild(restart); tools.appendChild(engine); return; }
   // RPG 场景的标题栏是固定高度的 flex，塞进去会被裁掉，单独占一行放在场景上方
   const row=document.createElement('div');
   row.className='restart-row';
@@ -497,7 +514,7 @@ function renderTask(idx){
   const idx=ids.indexOf(id),sameOwner=()=>user?.id===ownerId&&round===ownerRound&&sceneGeneration===generation&&(legacy||current===id);
   const save=()=>{if(sameOwner())send('draft',id,draft(id));};
   return {
-  root:$('#workbench'),levelId:id,demo,forLevel:makeHost,getDraft:()=>state.drafts[id]||clone(defaults[id]),getRuns:()=>state.runs[id]||[],getLevel:()=>state.levels[id],getScaffold:()=>currentScaffold(state,id,draft(id).input),getSupport:()=>state.support||{hints:[]},getUndoAvailable:()=>!!undoStacks.get(id)?.length,getEvidenceStart:()=>state.levels[id]?.evidenceStart||0,reasons:reasonOptions[id],
+  root:$('#workbench'),levelId:id,demo,forLevel:makeHost,getDraft:()=>state.drafts[id]||clone(defaults[id]),getRuns:()=>state.runs[id]||[],getLevel:()=>state.levels[id],getScaffold:()=>currentScaffold(state,id,draft(id).input),getSupport:()=>({...(state.support||{hints:[]}),remaining:Math.max(0,5-((state.support?.hints||[]).filter(hint=>hint.levelId===id).length))}),getUndoAvailable:()=>!!undoStacks.get(id)?.length,getEvidenceStart:()=>state.levels[id]?.evidenceStart||0,reasons:reasonOptions[id],
   onChange(patch){
    if(!sameOwner())return;
    if('rpg' in patch){patch={...patch,rpg:window.AdventureRules.validateRpgDraft(patch.rpg)};const maps={sale:['greenhouse'],repair:['greenhouse','workshop'],cross:['crossing','crossing-east'],minimum:['energy'],gate:['greenhouse']};if(!maps[id].includes(patch.rpg.mapId))throw new Error('当前位置与任务场景不一致。');}
@@ -573,10 +590,12 @@ function renderTask(idx){
     const hint=toolHint(id,draft(id),step||{});
     state.support||={hints:[]};
     const previous=state.support.hints.find(item=>item.key===hint.key);
-    if(!previous && state.support.hints.length>=5)throw new Error('全课法宝用完了，点错了可以撤回。');
+    const mine=state.support.hints.filter(item=>item.levelId===id);
+    if(!previous && mine.length>=5)throw new Error('这一关的5次法宝用完了，看过的提示仍可重看。');
     if(!previous){state.support.hints.push({...hint,levelId:id,at:new Date().toISOString()});if(hint.conceptual!==false){state.levels[id]||={};state.levels[id].hinted=true;}}
     saveLocal();updateHeader();
-    return {hint:previous||hint,used:state.support.hints.length,remaining:5-state.support.hints.length,reused:!!previous};
+    const used=state.support.hints.filter(item=>item.levelId===id).length;
+    return {hint:previous||hint,used,remaining:Math.max(0,5-used),reused:!!previous};
    }
    await queue.flush();
    if(!sameOwner())throw new Error('身份已切换，请继续当前任务。');
@@ -584,7 +603,8 @@ function renderTask(idx){
    const data=await api('/api/events',{studentId:user.id,round,eventId:eventId(),type:'tool_hint',levelId:id,payload:{step:step||{}}});
    if(!sameOwner())return null;
    state=reconcileState(state,data.state,true);saveLocal();updateHeader();
-   return {...data.result,used:state.support?.hints?.length||0,remaining:Math.max(0,5-(state.support?.hints?.length||0))};
+   const used=(state.support?.hints||[]).filter(hint=>hint.levelId===id).length;
+   return {...data.result,used,remaining:Math.max(0,5-used)};
   },
   onUndo(){
    if(!sameOwner())return null;

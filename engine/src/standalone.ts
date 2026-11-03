@@ -536,7 +536,9 @@ function paintFocus(focus = lessonFocus()) {
   paintStationStepBar(focus);
   paintPanelFocus(focus);
   const hints=getContext()?.support?.hints||[];
-  if(hintButton){setText(hintButton, `通关法宝 ${Math.max(0,5-hints.length)}/5`);setDisabled(hintButton, hints.length>=5||auxiliaryBusy);}
+  const levelForHints=getContext()?.levelId;
+  const mine=hints.filter(hint=>!hint.levelId||hint.levelId===levelForHints);
+  if(hintButton){setText(hintButton, `通关法宝 ${Math.max(0,5-mine.length)}/5`);setDisabled(hintButton, mine.length>=5||auxiliaryBusy);}
   if(undo)setDisabled(undo, !getContext()?.undoAvailable||autoWalking);
   if (goto) {
     setDisabled(goto, !focus.goto || !canControl());
@@ -554,6 +556,43 @@ function syncIdle(paused = dialogOpen || auxiliaryBusy || document.hidden) {
   paintFocus(focus);
 }
 window.addEventListener('lesson-walking',event=>{autoWalking=!!(event as CustomEvent).detail?.moving;if(autoWalking)stopMovement();paintFocus();});
+
+/** 法宝解析卡 + 自动走到光圈处（走到后由 lesson-goto 触发该处交互）。 */
+function applyToolHint(hint:{action?:string;why?:string;target?:Record<string,unknown>}|null|undefined){
+  if(!hint)return;
+  showAssistance({...hint,origin:'tool'});
+  const at=lessonFocus();
+  const point=(at.target||{}) as {x?:number;y?:number;mapId?:string;place?:string};
+  if(!at.goto||!Number.isFinite(point.x)||!Number.isFinite(point.y))return;
+  window.dispatchEvent(new CustomEvent('lesson-goto',{detail:{goto:true,x:point.x,y:point.y,mapId:point.mapId,place:point.place}}));
+}
+window.addEventListener('lesson-tool-hint',event=>applyToolHint((event as CustomEvent).detail));
+
+/** 顶栏的法宝按钮也要能用：按当前焦点推出步骤，再请求一次提示。 */
+function stepFromFocus(focus:{id?:string;target?:{place?:string}}){
+  const id=String(focus?.id||'');
+  if(id==='sentence-slot-next')return {phase:'sentence'};
+  if(id==='diagnose-cards')return {phase:'diagnose'};
+  if(id.includes('predict'))return {phase:'predict'};
+  if(id==='flow-lock'||id==='slot-next')return {phase:'flow'};
+  return {phase:'world',key:focus?.target?.place||''};
+}
+if(hintButton){
+  hintButton.addEventListener('click',async()=>{
+    if(hintButton.disabled)return;
+    hintButton.disabled=true;
+    try{
+      const focus=lessonFocus();
+      const result=await request<{hint:{action?:string;why?:string;target?:Record<string,unknown>};remaining:number}>('toolHint',{step:stepFromFocus(focus)});
+      applyToolHint(result?.hint);
+    }catch(error){
+      window.dispatchEvent(new CustomEvent('lesson-bridge-error',{detail:error instanceof Error?error.message:'法宝暂时打不开，请再试一次。'}));
+    }finally{
+      hintButton.disabled=false;
+      paintFocus();
+    }
+  });
+}
 window.addEventListener('lesson-process-panel', event => {
   processPanelOpen = !!(event as CustomEvent<{ open: boolean }>).detail?.open;
   paintFocus();

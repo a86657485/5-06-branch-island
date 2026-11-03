@@ -162,12 +162,12 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
     const connect = levelId === 'minimum' && !(scene.actions || []).includes('route');
     const selected = draft?.config?.[scene.ticket.branch] || scene.ticket.output;
     const place = connect ? (selected === 'b' ? 'batteryB' : 'batteryA') : levelId === 'minimum' ? 'monitor' : 'verify';
-    if(connect)return pack({id:place,step:'9',kind:'map',goto:true,hint:'先接入程序选中的电池。',strong:'走到发光处，接入选中的电池。',target:at(mapId,place)});
+    if(connect)return pack({id:place,step:'9',kind:'map',goto:true,hint:`先到${selected==='b'?'电池B':'电池A'}采集台，接入程序选中的电池。`,strong:'走到发光处，接入选中的电池。',target:at(mapId,place)});
     return pack({ id: place, step: '9', kind: 'map', thinking: false, goto: true, hint: '到核验处保存这次结果。', strong: '走到发光处，走近并开始。', target: at(mapId, place) });
   }
   if (!scene.measured && (levelId === 'minimum' && scene.phase === 'reading' || !saved)) {
     const place = levelId === 'cross' ? 'observe' : levelId === 'minimum' ? ((scene.collected || []).includes('a') ? 'batteryB' : 'batteryA') : 'sensor';
-    const hint = levelId === 'repair' ? '选 30℃，先运行原程序看看。' : levelId === 'cross' ? '到观察点看看路口附近。' : levelId === 'minimum' ? '去读两组电池的电量。' : '到温度探头，选一个温度。';
+    const hint = levelId === 'repair' ? '到温度探头，选 30℃ 先运行原程序。' : levelId === 'cross' ? '到观察点看看路口附近。' : levelId === 'minimum' ? '去读两组电池的电量。' : '到温度探头，选一个温度。';
     return pack({ id: place, step: '2', kind: 'map', thinking: false, goto: true, hint, strong: '走到发光处，走近并开始。', target: at(mapId, place) });
   }
   if (saved && !scene.measured && Array.isArray(runs) && ['cross','minimum'].includes(levelId)) {
@@ -227,7 +227,7 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
     return pack({ id: 'guide', step: '11', kind: 'map', thinking: false, goto: true, hint: '回园艺员那里汇报。', strong: '走到发光处，找负责人继续。', target: at(mapId, 'guide') });
   }
   if (!flow.locked) {
-    const drawHint = levelId === 'repair' ? '先运行原程序，看 30℃。' : levelId === 'cross' ? '到导行屏，设置两种情况的动作。' : '到控制柜，设置条件和两个动作。';
+    const drawHint = levelId === 'repair' ? '到控制柜，先运行原程序看 30℃。' : levelId === 'cross' ? '到导行屏，设置两种情况各走哪条。' : levelId === 'minimum' ? '到电量分配台，设置比较条件和两个出口。' : '到控制柜，设置条件和两个动作。';
     return pack({ id: 'control', step: '3', kind: 'map', thinking: false, goto: true, hint: drawHint, strong: '走到发光处，走近并开始。', target: at(mapId, 'control') });
   }
   const sentenceFirst = !sentence.locked && !(levelId === 'cross' && scene.ticket) && !(levelId === 'sale' && !predictions.locked) && !(ran && (levelId === 'sale' || levelId === 'repair') && !(revised && !scene.ticket));
@@ -248,7 +248,8 @@ function stationFocus(levelId, scene, level, draft, panelOpen, runs, evidenceSta
     return pack({id:'control',step:predicted?'8':'7',kind:'map',goto:true,hint:predicted?'运行程序，看它选哪一条。':'先预测这次会选哪一条。',strong:'走到发光处，继续控制柜的任务。',target:at(mapId,'control')});
   }
   if (!scene.ticket) {
-    return pack({ id: 'control', step: '8', kind: 'map', thinking: false, goto: true, hint: '点执行本次温度。', strong: '在控制柜里点执行。', target: at(mapId, 'control') });
+    const execHint = levelId === 'minimum' ? '在分配台点执行，看它送出哪块电池。' : '在控制柜点执行本次温度。';
+    return pack({ id: 'control', step: '8', kind: 'map', thinking: false, goto: true, hint: execHint, strong: '走到发光处，走近并开始。', target: at(mapId, 'control') });
   }
   const place = levelId === 'minimum' ? 'monitor' : 'verify';
   return pack({ id: place, step: '9', kind: 'map', thinking: false, goto: true, hint: '到核验处保存这次结果。', strong: '走到发光处，走近并开始。', target: at(mapId, place) });
