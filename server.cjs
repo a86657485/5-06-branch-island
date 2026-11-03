@@ -185,15 +185,18 @@ function createService(options = {}) {
       if (!bucket.firstSubmittedAt) {
         bucket.firstSubmittedAt = at;
         bucket.firstScore = graded.score;
-        bucket.passed = meets;
         state.quiz.challenge.unlockedAt = at;
-        if (meets && !state.awards['quiz-base']) {
+      }
+      /* 2026-11-03 老师改为“不达标要重答”：任一次达到标准即算达标，20 分只加一次。 */
+      if (meets && !bucket.passed) {
+        bucket.passed = true;
+        if (!state.awards['quiz-base']) {
           state.awards['quiz-base'] = { points: quizApi.basePoints(), label: '达标', at };
           state.points += quizApi.basePoints();
         }
       }
       state.drafts.quiz = { tier: 'challenge', answers: {}, index: 0, quizVersion };
-      return { score: graded.score, total: graded.total, passed: bucket.passed, rewardUnlocked: quizApi.rewardUnlocked(bucket.firstScore), challengeUnlocked: true, details };
+      return { score: graded.score, total: graded.total, passed: bucket.passed, thisPassed: meets, passLine: quizApi.passLine(), rewardUnlocked: quizApi.rewardUnlocked(bucket.firstScore), challengeUnlocked: true, details };
     }
     const meets = quizApi.challengeAwarded(graded.score);
     const attempt = { id: body.eventId, tier, quizVersion, score: graded.score, total: graded.total, at, awarded: meets, details };
@@ -529,7 +532,21 @@ function createService(options = {}) {
         const gate = record ? examGateFor(student.id, record) : { open: false, closed: false, openedAt: null, missing: rules.levels.filter(level => level.required !== false).map(level => level.id) };
         const unlocked = !!(record && record.state.quiz.challenge.unlockedAt);
         const tiers = gate.open && unlocked ? ['base', 'challenge'] : ['base'];
-        return json(res, 200, { quizVersion, questions: gate.open ? quizApi.publicQuestions(tiers) : [], examGate: gate, challengeUnlocked: unlocked, rewardUnlocked: record ? rewardFor(record.state) : false });
+        return json(res, 200, { quizVersion, passLine: quizApi.passLine(), questions: gate.open ? quizApi.publicQuestions(tiers) : [], examGate: gate, challengeUnlocked: unlocked, rewardUnlocked: record ? rewardFor(record.state) : false });
+      }
+      /* 基础层逐题判定：学生一选完就告诉对错和解析，不把整份答案提前下发。 */
+      if (req.method === 'POST' && route === '/api/quiz/check') {
+        const body = await readBody(req);
+        const questionId = String(body.questionId || '');
+        const question = quizApi.byTier('base').find(item => item.id === questionId);
+        if (!question) fail(404, '这道题不在基础层');
+        if (!quizApi.valueAllowed(question, body.value)) fail(400, '答案格式不正确');
+        return json(res, 200, {
+          correct: quizApi.isCorrect(question, body.value),
+          answer: question.answer,
+          explanation: question.explanation || '',
+          review: question.review || ''
+        });
       }
       if (req.method === 'GET' && route === '/api/state') {
         const student=studentById(url.searchParams.get('studentId'));if(!student) fail(404,'学生身份不存在');

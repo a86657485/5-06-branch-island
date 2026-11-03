@@ -129,7 +129,7 @@ function showEngineNote(){
   });
 }
 const emptyState = () => ({drafts:{},levels:{},runs:{},predictions:{},attempts:[],points:0});
-let activeScene = null, sceneGeneration = 0, quizVersion = '', user = null, round = 1, state = emptyState(), current = 'sale', roster = null, questions = [], answerKey = [], quizIndex = 0, quizReview = false, notice = '', lastRun = null, loginClass = '501', loginSearch = '', manual = '', selectedStudent = '';
+let activeScene = null, sceneGeneration = 0, quizVersion = '', quizPassLine = Number(localStorage.getItem('branch-island-passline')) || 0, quizResultTier = '', quizRetakeStarted = false, user = null, round = 1, state = emptyState(), current = 'sale', roster = null, questions = [], answerKey = [], quizIndex = 0, quizReview = false, notice = '', lastRun = null, loginClass = '501', loginSearch = '', manual = '', selectedStudent = '';
 const defaults = {
  sale:{config:{model:'ventilation',operator:'>=',yes:'',no:''},input:{temperature:30},prediction:'',reason:'',hint:0},
  repair:{config:{model:'ventilation',operator:'>=',yes:'off',no:'on'},input:{temperature:30},prediction:'',reason:'',hint:0},
@@ -156,7 +156,7 @@ const queue = new SyncQueue(localStorage,e => api('/api/events',e),(event,data)=
   saveLocal();
   if(event.type==='complete' && !data.result.passed) {notice=data.result.feedback;if(activeScene?.engine==='rpgjs'){setNotice(notice);activeScene.refresh();}else render();}
   if(data.rewardUnlocked!=null){const cached=JSON.parse(localStorage.getItem('branch-island-questions')||'{}');cached.reward=!!data.rewardUnlocked;localStorage.setItem('branch-island-questions',JSON.stringify(cached));}
-  if(event.type==='quiz') {quizReview=true; questions=[]; notice=quizSubmittedNotice(event.payload?.tier);render();}
+  if(event.type==='quiz') {quizReview=true; quizResultTier=event.payload?.tier||''; quizRetakeStarted=false; questions=[]; notice=quizSubmittedNotice(event.payload?.tier);render();}
   updateHeader();
  }
 },(event,error)=>{
@@ -677,26 +677,31 @@ async function renderQuiz(){
   quizIdle.configure({key:`quiz:${closedFocus.id}`,thinking:false});
   return;
  }
- if(!questions.length){try{const data=await api('/api/quiz'+(demo?'':'?studentId='+encodeURIComponent(user.id)));questions=data.questions||[];quizVersion=data.quizVersion||quizVersion;if(demo&&!questions.length&&answerKey.length){questions=answerKey.map(question=>{const interaction=question.interaction?{...question.interaction}:undefined;if(interaction)delete interaction.note;return {id:question.id,goal:question.goal,prompt:question.prompt,options:question.options,tier:question.tier,type:question.type,interaction};});}state.quizOpenedAt=data.examGate?.openedAt||state.quizOpenedAt;if(data.challengeUnlocked||(demo&&questions.some(question=>question.tier==='challenge'))){state.quiz||={};state.quiz.challenge||={};state.quiz.challenge.unlockedAt||='open';}localStorage.setItem('branch-island-questions',JSON.stringify({quizVersion,questions,reward:!!data.rewardUnlocked}));}catch(e){const cached=JSON.parse(localStorage.getItem('branch-island-questions')||'null');questions=cached?.quizVersion&&Array.isArray(cached.questions)?cached.questions:[];quizVersion=cached?.quizVersion||'';if(!questions.length){quizRoot.innerHTML=`<h1>独立检测</h1><p class="notice">${esc(e.message)}。请恢复连接后再次进入，学习记录已保留。</p>`;return;}}}
+ if(!questions.length){try{const data=await api('/api/quiz'+(demo?'':'?studentId='+encodeURIComponent(user.id)));questions=data.questions||[];quizVersion=data.quizVersion||quizVersion;if(Number.isInteger(data.passLine)){quizPassLine=data.passLine;localStorage.setItem('branch-island-passline',String(data.passLine));}if(demo&&!questions.length&&answerKey.length){questions=answerKey.map(question=>{const interaction=question.interaction?{...question.interaction}:undefined;if(interaction)delete interaction.note;return {id:question.id,goal:question.goal,prompt:question.prompt,options:question.options,tier:question.tier,type:question.type,interaction};});}state.quizOpenedAt=data.examGate?.openedAt||state.quizOpenedAt;if(data.challengeUnlocked||(demo&&questions.some(question=>question.tier==='challenge'))){state.quiz||={};state.quiz.challenge||={};state.quiz.challenge.unlockedAt||='open';}localStorage.setItem('branch-island-questions',JSON.stringify({quizVersion,questions,reward:!!data.rewardUnlocked}));}catch(e){const cached=JSON.parse(localStorage.getItem('branch-island-questions')||'null');questions=cached?.quizVersion&&Array.isArray(cached.questions)?cached.questions:[];quizVersion=cached?.quizVersion||'';if(!questions.length){quizRoot.innerHTML=`<h1>独立检测</h1><p class="notice">${esc(e.message)}。请恢复连接后再次进入，学习记录已保留。</p>`;return;}}}
  if(current!=='quiz'||user?.id!==ownerId)return;
  const {mountQuiz}=await import('./quiz-board.mjs');
  const draft=quizDraft();
- const tier=draft.tier==='challenge'&&state.quiz?.challenge?.unlockedAt?'challenge':'base';
+ const base=state.quiz?.base||{};
+ const baseFailed=!!base.first&&!base.passed;
+ const tier=quizResultTier==='base'||baseFailed?'base':(draft.tier==='challenge'&&state.quiz?.challenge?.unlockedAt?'challenge':'base');
  draft.tier=tier;
  const reward=!!JSON.parse(localStorage.getItem('branch-island-questions')||'{}').reward;
  const pending=!demo&&queue.events.some(event=>event.studentId===user.id&&event.round===round&&event.type==='quiz');
- const latest=state.quiz?.base?.latest||state.attempts.at(-1);
- const review=quizReview&&latest?`<section class="records"><h2>最近一次：${latest.score}/${latest.total}</h2>${(latest.details||[]).filter(detail=>detail.status==='incorrect'||detail.correct===false).map(detail=>`<article class="wrong-question"><b>${esc(detail.id)}</b><p>${esc(detail.explanation||'')}</p><p>${esc(detail.review||'')}</p></article>`).join('')||'<p>这次没有要回看的错题。</p>'}</section>`:'';
-  const list=questions.filter(question=>question.tier===tier);
-  const allFilled=list.length>0&&list.every(question=>question.type==='single_choice'?Number.isInteger(draft.answers?.[question.id]):!!draft.confirmed?.[question.id]);
-  const focus=currentFocus({levelId:'quiz',overlay:legacy?null:'exam',exam:{open:true,tier,allFilled,baseSubmitted:!!state.quiz?.base?.first,challengeSubmitted:!!state.quiz?.challenge?.first,challengeUnlocked:!!state.quiz?.challenge?.unlockedAt,showResult:quizReview}});
-  quizIdle.configure({key:`quiz:${tier}:${focus.id}:${draft.index}`,thinking:focus.thinking});
-  mountQuiz(quizRoot,{questions,tier,draft,pending,notice,review,focus,focusStrength:quizStrength,challengeUnlocked:!!state.quiz?.challenge?.unlockedAt,rewardUnlocked:reward,onSave:saveQuiz,onRender:renderQuiz,onTier(next){quizIdle.reset();quizStrength=0;draft.tier=next;draft.index=0;saveQuiz();renderQuiz();},onNotice:setNotice,onSubmit(submitTier,answers){if(demo){notice='演示模式的作答只留在这台设备上。';quizReview=true;saveLocal();renderQuiz();return;}send('quiz','quiz',{tier:submitTier,answers,quizVersion:draft.quizVersion});setNotice('检测正在提交；连接未完成时会保留，恢复后自动提交。');renderQuiz();}});
+ const list=questions.filter(question=>question.tier===tier);
+ const latest=tier==='challenge'?(state.quiz?.challenge?.latest||state.attempts.at(-1)):(base.latest||state.attempts.at(-1));
+ const wrongMarkup=(latest?.details||[]).filter(detail=>detail.status==='incorrect'||detail.correct===false).map(detail=>{const ask=questions.find(item=>item.id===detail.id)?.prompt||'这道题';return `<article class="wrong-question"><b>${esc(ask)}</b><p>解析：${esc(detail.explanation||'')}</p><p>回看：${esc(detail.review||'')}</p></article>`;}).join('');
+ const redoing=quizRetakeStarted||Object.keys(draft.answers||{}).length>0;
+ const verdict=tier==='base'&&base.first?`<section class="quiz-verdict ${base.passed?'is-pass':'is-fail'}" role="status"><h2>${base.passed?'✅ 基础层已达标':'❌ 基础层未达标'}</h2><p>最近一次答对 <b>${latest?.score??0}/${latest?.total??list.length}</b>${quizPassLine?`，达标线 ${quizPassLine}/${latest?.total??list.length}`:''}；每个必考点也要达到最低正确数。</p>${base.passed?'<p>可以切到挑战层，或回园区继续。</p>':redoing?'<p>正在重答：每题作答后立即判定，答完再提交。</p>':'<p>先看下面的错题解析，再点“重答基础层”。</p><button type="button" id="retake-base" class="primary tap-now">重答基础层</button>'}</section>`:'';
+ const review=(tier==='base'&&base.first)||quizReview?`${verdict}${wrongMarkup?`<section class="records"><h2>最近一次：${latest?.score??0}/${latest?.total??list.length}</h2>${wrongMarkup}</section>`:''}`:'';
+ const allFilled=list.length>0&&list.every(question=>question.type==='single_choice'?Number.isInteger(draft.answers?.[question.id]):!!draft.confirmed?.[question.id]);
+ const focus=currentFocus({levelId:'quiz',overlay:legacy?null:'exam',exam:{open:true,tier,allFilled,baseSubmitted:!!state.quiz?.base?.first,basePassed:!!state.quiz?.base?.passed,challengeSubmitted:!!state.quiz?.challenge?.first,challengeUnlocked:!!state.quiz?.challenge?.unlockedAt,showResult:quizReview}});
+ quizIdle.configure({key:`quiz:${tier}:${focus.id}:${draft.index}`,thinking:focus.thinking});
+ mountQuiz(quizRoot,{questions,tier,draft,pending,notice,review,focus,focusStrength:quizStrength,challengeUnlocked:!!state.quiz?.challenge?.unlockedAt,rewardUnlocked:reward,onSave:saveQuiz,onRender:renderQuiz,onCheck(question,value){return api('/api/quiz/check',{questionId:question.id,value});},onRetake(){quizResultTier='';quizReview=false;quizRetakeStarted=true;draft.tier='base';draft.answers={};draft.confirmed={};draft.graded={};draft.index=0;saveQuiz();renderQuiz();},onTier(next){quizIdle.reset();quizStrength=0;quizResultTier='';quizRetakeStarted=false;draft.tier=next;draft.index=0;saveQuiz();renderQuiz();},onNotice:setNotice,onSubmit(submitTier,answers){if(demo){notice='演示模式的作答只留在这台设备上。';quizReview=true;quizResultTier=submitTier;quizRetakeStarted=false;saveLocal();renderQuiz();return;}quizResultTier=submitTier;quizRetakeStarted=false;send('quiz','quiz',{tier:submitTier,answers,quizVersion:draft.quizVersion});setNotice('检测正在提交；连接未完成时会保留，恢复后自动提交。');renderQuiz();}});
   quizRoot.onpointerdown=()=>{quizIdle.reset();if(!quizStrength)return;quizStrength=0;quizRoot.querySelectorAll('.focus-target').forEach(node=>{node.dataset.strength='0';node.classList.remove('tap-hand');});};
 }
 async function boot(){
  try{const config=await api('/api/config');round=config.round;roster=await api('/api/roster');localStorage.setItem('branch-island-roster',JSON.stringify(roster));}catch(e){roster=JSON.parse(localStorage.getItem('branch-island-roster')||'null');if(!roster){$('#app').innerHTML=`<main class="loading"><h1>课堂连接还没有准备好</h1><p>${esc(e.message)}</p><a href="/">重新连接</a></main>`;return;}}
- if(demo){const solutions=await api('/api/teacher/solutions');answerKey=solutions.questions||solutions.quiz||solutions.answers;user={id:'demo',classId:'演示',name:'演示调试员'};const saved=JSON.parse(localStorage.getItem(cacheKey())||'null');state=saved?.state||emptyState();current=saved?.current||'sale';if(current==='quiz')current='sale';  // 重新登录先回到闯关，不落在考核页
+ if(demo){const solutions=await api('/api/teacher/solutions');answerKey=solutions.questions||solutions.quiz||solutions.answers;quizPassLine=Number(solutions.tiers?.base?.passLine)||quizPassLine;user={id:'demo',classId:'演示',name:'演示调试员'};const saved=JSON.parse(localStorage.getItem(cacheKey())||'null');state=saved?.state||emptyState();current=saved?.current||'sale';if(current==='quiz')current='sale';  // 重新登录先回到闯关，不落在考核页
  if(current!=='quiz')rememberStation(current);render();return;}
  const saved=JSON.parse(localStorage.getItem('branch-island-identity')||'null');if(saved){try{attach(await api(`/api/state?studentId=${encodeURIComponent(saved.user.id)}`));return;}catch(e){user=saved.user;round=saved.round;const local=JSON.parse(localStorage.getItem(cacheKey())||'null');if(local){state=local.state;current=local.current;if(current!=='quiz')rememberStation(current);render();return;}user=null;}}
  login();

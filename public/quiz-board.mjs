@@ -11,6 +11,7 @@ function sessionFrom(draft, questions) {
     index: Number.isInteger(draft.index) ? draft.index : 0,
     answers: draft.answers && typeof draft.answers === 'object' && !Array.isArray(draft.answers) ? draft.answers : {},
     confirmed: draft.confirmed && typeof draft.confirmed === 'object' ? draft.confirmed : {},
+    graded: draft.graded && typeof draft.graded === 'object' ? draft.graded : {},
     card: Number.isInteger(draft.card) ? draft.card : null,
     questions
   };
@@ -19,6 +20,7 @@ function sessionFrom(draft, questions) {
 function persist(draft, session) {
   draft.answers = session.answers;
   draft.confirmed = session.confirmed;
+  draft.graded = session.graded;
   draft.index = session.index;
   draft.card = session.card;
 }
@@ -117,6 +119,30 @@ function slotLabel(question, slot, value) {
   return Number.isInteger(value) ? optionLabel(question, value) : '空';
 }
 
+/** 把标准答案翻成学生看得懂的一句话：单选给选项，填空给“槽位：卡片”。 */
+export function answerSummary(question, answer) {
+  if (answer == null) return '';
+  if (typeof answer === 'number') return question.options[answer] ?? '';
+  if (Array.isArray(answer)) return answer.map(index => question.options[index] ?? '').join(' → ');
+  const targets = question.interaction?.targets || [];
+  const targetLabel = value => {
+    const hit = targets.find(item => item.id === value);
+    return hit?.label || hit?.text || value;
+  };
+  return Object.entries(answer).map(([slot, value]) => {
+    const text = Number.isInteger(value) ? (question.options[value] ?? '') : targetLabel(value);
+    return `${slot}：${text}`;
+  }).join('；');
+}
+
+/** 基础层逐题反馈：对错 + 正确答案 + 解析 + 回看。只在该题判过后出现。 */
+export function feedbackMarkup(question, verdict) {
+  if (!verdict) return '';
+  const ok = !!verdict.correct;
+  const answer = ok ? '' : answerSummary(question, verdict.answer);
+  return `<section class="qf-feedback ${ok ? 'is-correct' : 'is-wrong'}" role="status"><p class="qf-verdict">${ok ? '✅ 答对了' : '❌ 答错了'}</p>${answer ? `<p class="qf-answer">正确答案：<b>${esc(answer)}</b></p>` : ''}${verdict.explanation ? `<p class="qf-explain">解析：${esc(verdict.explanation)}</p>` : ''}${verdict.review ? `<p class="qf-review">回看：${esc(verdict.review)}</p>` : ''}</section>`;
+}
+
 export function mountQuiz(root, options) {
   root.classList.add('quiz-root');
   const questions = options.questions.filter(question => question.tier === options.tier);
@@ -135,44 +161,74 @@ export function mountQuiz(root, options) {
   const grouping = question.type === 'matching' || groupsIntoTargets(question);
   const targets = question.interaction?.targets || [];
   const frame = question.interaction?.frame || question.interaction?.code || '';
-  const figure = figureMarkup(question, value, pending);
+  /* 基础层逐题反馈：判过就锁住这一题，对错与解析留在页面上；挑战层仍到提交后才看结果。 */
+  const practice = options.tier === 'base' && typeof options.onCheck === 'function';
+  const verdict = practice ? session.graded[question.id] : null;
+  const frozen = pending || !!verdict;
+  const figure = figureMarkup(question, value, frozen);
   const figureSlots = new Set((question.interaction?.figure?.nodes || []).map(node => node.slot).filter(Boolean));
-  const frameBlock = /\{s\d+\}/.test(frame) ? frameMarkup(question, value, pending, figureSlots) : '';
+  const frameBlock = /\{s\d+\}/.test(frame) ? frameMarkup(question, value, frozen, figureSlots) : '';
   const filledCount = slots.filter(slot => Number.isInteger(value?.[slot])).length;
   const groupedCount = grouping ? Object.keys(value || {}).length : 0;
   const done = filled(question, value);
-  const progress = grouping
-    ? `<p class="qf-progress${done ? '' : ' pending'}">已分 ${groupedCount} / ${question.options.length} 张${done ? '，可以点「确认本题」了' : '，每张卡都要分进一个筐'}</p>`
-    : slots.length
-      ? `<p class="qf-progress${done ? '' : ' pending'}">已填 ${filledCount} / ${slots.length} 个空${done ? '，可以点「确认本题」了' : '，填满后才能确认'}</p>`
-      : '';
-  const cards = question.options.map((text, index) => `<button type="button" data-card="${index}" class="quiz-card ${session.card === index ? 'chosen' : ''}" ${pending ? 'disabled' : 'draggable="true"'}>${esc(text)}</button>`).join('');
+  const progress = verdict
+    ? `<p class="qf-progress">本题已判定，点「下一题」继续。</p>`
+    : grouping
+      ? `<p class="qf-progress${done ? '' : ' pending'}">已分 ${groupedCount} / ${question.options.length} 张${done ? '，可以点「确认本题」了' : '，每张卡都要分进一个筐'}</p>`
+      : slots.length
+        ? `<p class="qf-progress${done ? '' : ' pending'}">已填 ${filledCount} / ${slots.length} 个空${done ? '，可以点「确认本题」了' : '，填满后才能确认'}</p>`
+        : '';
+  const cards = question.options.map((text, index) => `<button type="button" data-card="${index}" class="quiz-card ${session.card === index ? 'chosen' : ''}" ${frozen ? 'disabled' : 'draggable="true"'}>${esc(text)}</button>`).join('');
   const slotButtons = grouping
-    ? targets.map(target => `<button type="button" data-slot="${esc(target.id)}" class="quiz-slot" ${pending ? 'disabled' : ''}>${esc(target.label || target.text || target.id)}</button>`).join('')
-    : slots.map(slot => `<button type="button" data-slot="${esc(slot)}" class="quiz-slot" ${pending ? 'disabled' : ''}><b>${esc(slot)}</b><span>${esc(slotLabel(question, slot, question.type === 'ordering' ? value?.[Number(slot)] : value?.[slot]))}</span></button>`).join('');
+    ? targets.map(target => `<button type="button" data-slot="${esc(target.id)}" class="quiz-slot" ${frozen ? 'disabled' : ''}>${esc(target.label || target.text || target.id)}</button>`).join('')
+    : slots.map(slot => `<button type="button" data-slot="${esc(slot)}" class="quiz-slot" ${frozen ? 'disabled' : ''}><b>${esc(slot)}</b><span>${esc(slotLabel(question, slot, question.type === 'ordering' ? value?.[Number(slot)] : value?.[slot]))}</span></button>`).join('');
   const answerArea = grouping
-    ? `<p class="muted">① 先点一张卡片 ② 再点下面的分类筐；筐里的卡片点一下可以取回。</p><div class="quiz-cards">${cards}</div>${groupingMarkup(question, value, pending)}${progress}`
+    ? `<p class="muted">① 先点一张卡片 ② 再点下面的分类筐；筐里的卡片点一下可以取回。</p><div class="quiz-cards">${cards}</div>${groupingMarkup(question, value, frozen)}${progress}`
     : `<p class="muted">① 先点一张卡片 ② 再点标着「空」的位置。放满后点「确认本题」，才可以去下一题。</p>${figure}${frameBlock}<div class="quiz-cards">${cards}</div>${figureSlots.size || frameBlock ? '' : `<div class="quiz-slots">${slotButtons}</div>`}${progress}`;
+  const answerClass = index => {
+    if (!verdict) return value === index ? 'chosen' : '';
+    if (typeof verdict.answer === 'number' && index === verdict.answer) return 'is-correct';
+    return index === value ? 'is-wrong' : '';
+  };
   const single = question.type === 'single_choice'
-    ? `${figure}<div class="answers">${question.options.map((text, index) => `<button type="button" data-single="${index}" class="answer ${value === index ? 'chosen' : ''}" ${pending ? 'disabled' : ''} aria-pressed="${value === index}"><span>${index + 1}</span>${esc(text)}</button>`).join('')}</div>`
-    : `${answerArea}<div class="qf-actions"><button id="confirm-question" class="primary${done ? ' tap-now' : ''}" ${pending || !done ? 'disabled' : ''}>确认本题</button></div>`;
+    ? `${figure}<div class="answers">${question.options.map((text, index) => `<button type="button" data-single="${index}" class="answer ${answerClass(index)}" ${frozen ? 'disabled' : ''} aria-pressed="${value === index}"><span>${index + 1}</span>${esc(text)}</button>`).join('')}</div>${feedbackMarkup(question, verdict)}`
+    : `${answerArea}<div class="qf-actions">${verdict ? '' : `<button id="confirm-question" class="primary${done ? ' tap-now' : ''}" ${frozen || !done ? 'disabled' : ''}>确认本题</button>`}</div>${feedbackMarkup(question, verdict)}`;
   const review = options.review;
   const focus = options.focus || { id: 'quiz-card-current', hint: '读题作答。整道题一起看，不标选项。', strong: '先点卡片区，再点空格。' };
   const strength = options.focusStrength || 0;
   const submitId = options.tier === 'challenge' ? 'quiz-submit-challenge' : 'quiz-submit-base';
   const focusClass = id => focus.id === id ? ` focus-target${strength >= 2 ? ' tap-hand' : ''}${id === submitId ? ' tap-now' : ''}` : '';
   const focusAttr = id => focus.id === id ? ` data-focus="${id}" data-strength="${strength}"` : '';
-  root.innerHTML = `${review || ''}<p id="quiz-focus-hint" class="focus-hint" role="status">${esc(strength ? focus.strong : focus.hint)}</p><div class="task-heading"><div><p class="eyebrow">${options.tier === 'challenge' ? '挑战层' : '基础层'} · 提交前不显示正误</p><h1>${esc(question.prompt)}</h1></div></div><p class="muted">已完成 ${answered}/${questions.length}。点选和拖放都不会自动跳题。</p><div class="tier-switch"><button type="button" data-tier="base" class="${options.tier === 'base' ? 'primary' : 'quiet'}">基础层</button>${options.challengeUnlocked ? `<button type="button" data-tier="challenge" class="${options.tier === 'challenge' ? 'primary' : 'quiet'}${focusClass('quiz-challenge-entry')}"${focusAttr('quiz-challenge-entry')}>挑战层</button>` : '<span class="muted">挑战层在基础层提交后出现</span>'}</div><div class="question-nav">${questions.map((item, index) => `<button type="button" data-question="${index}" class="${index === session.index ? 'current' : ''} ${item.type === 'single_choice' ? (Number.isInteger(session.answers[item.id]) ? 'answered' : '') : (session.confirmed[item.id] ? 'answered' : '')}">${index + 1}</button>`).join('')}</div><article class="question${focusClass('quiz-card-current')}"${focusAttr('quiz-card-current')}>${single}</article><div class="quiz-actions"><button id="previous" class="quiet" ${session.index === 0 || pending ? 'disabled' : ''}>上一题</button><button id="next-question" class="primary" ${pending || !canLeave(session) ? 'disabled' : ''}>下一题</button><button id="submit-quiz" class="${`primary${focusClass(submitId)}`}"${focusAttr(submitId)} ${pending ? 'disabled' : ''}>${pending ? '正在提交' : '提交这一层'}</button></div><div id="notice" class="notice" ${options.notice ? '' : 'hidden'} role="status">${esc(options.notice)}</div>${options.rewardUnlocked ? `<p class="award"><a href="/reward/index.html">打开奖励小游戏</a></p>` : ''}`;
+  root.innerHTML = `${review || ''}<p id="quiz-focus-hint" class="focus-hint" role="status">${esc(strength ? focus.strong : focus.hint)}</p><div class="task-heading"><div><p class="eyebrow">${options.tier === 'challenge' ? '挑战层 · 提交前不显示正误' : practice ? '基础层 · 每题作答后立即判定' : '基础层'}</p><h1>${esc(question.prompt)}</h1></div></div><p class="muted">已完成 ${answered}/${questions.length}。点选和拖放都不会自动跳题。</p><div class="tier-switch"><button type="button" data-tier="base" class="${options.tier === 'base' ? 'primary' : 'quiet'}">基础层</button>${options.challengeUnlocked ? `<button type="button" data-tier="challenge" class="${options.tier === 'challenge' ? 'primary' : 'quiet'}${focusClass('quiz-challenge-entry')}"${focusAttr('quiz-challenge-entry')}>挑战层</button>` : '<span class="muted">挑战层在基础层提交后出现</span>'}</div><div class="question-nav">${questions.map((item, index) => `<button type="button" data-question="${index}" class="${index === session.index ? 'current' : ''} ${item.type === 'single_choice' ? (Number.isInteger(session.answers[item.id]) ? 'answered' : '') : (session.confirmed[item.id] ? 'answered' : '')}">${index + 1}</button>`).join('')}</div><article class="question${focusClass('quiz-card-current')}"${focusAttr('quiz-card-current')}>${single}</article><div class="quiz-actions"><button id="previous" class="quiet" ${session.index === 0 || pending ? 'disabled' : ''}>上一题</button><button id="next-question" class="primary" ${pending || !canLeave(session) ? 'disabled' : ''}>下一题</button><button id="submit-quiz" class="${`primary${focusClass(submitId)}`}"${focusAttr(submitId)} ${pending ? 'disabled' : ''}>${pending ? '正在提交' : '提交这一层'}</button></div><div id="notice" class="notice" ${options.notice ? '' : 'hidden'} role="status">${esc(options.notice)}</div>${options.rewardUnlocked ? `<p class="award"><a href="/reward/index.html">打开奖励小游戏</a></p>` : ''}`;
   const save = () => { persist(draft, session); options.onSave(); };
+  /* 逐题判定：问服务端拿对错和解析，结果写进草稿，换题再回来仍看得到。 */
+  let judging = false;
+  const judge = async () => {
+    if (!practice || judging) return;
+    judging = true;
+    try {
+      const result = await options.onCheck(question, session.answers[question.id]);
+      if (result) { session.graded[question.id] = result; save(); }
+    } catch (error) {
+      options.onNotice?.(error?.message || '暂时无法判定这一题，先记下答案，提交时统一判定。');
+    } finally {
+      judging = false;
+    }
+  };
+  const retake = root.querySelector('#retake-base');
+  if (retake) retake.onclick = () => options.onRetake?.();
+  /* 判完自动把解析卡带到视野里，学生不用自己往下滚。 */
+  const showVerdict = () => setTimeout(() => { try { root.querySelector('.qf-feedback')?.scrollIntoView({ block: 'nearest' }); } catch {} }, 80);
   root.querySelectorAll('[data-tier]').forEach(button => { button.onclick = () => options.onTier(button.dataset.tier); });
   root.querySelectorAll('[data-question]').forEach(button => { button.onclick = () => { goTo(session, Number(button.dataset.question)); save(); options.onRender(); }; });
-  root.querySelectorAll('[data-single]').forEach(button => { button.onclick = () => { chooseSingle(session, Number(button.dataset.single)); save(); options.onRender(); }; });
+  root.querySelectorAll('[data-single]').forEach(button => { button.onclick = async () => { if (frozen) return; chooseSingle(session, Number(button.dataset.single)); save(); await judge(); options.onRender(); showVerdict(); }; });
   root.querySelectorAll('[data-card]').forEach(button => {
-    button.onclick = () => { chooseCard(session, Number(button.dataset.card)); save(); options.onRender(); };
-    button.ondragstart = event => { event.dataTransfer?.setData('text/plain', button.dataset.card); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'; };
+    button.onclick = () => { if (frozen) return; chooseCard(session, Number(button.dataset.card)); save(); options.onRender(); };
+    button.ondragstart = event => { if (frozen) { event.preventDefault(); return; } event.dataTransfer?.setData('text/plain', button.dataset.card); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'; };
   });
   root.querySelectorAll('[data-slot]').forEach(button => {
     button.onclick = () => {
+      if (frozen) return;
       if (session.card == null) {
         options.onNotice('先点上面的卡片，再点图里的空格。');
         options.onRender();
@@ -187,6 +243,7 @@ export function mountQuiz(root, options) {
     button.ondragover = event => event.preventDefault();
     button.ondrop = event => {
       event.preventDefault();
+      if (frozen) return;
       const card = event.dataTransfer?.getData('text/plain');
       if (card == null || card === '') return;
       dropCard(session, card, button.dataset.slot);
@@ -195,10 +252,11 @@ export function mountQuiz(root, options) {
     };
   });
   const confirm = root.querySelector('#confirm-question');
-  if (confirm) confirm.onclick = () => { confirmCurrent(session); save(); options.onRender(); };
+  if (confirm) confirm.onclick = async () => { if (frozen) return; confirmCurrent(session); save(); await judge(); options.onRender(); showVerdict(); };
   root.querySelectorAll('[data-unassign]').forEach(button => {
     button.onclick = event => {
       event.stopPropagation();
+      if (frozen) return;
       const answers = { ...(session.answers[question.id] || {}) };
       delete answers[button.dataset.unassign];
       session.answers[question.id] = answers;

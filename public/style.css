@@ -336,3 +336,25 @@ tr.row-open>td{background:#f4faf8}
 .tap-next::before{content:"👆 先点这里的卡片";position:absolute;left:10px;top:-12px;background:#e01b24;color:#fff;font-size:11px;font-weight:800;line-height:1;padding:3px 8px;border-radius:999px;z-index:2;white-space:nowrap}
 @keyframes tap-next-soft{0%,100%{border-color:#e01b24;background-color:#fff5f5}50%{border-color:#ff9a9a;background-color:#ffecec}}
 @media (prefers-reduced-motion:reduce){.tap-now,.tap-next{animation:none}}
+
+/* 基础层逐题判定与提交结果（2026-11-03） */
+.answer:disabled{opacity:1;cursor:default}
+.quiz-card:disabled{opacity:.75;cursor:default}
+.quiz-slot:disabled,.qf-slot:disabled,.qf-inline-slot:disabled{opacity:1;cursor:default}
+.answer.is-correct{border-color:#2f7a48;background:#e9f7ee;box-shadow:inset 0 0 0 1px #2f7a48}
+.answer.is-wrong{border-color:#c0392b;background:#fdecea;box-shadow:inset 0 0 0 1px #c0392b}
+.answer.is-correct>span{background:#2f7a48;color:#fff;border-color:#2f7a48}
+.answer.is-wrong>span{background:#c0392b;color:#fff;border-color:#c0392b}
+.qf-feedback{margin-top:14px;padding:13px 16px;border-radius:12px;border:2px solid #bcdcbf;background:#f4faf5;font-size:14px;line-height:1.7}
+.qf-feedback.is-wrong{border-color:#e6b3ad;background:#fff6f5}
+.qf-verdict{margin:0 0 6px;font-size:17px;font-weight:800;color:#1f6b3a}
+.qf-feedback.is-wrong .qf-verdict{color:#b03024}
+.qf-feedback p{margin:4px 0}
+.qf-explain{color:#25463b}
+.qf-review{color:#5a6f66;font-size:13px}
+.quiz-verdict{margin:0 0 14px;padding:16px 18px;border-radius:14px;border:3px solid #9ecfae;background:#eef9f1}
+.quiz-verdict.is-fail{border-color:#e8a9a2;background:#fff4f3}
+.quiz-verdict h2{margin:0 0 6px;font-size:20px;color:#1f6b3a}
+.quiz-verdict.is-fail h2{color:#b03024}
+.quiz-verdict p{margin:4px 0;font-size:13.5px;line-height:1.7;color:#25463b}
+.quiz-verdict button{margin-top:10px}

@@ -288,7 +288,7 @@ test('旧四关首次进入场景需重验，移动保存与服务重启不重�
  assert.equal(saleVisit.state.levels.sale.valid,false);
 });
 
-test('基础层达标分只看第一次提交，重做记入历史但不加分',async t=>{
+test('基础层不达标可重答，重答达标算达标且只加一次分',async t=>{
  const quiz=require('../quiz.cjs');
  const c=await setup(t);await c.api('/api/login',{classId:'501',studentId:'s1'});
  const ventilation={model:'ventilation',operator:'>=',yes:'on',no:'off'};
@@ -303,7 +303,9 @@ test('基础层达标分只看第一次提交，重做记入历史但不加分',
  assert.equal(first.result.score,7);assert.equal(first.result.passed,false);assert.equal(first.state.points,75);assert.equal(first.state.awards['quiz-base'],undefined);
  const perfect={};for(const question of quiz.byTier('base')) perfect[question.id]=structuredClone(question.answer);
  const retake=await c.event('quiz','quiz',{tier:'base',answers:perfect,quizVersion:quiz.version});
- assert.equal(retake.result.score,11);assert.equal(retake.state.quiz.base.passed,false);assert.equal(retake.state.quiz.base.firstScore,7);assert.equal(retake.state.quiz.base.latest.score,11);assert.equal(retake.state.quiz.base.attempts.length,2);assert.equal(retake.state.points,75);assert.equal(retake.state.awards['quiz-base'],undefined);
+ assert.equal(retake.result.score,11);assert.equal(retake.result.passed,true);assert.equal(retake.state.quiz.base.passed,true);assert.equal(retake.state.quiz.base.firstScore,7);assert.equal(retake.state.quiz.base.latest.score,11);assert.equal(retake.state.quiz.base.attempts.length,2);assert.equal(retake.state.points,95);assert.equal(retake.state.awards['quiz-base'].points,20);
+ const again=await c.event('quiz','quiz',{tier:'base',answers:perfect,quizVersion:quiz.version});
+ assert.equal(again.state.points,95);assert.equal(again.state.awards['quiz-base'].points,20);assert.equal(again.state.quiz.base.attempts.length,3);
 });
 
 test('换课次后重新登录不带上节进度，上节记录留在教师历史',async t=>{
