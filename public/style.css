@@ -324,3 +324,15 @@ tr.row-open>td{background:#f4faf8}
 .hint-card button{margin-top:4px}
 .legacy-hint{background:#fff4d8;border-color:#d7b45a;color:#6b4f11}
 .legacy-hint:disabled{background:#eef0ea;border-color:#cdd6cd;color:#8a9a90}
+
+/* 最后一下：红框 + 脉冲 + 手指（2026-11-03）
+ * 学生走到这一步后常停在按钮前问“点哪个”，红框只圈“完成当前步骤”的那一个按钮，
+ * 不圈答案选项，避免替学生作答。
+ */
+.tap-now{position:relative;z-index:6;outline:4px solid #e01b24!important;outline-offset:4px;border-radius:12px;animation:tap-now-ring .95s ease-in-out infinite}
+.tap-now::after{content:"👆 点这里";position:absolute;right:6px;top:-16px;background:#e01b24;color:#fff;font-size:12px;font-weight:800;line-height:1;padding:4px 9px;border-radius:999px;white-space:nowrap;box-shadow:0 4px 12px #e01b2455;pointer-events:none}
+@keyframes tap-now-ring{0%,100%{outline-color:#e01b24;box-shadow:0 0 0 0 #e01b2400}50%{outline-color:#ff8a8a;box-shadow:0 0 0 9px #e01b2433}}
+.tap-next{position:relative;border:3px dashed #e01b24!important;border-radius:12px;animation:tap-next-soft 1.1s ease-in-out infinite}
+.tap-next::before{content:"👆 先点这里的卡片";position:absolute;left:10px;top:-12px;background:#e01b24;color:#fff;font-size:11px;font-weight:800;line-height:1;padding:3px 8px;border-radius:999px;z-index:2;white-space:nowrap}
+@keyframes tap-next-soft{0%,100%{border-color:#e01b24;background-color:#fff5f5}50%{border-color:#ff9a9a;background-color:#ffecec}}
+@media (prefers-reduced-motion:reduce){.tap-now,.tap-next{animation:none}}

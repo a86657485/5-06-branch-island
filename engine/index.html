@@ -119,6 +119,37 @@
         .studio .studio-actions{position:sticky !important;bottom:0 !important;z-index:2;background:#fffaf0;padding:6px 0 4px}
       }
     </style>
+    <style id="lesson-tap-now">
+      /* 最后一下：把“完成当前步骤”的主按钮圈成红框并脉动（2026-11-03）。
+         只圈操作按钮，不圈选项，避免替学生作答。 */
+      .primary-next{
+        position:relative !important;
+        border:4px solid #e01b24 !important;
+        background:#fff5f5 !important;
+        color:#a10c14 !important;
+        box-shadow:0 0 0 4px #e01b2455, 0 6px 18px #e01b2433 !important;
+        animation:tap-now-cta .95s ease-in-out infinite !important;
+      }
+      .primary-next::after{
+        content:"👆 点这里";
+        position:absolute;right:10px;top:-14px;
+        background:#e01b24;color:#fff;font-size:12px;font-weight:800;line-height:1;
+        padding:4px 9px;border-radius:999px;white-space:nowrap;box-shadow:0 4px 12px #e01b2455;
+        pointer-events:none;
+      }
+      @keyframes tap-now-cta{
+        0%,100%{box-shadow:0 0 0 4px #e01b2455, 0 6px 18px #e01b2433}
+        50%{box-shadow:0 0 0 11px #e01b2400, 0 6px 22px #e01b2455}
+      }
+      .studio-lock[data-focus="sentence-lock"], .dialog-return{
+        position:relative !important;
+        border:4px solid #e01b24 !important;background:#fff5f5 !important;color:#a10c14 !important;
+        animation:tap-now-cta .95s ease-in-out infinite !important;
+      }
+      @media (prefers-reduced-motion:reduce){
+        .primary-next,.studio-lock[data-focus="sentence-lock"],.dialog-return{animation:none !important}
+      }
+    </style>
   </head>
   <body>
     <div id="rpg"><div id="vue-gui-overlay"></div></div>

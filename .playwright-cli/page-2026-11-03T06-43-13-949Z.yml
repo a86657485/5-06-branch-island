@@ -1,0 +1,13 @@
+- generic [active] [ref=e1]:
+  - navigation "当前站点四步进度":
+    - generic: 👉 ① 找阿绿领任务
+    - generic [aria-hidden]: ➔
+    - generic: ② 探头采样温度(0/3)
+    - generic [aria-hidden]: ➔
+    - generic: ③ 控制柜装规则并启动
+    - generic [aria-hidden]: ➔
+    - generic: ④ 核验仪看结果(0/3)
+  - status: 🕹️ 用摇杆或方向键前往：先听园艺员说任务。
+  - alert [ref=e3]:
+    - paragraph [ref=e4]: 请从本课学生入口进入园区。
+    - button "重新加载园区" [ref=e5] [cursor=pointer]

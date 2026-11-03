@@ -52,19 +52,27 @@ export function createParkScene(host){
   $('#close-dialogue').focus({preventScroll:true});scheduleSave();
  }
  const button=(key,text,cls='')=>`<button data-choice="${key}" class="${cls}">${esc(text)}</button>`;
+/** 最后一下：红框只圈“完成当前步骤”的那一个按钮，绝不圈答案选项。 */
+function markTap(key){const node=key?root.querySelector(`[data-choice="${key}"]`):null;if(node)node.classList.add('tap-now');return node;}
+/** 四项还没填完时，红框改圈“下一个要填的区块”，让学生知道点哪里，但不提示该选哪张卡。 */
+function markNextBlock(field){const node=field?root.querySelector(`.rule-block.f-${field}`):null;if(node)node.classList.add('tap-next');return node;}
  function input(){if(cross)return{facility:!!s.facility};if(minimum)return s.pair==='pair-b'?{a:9,b:2}:{a:3,b:8};return{temperature:s.temperatureCase||30};}
  function evaluated(){return window.BranchRules.evaluate(id,d().config,input());}
+ /** 这一站是否可以去找负责人汇报（核验记录够不够）。 */
+ function readyToReport(){try{return window.BranchRules.validateComplete(id,d().config,host.getRuns(),({sale:'boundary',repair:'swap',cross:'one',minimum:'compare'})[id],host.getEvidenceStart()).passed;}catch{return false;}}
  function guide(){
   mark('npc');
   if(s.phase==='start'){
    s.phase='assigned';if(repair)mark('inspect');
-   dialogue(repair?'维修员阿诚':cross?'安全员林姐':minimum?'能源工程师':'园区养护员',({sale:'欢迎加入智慧园区调试组。温室的试运行规则是：温度达到30℃就启动风机，否则关闭。请你读取传感器、设置设备，再亲自核验29、30、31℃三种情况。',repair:'设备原本判断“温度＜30℃”，成立就关闭，否则启动。有人把条件改成“≥30℃”，却保留了旧出口。先用30℃重现故障，再修复，别急着改。',cross:'园区规则：附近有可用天桥就走天桥；没有则到斑马线，按信号通行。你要在两种现场条件下核验指引。先到观察点，再设置指引牌。',minimum:'两组巡检电池只有一个充电口，低电量的一组应先充。请分别读取A、B电量，让分配器比较两个数，只送出较小的一组。'})[id],button('start','接受委托，去现场','primary'),{start:()=>{closeDialogue();say(objective());}});return;
+   dialogue(repair?'维修员阿诚':cross?'安全员林姐':minimum?'能源工程师':'园区养护员',({sale:'欢迎加入智慧园区调试组。温室的试运行规则是：温度达到30℃就启动风机，否则关闭。请你读取传感器、设置设备，再亲自核验29、30、31℃三种情况。',repair:'设备原本判断“温度＜30℃”，成立就关闭，否则启动。有人把条件改成“≥30℃”，却保留了旧出口。先用30℃重现故障，再修复，别急着改。',cross:'园区规则：附近有可用天桥就走天桥；没有则到斑马线，按信号通行。你要在两种现场条件下核验指引。先到观察点，再设置指引牌。',minimum:'两组巡检电池只有一个充电口，低电量的一组应先充。请分别读取A、B电量，让分配器比较两个数，只送出较小的一组。'})[id],button('start','接受委托，去现场','primary'),{start:()=>{closeDialogue();say(objective());}});
+   markTap('start');
+   return;
   }
-  const runs=host.getRuns();const ready=(()=>{try{return window.BranchRules.validateComplete(id,d().config,runs,({sale:'boundary',repair:'swap',cross:'one',minimum:'compare'})[id],host.getEvidenceStart()).passed;}catch{return false;}})();
+  const ready=readyToReport();
   if(ready){explain();return;}
   const options=minimum?button('pair-a','领取样本一：A=3%，B=8%')+button('pair-b','领取样本二：A=9%，B=2%'):cross?button('open','核验东门：现场有天桥')+button('closed','核验西门：现场无天桥'):button('sensor','去温度探头读取下一组数据');
   dialogue(repair?'维修员阿诚':cross?'安全员林姐':minimum?'能源工程师':'园区养护员',repair&&!s.visited.includes('diagnosed')?'先读取30℃并让错误设备执行一次，监测屏会告诉你哪里不符。':minimum?'取完两个样本，到分配台设定条件。两种大小关系都要实际验证。':cross?'东门与西门使用同一条规则，现场设施不同。切换现场后请重新观察与预测。':'每个输入都是对同一规则的一次检验。30℃恰好在边界，需要特别核对。',options+button('review','我想说明原因并提交验收')+button('leave','继续巡检'),{
-   'pair-a':()=>setPair('pair-a'),'pair-b':()=>setPair('pair-b'),open:()=>setFacility(true),closed:()=>setFacility(false),sensor:()=>{closeDialogue();navigate(point('sensor'));},review:explain,leave:closeDialogue
+   'pair-a':()=>setPair('pair-a'),'pair-b':()=>setPair('pair-b'),open:()=>setFacility(true),closed:()=>setFacility(false),sensor:()=>{closeDialogue();navigate(point('sensor'),()=>point('sensor').action());},review:explain,leave:closeDialogue
   });
  }
  function setPair(pair){s.pair=pair;s.actorId=pair;s.collected=[];s.measured=false;delete s.ticket;s.phase='assigned';s.actions=[];s.visited=s.visited.filter(v=>v!=='verified');host.onChange({input:input(),prediction:'',scene:copy(s)});closeDialogue();say('样本已准备。请到A、B两个采集台分别读取。');}
@@ -74,14 +82,15 @@ export function createParkScene(host){
   const locked=repair&&!s.visited.includes('diagnosed');
   const choose=(t)=>{s.temperatureCase=t;s.actorId=`sensor${t}`;s.measured=false;delete s.ticket;host.onChange({input:input(),prediction:'',scene:copy(s)});sensor();};
   dialogue('温度传感器 · 试运行输入',`当前环境模拟为${s.temperatureCase}℃。站在探头旁读取数据，再决定设备应怎样运行。`,button('read',`读取探头：${s.temperatureCase}℃`,'primary')+(!locked?[29,30,31].map(t=>button('temp'+t,`切换到${t}℃试运行`)).join(''):'')+button('leave','关闭'),{
-   read:()=>{delete s.ticket;s.measured=true;s.phase='measured';s.actions=[repair?'inspect':'measure'];mark('sensor');host.onChange({input:input(),prediction:'',scene:copy(s)});dialogue('温度传感器',`实读：${s.temperatureCase}℃。数据已送入控制柜。请你判断条件是否成立，设置设备指令并作出预测。`,button('control','去控制柜')+button('leave','继续观察'),{control:()=>{closeDialogue();navigate(point('control'));},leave:closeDialogue});},temp29:()=>choose(29),temp30:()=>choose(30),temp31:()=>choose(31),leave:closeDialogue
+   read:()=>{delete s.ticket;s.measured=true;s.phase='measured';s.actions=[repair?'inspect':'measure'];mark('sensor');host.onChange({input:input(),prediction:'',scene:copy(s)});dialogue('温度传感器',`实读：${s.temperatureCase}℃。数据已送入控制柜。请你判断条件是否成立，设置设备指令并作出预测。`,button('control','去控制柜')+button('leave','继续观察'),{control:()=>{closeDialogue();navigate(point('control'),()=>point('control').action());},leave:closeDialogue});markTap('control');},temp29:()=>choose(29),temp30:()=>choose(30),temp31:()=>choose(31),leave:closeDialogue
   });
+  markTap('read');
  }
- function observe(){if(s.phase==='start'){say('先向安全员领取任务。');return;}delete s.ticket;s.measured=true;s.phase='measured';s.actions=['observe'];host.onChange({input:input(),prediction:'',scene:copy(s)});dialogue('现场观察',s.facility?'你看见一座可用的过街天桥，通向对面步道。':'这一处没有天桥。下方有斑马线与信号灯。',button('sign','去设置指引牌')+button('leave','继续观察'),{sign:()=>{closeDialogue();navigate(point('control'));},leave:closeDialogue});}
+ function observe(){if(s.phase==='start'){say('先向安全员领取任务。');return;}delete s.ticket;s.measured=true;s.phase='measured';s.actions=['observe'];host.onChange({input:input(),prediction:'',scene:copy(s)});dialogue('现场观察',s.facility?'你看见一座可用的过街天桥，通向对面步道。':'这一处没有天桥。下方有斑马线与信号灯。',button('sign','去设置指引牌')+button('leave','继续观察'),{sign:()=>{closeDialogue();navigate(point('control'),()=>point('control').action());},leave:closeDialogue});markTap('sign');}
  function collect(which){
   if(s.phase==='start'){say('先向能源工程师领取任务。');return;}
   if(s.ticket){const selected=Number(s.ticket.output)===input().a?'a':'b';if(which!==selected){say('这个出口没有待充电电池。请根据分配器实际选中的出口去取样。');mark('route-mismatch');return;}s.phase='charging';mark('route');closeDialogue();say(`已取到电池${which.toUpperCase()}（${input()[which]}%），带到充电口核验。`);return;}
-  s.collected||=[];if(!s.collected.includes(which))s.collected.push(which);s.measured=s.collected.length===2;s.phase=s.measured?'measured':'collecting';host.onChange({input:input(),scene:copy(s)});dialogue(`电池${which.toUpperCase()}采集台`,`巡检电池${which.toUpperCase()}剩余电量${input()[which]}%。${s.measured?'两组数据齐了，到分配台决定哪一组先充。':'还要到另一采集台读取另一组。'}`,button('leave','收好样本，继续'),{leave:closeDialogue});
+  s.collected||=[];if(!s.collected.includes(which))s.collected.push(which);s.measured=s.collected.length===2;s.phase=s.measured?'measured':'collecting';host.onChange({input:input(),scene:copy(s)});dialogue(`电池${which.toUpperCase()}采集台`,`巡检电池${which.toUpperCase()}剩余电量${input()[which]}%。${s.measured?'两组数据齐了，到分配台决定哪一组先充。':'还要到另一采集台读取另一组。'}`,button('leave','收好样本，继续'),{leave:closeDialogue});markTap('leave');
  }
  function control(){
   if(!s.measured){say(minimum?'先到A、B两处读取电量样本。':cross?'先到观察点核对设施。':'先到温度探头读取本组数据。');return;}
@@ -135,12 +144,19 @@ export function createParkScene(host){
     const missing=panelStatus(id,d().config,ctx).missing.concat(d().prediction?[]:['预测']);
     if(missing.length){say(`还差：${missing.join('、')}。`);control();return;}
     try{evaluated();}catch(e){say(e.message);return;}
-    closeDialogue();if(cross||minimum)execute();else navigate(point('fan'));
+    closeDialogue();if(cross||minimum)execute();else navigate(point('fan'),()=>execute());
   };
   handlers.leave=closeDialogue;
   dialogue(minimum?'电量分配台':cross?'现场指引牌':repair?'故障控制柜':'通风控制柜',
     locked?'规则现在是锁住的，先看它错在哪，再决定怎么改。':'按 ①②③④ 一步步填，最后再写预测。',
     html,handlers,{wide:true});
+  /* 最后一下：四项齐了圈「执行」；设备锁着圈唯一的下一步；还缺项就圈下一个要填的区块。 */
+  const tap=locked?(s.ticket?'gotoverify':d().prediction?'gofan':''):(!need.length?'execute':'');
+  if(tap)markTap(tap);
+  else if(!locked&&need.length){
+   const miss=status.missing[0];
+   markNextBlock(miss==='判断条件'?'operator':miss==='是分支动作'?'yes':miss==='否分支动作'?'no':!d().prediction?'prediction':'');
+  }
  }
  function execute(){
   if(!s.measured){say('还没有本次输入数据，先到探头或采集台读一次。');return;}
@@ -159,9 +175,10 @@ export function createParkScene(host){
   const text=minimum?`实际选中${result.output}%电量的电池。${result.correct?'确实是较低的一组，可以先充电。':'这不是较低的一组，充电口暂不接入，请检查比较条件与出口。'}`:cross?(outcome==='blocked'?'现场没有天桥，设备却指向天桥。你留在安全侧，未过街；这条指引不能执行，请修订条件对应的出口。':`现场条件${result.condition?'成立':'不成立'}，指引走${labelOut(result.output)}。${result.correct?'这次路线与园区规则一致。':'这次指引与园区规则不符，请修订。'}`):`${input().temperature}℃使条件${result.condition?'成立':'不成立'}，风机实际${result.output==='on'?'启动':'关闭'}。${result.correct?'符合本园试运行规则。':'与规定结果不符，请检查对应出口。'}`;
   mark('verified');s.lastFeedback=text;s.phase='measured';delete s.ticket;s.actions=[];host.onChange({prediction:'',scene:copy(s)});refresh();
   dialogue(minimum?'充电口反馈':cross?'对岸核验员':'现场监测屏',text,button('continue','继续检验其他输入')+button('review','向NPC汇报与验收'),{continue:closeDialogue,review:explain});
+  markTap(readyToReport()?'review':'continue');
  }
  function explain(){
-  if(host.getLevel()?.valid){dialogue('验收负责人','你已经用不同输入检验了本轮方案，现场记录与理由都已保存。',button('next','前往下一项任务','primary')+button('leave','留在园区继续试验'),{next:()=>host.onNext(),leave:closeDialogue});return;}
+  if(host.getLevel()?.valid){dialogue('验收负责人','你已经用不同输入检验了本轮方案，现场记录与理由都已保存。',button('next','前往下一项任务','primary')+button('leave','留在园区继续试验'),{next:()=>host.onNext(),leave:closeDialogue});markTap('next');return;}
   const choices=host.reasons||[];const handlers={leave:closeDialogue};
   const html=choices.map(([value,label],i)=>{handlers['reason'+i]=()=>{host.onReason(value);const result=host.onComplete();if(disposed)return;dialogue('验收负责人',result?.feedback||'已记录本次汇报。',button('leave','关闭，继续现场核验'),{leave:closeDialogue});};return button('reason'+i,label);}).join('')+button('leave','先回现场再检查');
   dialogue('验收负责人',({sale:'请结合29、30、31℃的现场结果，解释边界为什么这样处理。',repair:'你修改了什么？为什么改变条件方向后，出口也需要调整？',cross:'你怎样根据现场条件选择唯一一条指引？',minimum:'为什么比较后只给其中一组电池优先充电？'})[id],html,handlers);
